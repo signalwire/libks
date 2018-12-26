@@ -243,7 +243,6 @@ static __inline int ks_hash_equalkeys_int64(void *k1, void *k2)
 
 static __inline uint32_t ks_hash_default_uuid(void *ky)
 {
-	uuid_t *val= (uuid_t*)ky;
 	uint64_t *cast = (uint64_t *)ky;
 	return ks_hash_default_int64(&cast[0]) ^ ks_hash_default_int64(&cast[1]);
 }

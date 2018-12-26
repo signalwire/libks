@@ -253,9 +253,6 @@ struct ks_q_s;
 typedef struct ks_q_s ks_q_t;
 typedef void (*ks_flush_fn_t)(ks_q_t *q, void *ptr, void *flush_data);
 
-struct ks_lfq_s;
-typedef struct ks_lfq_s ks_lfq_t;
-
 typedef struct ks_thread_pool_s ks_thread_pool_t;
 
 struct ks_network_list;
