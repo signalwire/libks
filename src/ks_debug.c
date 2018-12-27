@@ -22,6 +22,10 @@
 
 #include "libks/ks.h"
 
+#if KS_PLAT_MAC
+#include <signal.h>
+#endif
+
 #if defined(HAVE_LIBBACKTRACE)
 #include "backtrace.h"
 

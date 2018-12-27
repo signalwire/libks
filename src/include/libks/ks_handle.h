@@ -89,7 +89,6 @@ typedef uint64_t ks_handle_t;
 #define KS_HANDLE_TYPE_FROM_HANDLE(handle) (KS_HANDLE_HIGH_DWORD(handle))
 #define KS_HANDLE_GROUP_INDEX_FROM_HANDLE(handle) (KS_HANDLE_LOW_WORD(KS_HANDLE_HIGH_DWORD(handle)))
 
-typedef uint64_t ks_handle_t;
 typedef uint32_t ks_handle_type_t;
 
 typedef void *(*ks_handle_construct_cb_t) (ks_handle_t, void *);

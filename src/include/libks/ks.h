@@ -64,7 +64,6 @@ KS_END_EXTERN_C
 #include "libks/ks_hash.h"
 #include "libks/ks_config.h"
 #include "libks/ks_q.h"
-#include "libks/ks_lfq.h"
 #include "libks/ks_buffer.h"
 #include "libks/ks_time.h"
 #include "libks/ks_socket.h"

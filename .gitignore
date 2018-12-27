@@ -29,7 +29,6 @@ Makefile.in
 build
 tests/test_thread_pools
 tests/testacl
-tests/testlfq
 tests/testrealloc
 tests/teststring
 :w

@@ -44,25 +44,6 @@ static inline uint64_t ks_atomic_decrement_uint64(volatile uint64_t *value) { re
 
 static inline ks_size_t ks_atomic_decrement_size(volatile ks_size_t *value) { return InterlockedDecrementSizeT(value) + 1; }
 
-
-static inline ks_bool_t ks_atomic_cas_uint32(volatile uint32_t *destination, uint32_t comperand, uint32_t swapped)
-{ return (ks_bool_t)(InterlockedCompareExchange(destination, swapped, comperand) == comperand); }
-
-static inline ks_bool_t ks_atomic_cas_uint64(volatile uint64_t *destination, uint64_t comperand, uint64_t swapped)
-{ return (ks_bool_t)(InterlockedCompareExchange64((volatile LONG64 *)destination, swapped, comperand) == comperand); }
-
-static inline ks_bool_t ks_atomic_cas_size(volatile ks_size_t *destination, ks_size_t comperand, ks_size_t swapped)
-{
-#ifdef IS64BIT
-	return (ks_bool_t)(InterlockedCompareExchange64((volatile LONG64 *)destination, swapped, comperand) == comperand);
-#else
-	return (ks_bool_t)(InterlockedCompareExchange((volatile DWORD *)destination, swapped, comperand) == comperand);
-#endif
-}
-
-static inline ks_bool_t ks_atomic_cas_ptr(volatile void **destination, void *comperand, void *swapped)
-{ return (ks_bool_t)(InterlockedCompareExchangePointer((void **)destination, swapped, comperand) == comperand); }
-
 #else // GCC/CLANG
 
 static inline uint32_t ks_atomic_increment_uint32(volatile uint32_t *value) { return __atomic_fetch_add(value, 1, __ATOMIC_SEQ_CST); }
@@ -76,30 +57,6 @@ static inline uint32_t ks_atomic_decrement_uint32(volatile uint32_t *value) { re
 static inline uint64_t ks_atomic_decrement_uint64(volatile uint64_t *value) { return __atomic_fetch_add(value, -1, __ATOMIC_SEQ_CST); }
 
 static inline ks_size_t ks_atomic_decrement_size(volatile ks_size_t *value) { return __atomic_fetch_add(value, -1, __ATOMIC_SEQ_CST); }
-
-static inline ks_bool_t ks_atomic_cas_uint32(volatile uint32_t *destination, uint32_t comperand, uint32_t swapped)
-{ return (ks_bool_t)__atomic_compare_exchange_4(destination, &comperand, swapped, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
-
-static inline ks_bool_t ks_atomic_cas_uint64(volatile uint64_t *destination, uint64_t comperand, uint64_t swapped)
-{ return (ks_bool_t)__atomic_compare_exchange_8(destination, &comperand, swapped, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
-
-static inline ks_bool_t ks_atomic_cas_size(volatile ks_size_t *destination, ks_size_t comperand, ks_size_t swapped)
-{
-#ifdef IS64BIT
-	return (ks_bool_t)__atomic_compare_exchange_8(destination, &comperand, swapped, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
-#else
-	return (ks_bool_t)__atomic_compare_exchange_4(destination, &comperand, swapped, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
-#endif
-}
-
-static inline ks_bool_t ks_atomic_cas_ptr(void **destination, void *comperand, void *swapped)
-{
-#ifdef IS64BIT
-	return (ks_bool_t)__atomic_compare_exchange_8(destination, &comperand, (uintptr_t)swapped, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
-#else
-	return (ks_bool_t)__atomic_compare_exchange_4(destination, &comperand, (uintptr_t)swapped, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
-#endif
-}
 
 #endif
 

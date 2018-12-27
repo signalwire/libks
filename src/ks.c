@@ -27,7 +27,7 @@
 static ks_pool_t *g_pool;
 
 /* This keeps track of the number of calls to init, since we allow layered inits
-/* we will null up the 2+ inits until the loaded count drops to zero on deinit. */
+ * we will null up the 2+ inits until the loaded count drops to zero on deinit. */
 static ks_size_t g_init_count;
 
 /* We must lock to ensure we don't let secondary initializers return prior to the first
