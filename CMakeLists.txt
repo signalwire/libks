@@ -21,6 +21,7 @@ if(KS_PLAT_LIN)
 	find_package(Git)
 	find_program(GZIP_CMD gzip)
 	find_program(DATE_CMD date)
+	find_program(DPKG_CMD dpkg)
 endif()
 
 # Fixes build on older gcc, Debian Jessie
@@ -149,7 +150,12 @@ if("${CMAKE_OS_NAME}" STREQUAL "Debian")
 	set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
 
 	# Set package architecture
-	set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE ${CPACK_SYSTEM_NAME})
+	if(DPKG_CMD)
+		execute_process(COMMAND ${DPKG_CMD} --print-architecture OUTPUT_VARIABLE DEB_ARCH OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+		set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE ${DEB_ARCH})
+		set(CPACK_SYSTEM_NAME ${DEB_ARCH})
+		unset(DEB_ARCH)
+	endif()
 
 	# Enforce Debian policy permission rules
 	set(CPACK_DEBIAN_PACKAGE_CONTROL_STRICT_PERMISSION ON)
