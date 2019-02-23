@@ -128,7 +128,7 @@ static inline ks_status_t __reserve_slot(ks_handle_group_t *group,
 
 	/* Try again at zero if we couldn't find one at the hint
 	 * (Always start at 1, 0 is invalid) */
-	if (start_index) {
+	if (start_index > 1) {
 		return __reserve_slot(group, 1, found_index, found_slot);
 	}
 

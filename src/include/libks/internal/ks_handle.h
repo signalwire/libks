@@ -29,7 +29,7 @@ KS_BEGIN_EXTERN_C
  * tracking structures across ks are all small fixed sized items.
  */
 #define KS_HANDLE_MAX_SIZE 		512
-#define KS_HANDLE_MAX_SLOTS 	65536 	/* max value of uint16_t */
+#define KS_HANDLE_MAX_SLOTS 	65535 	/* max value of uint16_t */
 #define KS_HANDLE_MAX_GROUPS	20
 
 #define KS_HANDLE_MAX_NOTREADY_WAIT_MS	(30 * 1000)	/* Wait 30 seconds before considering a hung not ready call */
