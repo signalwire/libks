@@ -480,6 +480,15 @@ KS_DECLARE(const char * const) ks_json_get_object_cstr(const ks_json_t * const o
 	return NULL;
 }
 
+KS_DECLARE(const char * const) ks_json_get_object_cstr_def(const ks_json_t * const object, const char * const key, const char * def)
+{
+	const ks_json_t *item = ks_json_get_object_item(object, key);
+	if (!item || !ks_json_type_is_string(item) || !item->valuestring) {
+		return def;
+	}
+	return item->valuestring;
+}
+
 KS_DECLARE(int) ks_json_get_object_number_int(const ks_json_t * const object, const char * const key)
 {
 	const ks_json_t *item = ks_json_get_object_item(object, key);
