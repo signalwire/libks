@@ -167,6 +167,7 @@ KS_DECLARE(ks_json_t *) ks_json_get_object_item(const ks_json_t * const object, 
 KS_DECLARE(ks_bool_t) ks_json_get_object_bool(const ks_json_t * const object, const char * const string);
 KS_DECLARE(ks_bool_t) ks_json_get_object_bool_def(const ks_json_t * const object, const char * const string, ks_bool_t def);
 KS_DECLARE(const char * const) ks_json_get_object_cstr(const ks_json_t * const object, const char * const key);
+KS_DECLARE(const char * const) ks_json_get_object_cstr_def(const ks_json_t * const object, const char * const key, const char * def);
 KS_DECLARE(int) ks_json_get_object_number_int(const ks_json_t * const object, const char * const key);
 KS_DECLARE(int) ks_json_get_object_number_int_def(const ks_json_t * const object, const char * const key, int def);
 KS_DECLARE(double) ks_json_get_object_number_double(const ks_json_t * const object, const char * const key);

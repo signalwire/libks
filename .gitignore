@@ -31,6 +31,7 @@ tests/test_thread_pools
 tests/testacl
 tests/testrealloc
 tests/teststring
+tests/testjson
 :w
 uninstall.cmake
 install_manifest.txt
@@ -57,3 +58,4 @@ changelog.Debian.gz
 build-Win32/
 build-x64/
 !win/*
+
