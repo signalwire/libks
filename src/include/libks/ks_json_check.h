@@ -25,25 +25,28 @@
 #ifndef KS_JSON_CHECK_H
 #define KS_JSON_CHECK_H
 
+typedef int (*ks_json_simple_check_function)(ks_json_t *);
 typedef int (*ks_json_check_function)(ks_json_t *, const char **);
 
 #define JSON_CHECK_DECL(name) KS_DECLARE(int) CHECK_##name(ks_json_t *item, const char **error_msg);
-#define JSON_CHECK(name, rule) KS_DECLARE(int) CHECK_##name(ks_json_t *item, const char **error_msg) { if (!ks_json_check_object(item, rule)) { *error_msg = #name " error"; return 0; }
+#define JSON_CHECK(name, rule) KS_DECLARE(int) CHECK_##name(ks_json_t *item, const char **error_msg) { ks_json_t *cur = NULL; if (!ks_json_check_object(item, rule)) { *error_msg = #name " error"; return 0; }
 #define JSON_CHECK_ARRAY(name, rule) KS_DECLARE(int) CHECK_##name(ks_json_t *item, const char **error_msg) { if (!ks_json_check_array_items(item, CHECK_##rule, error_msg)) { return 0; }
 
 #define JSON_CHECK_OBJECT(name, rule) if (!CHECK_##rule(ks_json_get_object_item(item, #name), error_msg)) { return 0; }
-#define JSON_CHECK_OBJECT_OPTIONAL(name, rule) if (ks_json_get_object_item(item, #name) && !CHECK_##rule(ks_json_get_object_item(item, #name), error_msg)) { return 0; }
-#define JSON_CHECK_ARRAY_ITEMS(name, rule) if (!ks_json_check_array_items(ks_json_get_object_item(item, #name), CHECK_##rule, error_msg)) { return 0; }
+#define JSON_CHECK_OBJECT_OPTIONAL(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !CHECK_##rule(cur, error_msg)) { return 0; }
+#define JSON_CHECK_OBJECT_IF_STRING_MATCHES(value, name, rule) if (ks_json_check_string_matches(cur, value) && !CHECK_##rule(ks_json_get_object_item(item, #name), error_msg)) { return 0; }
+#define JSON_CHECK_ARRAY_ITEMS(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_check_array_items(cur, CHECK_##rule, error_msg)) { return 0; }
 
-#define JSON_CHECK_NUMBER(name, rule) if (!ks_json_check_number_##rule(ks_json_get_object_item(item, #name))) { *error_msg = #name " error"; return 0; }
-#define JSON_CHECK_NUMBER_OPTIONAL(name, rule) if (ks_json_get_object_item(item, #name) && !ks_json_check_number_##rule(ks_json_get_object_item(item, #name))) { *error_msg = #name " error"; return 0; }
-#define JSON_CHECK_STRING(name, rule) if (!ks_json_check_string_##rule(ks_json_get_object_item(item, #name))) { *error_msg = #name " error"; return 0; }
-#define JSON_CHECK_STRING_OPTIONAL(name, rule) if (ks_json_get_object_item(item, #name) && !ks_json_check_string_##rule(ks_json_get_object_item(item, #name))) { *error_msg = #name " error"; return 0; }
-#define JSON_CHECK_STRING_MATCHES(name, rule) if (!ks_json_check_string_matches(ks_json_get_object_item(item, #name), rule)) { *error_msg = #name " error"; return 0; }
-#define JSON_CHECK_STRING_MATCHES_OPTIONAL(name, rule) if (ks_json_get_object_item(item, #name) && !ks_json_check_string_matches(ks_json_get_object_item(item, #name), rule)) { *error_msg = #name " error"; return 0; }
+#define JSON_CHECK_NUMBER(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_check_number_##rule(cur)) { *error_msg = #name " error"; return 0; }
+#define JSON_CHECK_NUMBER_OPTIONAL(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_check_number_##rule(cur)) { *error_msg = #name " error"; return 0; }
+#define JSON_CHECK_STRING(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_check_string_##rule(cur)) { *error_msg = #name " error"; return 0; }
+#define JSON_CHECK_STRING_ARRAY(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_check_string_array(cur, ks_json_check_string_##rule)) { *error_msg = #name " error"; return 0; }
+#define JSON_CHECK_STRING_OPTIONAL(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_check_string_##rule(cur)) { *error_msg = #name " error"; return 0; }
+#define JSON_CHECK_STRING_MATCHES(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_check_string_matches(cur, rule)) { *error_msg = #name " error"; return 0; }
+#define JSON_CHECK_STRING_MATCHES_OPTIONAL(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_check_string_matches(cur, rule)) { *error_msg = #name " error"; return 0; }
 
-#define JSON_CHECK_BOOLEAN(name) if (!ks_json_get_object_item(item, #name) || !ks_json_type_is_bool(ks_json_get_object_item(item, #name))) { *error_msg = #name " error"; return 0; }
-#define JSON_CHECK_BOOLEAN_OPTIONAL(name) if (ks_json_get_object_item(item, #name) && !ks_json_type_is_bool(ks_json_get_object_item(item, #name))) { *error_msg = #name " error"; return 0; }
+#define JSON_CHECK_BOOLEAN(name) if (!(cur = ks_json_get_object_item(item, #name)) || !ks_json_type_is_bool(cur)) { *error_msg = #name " error"; return 0; }
+#define JSON_CHECK_BOOLEAN_OPTIONAL(name) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_type_is_bool(cur)) { *error_msg = #name " error"; return 0; }
 
 #define JSON_CHECK_END return 1; }
 
@@ -61,16 +64,19 @@ KS_DECLARE(int) ks_json_check_number_is_positive_or_neg_one(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_number_is_decimal_between_zero_and_one(ks_json_t* item);
 
 KS_DECLARE(int) ks_json_check_string_matches(ks_json_t *item, const char *rule);
+KS_DECLARE(int) ks_json_check_string_array_items(ks_json_t *item, ks_json_simple_check_function check);
 KS_DECLARE(int) ks_json_check_string_is_not_negative(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_string_is_positive(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_string_is_positive_or_neg_one(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_string_is_decimal_between_zero_and_one(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_string_is_any(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_string_is_dtmf_digit(ks_json_t* item);
+KS_DECLARE(int) ks_json_check_string_is_dtmf_digits(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_string_is_uuid(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_string_is_e164(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_string_is_any_nullable(ks_json_t *item);
 KS_DECLARE(int) ks_json_check_string_is_any_or_empty(ks_json_t *item);
+KS_DECLARE(int) ks_json_check_string_is_https(ks_json_t *item);
 
 KS_DECLARE(int) ks_json_check_string_starts_with(ks_json_t *item, const char *match);
 KS_DECLARE(int) ks_json_check_string_ends_with(ks_json_t *item, const char *match);
