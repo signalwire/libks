@@ -181,6 +181,25 @@ KS_DECLARE(int) ks_json_check_string_is_dtmf_digit(ks_json_t* item)
 	return ks_json_type_is_string(item) && !zstr(item->valuestring) && strlen(item->valuestring) == 1 && is_dtmf_digit(item->valuestring[0]);
 }
 
+KS_DECLARE(int) ks_json_check_string_is_dtmf_digits(ks_json_t* item)
+{
+	int i;
+	int len;
+
+	if (!ks_json_type_is_string(item) || zstr(item->valuestring)) {
+		return 0;
+	}
+
+	len = strlen(item->valuestring);
+
+	for (i = 0; i < len; i++) {
+		if (!is_dtmf_digit(item->valuestring[i])) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
 static int string_matches(const char *value, const char *rule)
 {
 	if (rule && *rule && value && *value && !strchr(value, ',')) {
@@ -226,6 +245,12 @@ KS_DECLARE(int) ks_json_check_string_matches(ks_json_t *item, const char *rule)
 	return string_matches(item->valuestring, rule);
 }
 
+KS_DECLARE(int) ks_json_check_string_is_https(ks_json_t *item)
+{
+	return ks_json_type_is_string(item) && !zstr(item->valuestring) && 
+		strlen(item->valuestring) > 8 && !strncasecmp("https://", item->valuestring, strlen("https://"));
+}
+
 KS_DECLARE(int) ks_json_check_object(ks_json_t *json, const char *item_names)
 {
 	if (!ks_json_type_is_object(json)) {
@@ -251,6 +276,20 @@ KS_DECLARE(int) ks_json_check_array_items(ks_json_t *json, ks_json_check_functio
 	ks_json_t *item = NULL;
 	for (item = ks_json_enum_child(json); item; item = ks_json_enum_next(item)) {
 		if (!check(item, error_msg)) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+KS_DECLARE(int) ks_json_check_string_array(ks_json_t *json, ks_json_simple_check_function check)
+{
+	if (!ks_json_type_is_array(json)) {
+		return 0;
+	}
+	ks_json_t *item = NULL;
+	for (item = ks_json_enum_child(json); item; item = ks_json_enum_next(item)) {
+		if (!check(item)) {
 			return 0;
 		}
 	}
