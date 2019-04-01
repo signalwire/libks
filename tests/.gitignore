@@ -10,6 +10,7 @@ testq
 testsock
 testsock2
 testwebsock
+testwebsock2
 testdht
 testlog
 testdht_net
