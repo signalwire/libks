@@ -222,8 +222,8 @@ KS_DECLARE(int) ks_json_check_string_is_uuid(ks_json_t* item)
 	if (!ks_json_type_is_string(item) || zstr(item->valuestring) || strlen(item->valuestring) != 36) {
 		return 0;
 	}
-	uuid_t parsed = { 0 };
-	return uuid_parse(item->valuestring, parsed) == 0;
+	ks_uuid_t parsed = { 0 };
+	return uuid_parse(item->valuestring, (unsigned char *)&parsed) == 0;
 }
 
 KS_DECLARE(int) ks_json_check_string_is_e164(ks_json_t* item)
