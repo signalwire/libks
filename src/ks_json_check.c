@@ -23,7 +23,9 @@
  *
  */
 #include "libks/ks.h"
+#ifdef NOT KS_PLAT_WIN
 #include <uuid/uuid.h>
+#endif
 #include "cJSON/cJSON.h"
 
 /* todo move util functions to ks_utils.c */
@@ -223,7 +225,12 @@ KS_DECLARE(int) ks_json_check_string_is_uuid(ks_json_t* item)
 		return 0;
 	}
 	ks_uuid_t parsed = { 0 };
+
+#ifdef KS_PLAT_WIN
+	return UuidFromStringA((unsigned char *)item->valuestring, &parsed) == RPC_S_OK;
+#else
 	return uuid_parse(item->valuestring, (unsigned char *)&parsed) == 0;
+#endif
 }
 
 KS_DECLARE(int) ks_json_check_string_is_e164(ks_json_t* item)
