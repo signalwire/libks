@@ -23,7 +23,7 @@
  *
  */
 #include "libks/ks.h"
-#ifdef NOT KS_PLAT_WIN
+#ifndef KS_PLAT_WIN
 #include <uuid/uuid.h>
 #endif
 #include "cJSON/cJSON.h"
