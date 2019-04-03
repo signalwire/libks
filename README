@@ -1,4 +1,4 @@
-To build use cmake (Minimum version 3.6.2):
+To build use cmake (Minimum version 3.7.2):
 cmake .
 make
 
@@ -28,3 +28,16 @@ ctest .
 
 To build release package with build number 42:
 PACKAGE_RELEASE="42" cmake . -DCMAKE_BUILD_TYPE=Release && make package
+
+To buld CMAKE from source
+wget https://cmake.org/files/v3.7/cmake-3.7.2.tar.gz
+tar -zxvf cmake-3.7.2.tar.gz
+cd cmake-3.7.2
+./bootstrap --prefix=/usr/local
+make
+make install
+/usr/local/bin/cmake --version
+
+Centos dependencies:
+- yum groupinstall "Development Tools"
+- yum install libuuid-devel libatomic openssl-devel
