@@ -572,6 +572,14 @@ static ks_status_t __handle_destroy(ks_handle_t *handle, ks_status_t *child_stat
 	if (status = __lookup_allocated_slot(KS_HANDLE_TYPE_FROM_HANDLE(*handle), *handle, KS_TRUE, 0, &group, &slot_index, &slot))
 		return status;
 
+	/* prevent simultaneous destroy */
+	if (slot->flags & KS_HANDLE_FLAG_DESTROY) {
+		__unlock_slot(slot);
+		*handle = KS_NULL_HANDLE;
+		return KS_STATUS_SUCCESS;
+	}
+	slot->flags |= KS_HANDLE_FLAG_DESTROY;
+
 	/* See if it is not, not ready. Illegal unless there is a deinit cb set. */
 	if (!(slot->flags & KS_HANDLE_FLAG_NOT_READY)) {
 		void *data;
@@ -586,8 +594,11 @@ static ks_status_t __handle_destroy(ks_handle_t *handle, ks_status_t *child_stat
 
 		/* Now free all children if children were set */
 		if (slot->child_count) {
-			if (status = __destroy_slot_children(*handle))
+			if (status = __destroy_slot_children(*handle)) {
+				// have to let retry destroy
+				slot->flags &= ~KS_HANDLE_FLAG_DESTROY;
 				return status;
+			}
 		}
 
 		/* Now call deinit on it */

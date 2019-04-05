@@ -39,6 +39,7 @@ KS_BEGIN_EXTERN_C
 #define KS_HANDLE_FLAG_READY		1	/* The handle is ready for get/set operations */
 #define KS_HANDLE_FLAG_NOT_READY	2	/* The handle has been flagged for tear down */
 #define KS_HANDLE_FLAG_ALLOCATED	4	/* The handle has been reserved */
+#define KS_HANDLE_FLAG_DESTROY		8	/* The handle is being destroyed */
 
 /* Handles are stored in a fixed static array, wich each handle
  * entry being described in such a way that a lock free approach can
