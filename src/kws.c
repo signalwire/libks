@@ -1165,6 +1165,8 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 				}
 
 				kws->body = kws->bbuffer + blen;
+				// TODO: remove this
+				ks_assert(ks_pool_check_fence(kws->bbuffer) == KS_STATUS_SUCCESS);
 			}
 
 			kws->rplen = kws->plen - need;
@@ -1172,11 +1174,16 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 			if (kws->rplen) {
 				ks_assert((kws->body + kws->rplen) <= (kws->bbuffer + kws->bbuflen));
 				memcpy(kws->body, kws->payload, kws->rplen);
+				// TODO: remove this
+				ks_assert(ks_pool_check_fence(kws->bbuffer) == KS_STATUS_SUCCESS);
 			}
 
 			while(need) {
 				ks_assert((kws->body + need + kws->rplen) <= (kws->bbuffer + kws->bbuflen));
 				ks_ssize_t r = kws_raw_read(kws, kws->body + kws->rplen, need, WS_BLOCK);
+
+				// TODO: remove this
+				ks_assert(ks_pool_check_fence(kws->bbuffer) == KS_STATUS_SUCCESS);
 
 				if (r < 1) {
 					/* invalid read - protocol err .. */
@@ -1196,6 +1203,8 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 				for (i = 0; i < kws->datalen; i++) {
 					kws->body[i] ^= maskp[i % 4];
 				}
+				// TODO: remove this
+				ks_assert(ks_pool_check_fence(kws->bbuffer) == KS_STATUS_SUCCESS);
 			}
 
 			if (*oc == WSOC_TEXT) {

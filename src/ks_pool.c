@@ -1782,6 +1782,11 @@ KS_DECLARE(void) ks_free(void *data)
 	ks_pool_free(&data);
 }
 
+KS_DECLARE(ks_status_t) ks_pool_check_fence(void *addr)
+{
+	return check_fence(addr);
+}
+
 /* For Emacs:
  * Local Variables:
  * mode:c

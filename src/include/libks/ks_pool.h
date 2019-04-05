@@ -542,6 +542,8 @@ KS_DECLARE(void*) __ks_calloc(size_t count, ks_size_t elem_size, const char *fil
 
 KS_DECLARE(void) ks_free(void *data);
 
+KS_DECLARE(ks_status_t) ks_pool_check_fence(void *addr);
+
 KS_END_EXTERN_C
 
 #endif /* ! __KS_POOL_H__ */
