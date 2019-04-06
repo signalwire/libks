@@ -1154,8 +1154,8 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 
 			blen = (int)(kws->body - kws->bbuffer);
 
-			// The bbuffer for the body of the message should always be >= plen from the payload size
-			if (kws->plen > (ks_ssize_t)kws->bbuflen) {
+			// The bbuffer for the body of the message should always be 1 larger than plen from the payload size for null term
+			if (kws->plen >= (ks_ssize_t)kws->bbuflen) {
 				void *tmp;
 
 				kws->bbuflen = kws->plen;
