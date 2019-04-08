@@ -1,0 +1,112 @@
+kind: pipeline
+name: default
+
+steps:
+    - name: scan-build
+      image: debian:stretch
+      pull: true
+      environment:
+        SSH_KEY:
+          from_secret: ssh_key   
+        GITHUB_CI_APP_PEM:          
+          from_secret: github_ci_app_pem          
+        SLACK_WEBHOOK_URL:
+          from_secret: slack_webhook_url
+      commands:
+      - apt-get update && apt-get install -yq apt-transport-https ruby jq curl openssh-client gnupg2 wget build-essential autotools-dev lsb-release pkg-config automake autoconf libtool-bin clang-tools-4.0      
+      - apt-get install -yq cmake uuid-dev libssl1.0-dev      
+      - sed -i '/cotire/d' ./CMakeLists.txt
+      - mkdir -p ../scan-build
+      - scan-build-4.0 -o ../scan-build/ cmake .
+      - echo "#!/bin/bash\nscan-build-4.0 -o ../scan-build/ make -j`nproc --all` |& tee ../scan-build-result.txt\nexitstatus=\${PIPESTATUS[0]}\necho \$exitstatus > ../scan-build-status.txt\n" > scan.sh
+      - chmod +x scan.sh
+      - ./scan.sh
+      - exitstatus=`cat ../scan-build-status.txt`
+      - echo "*** Exit status is $exitstatus"
+      - cd ..
+      - REPORT=`find scan* -mindepth 1 -type d`
+      - 'SubString="scan-build: No bugs found"'
+      - |
+        if [ "0" -ne $exitstatus ] || ! grep -q "$SubString" "scan-build-result.txt" ; then
+            # Setup ssh for the artifacts publishing
+            mkdir /root/.ssh && echo "$SSH_KEY" > ~/.ssh/id_rsa && chmod 0600 ~/.ssh/id_rsa
+            ssh-keyscan -p 22 -H artifacts.signalwire.com >> ~/.ssh/known_hosts
+            # Create folder for all the artifacts 
+            ssh root@artifacts.signalwire.com "mkdir -p /var/www/html/drone/${DRONE_REPO}/${DRONE_BUILD_NUMBER}"  
+            dronelink="https://ci.signalwire.com/${DRONE_REPO}/${DRONE_BUILD_NUMBER}"
+
+            if [ "0" -ne $exitstatus ] ; then
+                echo "*** scan-build exit status is $exitstatus"
+                echo "*** Compile log was saved!"
+                scp -r scan-build-result.txt root@artifacts.signalwire.com:/var/www/html/drone/${DRONE_REPO}/${DRONE_BUILD_NUMBER}
+                artifacts="https://artifacts.signalwire.com/drone/${DRONE_REPO}/${DRONE_BUILD_NUMBER}/scan-build-result.txt"
+                message="compilation failed"
+            fi ;
+            
+            if ! grep -q "$SubString" "scan-build-result.txt"; then
+                echo "Bugs found!"            
+                # Publish artifacts
+                scp -r $REPORT/* root@artifacts.signalwire.com:/var/www/html/drone/${DRONE_REPO}/${DRONE_BUILD_NUMBER}
+                artifacts="https://artifacts.signalwire.com/drone/${DRONE_REPO}/${DRONE_BUILD_NUMBER}/index.html"
+                message="found bugs"
+            fi
+              
+            # Notify slack if master changes
+            if [ "$DRONE_COMMIT_BRANCH" = master ] && [ "$DRONE_BUILD_EVENT" = push ]; then 
+               # Notify slack channel via Webhook URL.
+               # You can find Incoming WebHooks here:
+               # https://signalwire.slack.com/apps/A0F7XDUAZ-incoming-webhooks?next_id=0
+               curl -X POST --data-urlencode "payload={\"username\":\"Drone\", \"text\":\"Scan-build ${DRONE_REPO} > <$dronelink|#${DRONE_BUILD_NUMBER}> $message.\", \"attachments\":[{\"color\":\"danger\", \"text\":\"<$artifacts|Please check results.>\"}]}" $SLACK_WEBHOOK_URL
+            fi  
+            
+            # If pull request - make a comment with a link to artifacts            
+            if [ -n "$DRONE_PULL_REQUEST" ]; then 
+                echo "THIS IS A PULL REQUEST"; 
+                # Make a comment                
+                gem install jwt
+                echo "$GITHUB_CI_APP_PEM" > ci.pem
+                # Script to take GitHub installation tokens
+                # https://developer.github.com/apps/building-github-apps/authenticating-with-github-apps/               
+                # Start of ruby script
+                echo "require 'openssl'" > itoken.rb
+                echo "require 'jwt' # https://rubygems.org/gems/jwt" >> itoken.rb
+                # Private key contents
+                echo "private_pem = File.read('ci.pem')" >> itoken.rb
+                echo "private_key = OpenSSL::PKey::RSA.new(private_pem)" >> itoken.rb
+                # Generate the JWT
+                echo "payload = {" >> itoken.rb
+                # issued at time
+                echo "iat:Time.now.to_i," >> itoken.rb
+                # JWT expiration time (10 minute maximum)
+                echo "exp:Time.now.to_i + (10 * 60)," >> itoken.rb
+                # GitHub App's identifier                
+                echo "iss:27049" >> itoken.rb
+                echo "}" >> itoken.rb
+                echo "jwt = JWT.encode(payload, private_key, \"RS256\")" >> itoken.rb
+                echo "puts jwt" >> itoken.rb                               
+                # End of ruby script
+                # Request GitHub App installation token (note: expires in 10 minutes)
+                itoken=`ruby itoken.rb`
+                # Request access token using installation token (752924 - our installation id)
+                atoken=`curl -s -H "Authorization: Bearer $itoken" -H "Accept: application/vnd.github.machine-man-preview+json" -X POST https://api.github.com/installations/752924/access_tokens | jq -r '.token'`
+                # Use App access token to make a comment
+                curl -s -H "Authorization: token $atoken" -X POST -d "{\"body\":\"Scan-build $message: $artifacts\"}" "https://api.github.com/repos/${DRONE_REPO}/issues/$DRONE_PULL_REQUEST/comments"                
+            fi       
+            
+            # Artifact are available at:      
+            echo "\n\nLogs are available here:\n$artifacts"            
+            exit 1;
+        else
+            echo "No bugs."
+            exit 0;
+        fi
+      - echo "Done."
+      
+trigger:
+  branch:
+  - master
+
+trigger:
+  event:
+  - pull_request
+  - push
