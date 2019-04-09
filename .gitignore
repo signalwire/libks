@@ -32,6 +32,7 @@ tests/testacl
 tests/testrealloc
 tests/teststring
 tests/testjson
+tests/testhandle
 :w
 uninstall.cmake
 install_manifest.txt
