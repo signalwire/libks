@@ -43,6 +43,7 @@ typedef int (*ks_json_check_function)(ks_json_t *, const char **);
 #define JSON_CHECK_STRING_ARRAY(name, rule) if (!(cur = ks_json_get_object_item(item, #name)) || !ks_json_check_string_array(cur, ks_json_check_string_##rule)) { *error_msg = #name " error"; return 0; }
 #define JSON_CHECK_STRING_ARRAY_OPTIONAL(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_check_string_array(cur, ks_json_check_string_##rule)) { *error_msg = #name " error"; return 0; }
 #define JSON_CHECK_STRING_OPTIONAL(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_check_string_##rule(cur)) { *error_msg = #name " error"; return 0; }
+#define JSON_CHECK_STRING_OR_EMPTY(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && ks_json_type_is_string(cur) && ks_json_value_string(cur) && *ks_json_value_string(cur) && !ks_json_check_string_##rule(cur)) { *error_msg = #name " error"; return 0; }
 #define JSON_CHECK_STRING_MATCHES(name, rule) if (!(cur = ks_json_get_object_item(item, #name)) || !ks_json_check_string_matches(cur, rule)) { *error_msg = #name " error"; return 0; }
 #define JSON_CHECK_STRING_MATCHES_OPTIONAL(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_check_string_matches(cur, rule)) { *error_msg = #name " error"; return 0; }
 
@@ -73,6 +74,7 @@ KS_DECLARE(int) ks_json_check_string_is_decimal_between_zero_and_one(ks_json_t* 
 KS_DECLARE(int) ks_json_check_string_is_any(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_string_is_dtmf_digit(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_string_is_dtmf_digits(ks_json_t* item);
+KS_DECLARE(int) ks_json_check_string_is_dtmf_digits_or_empty(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_string_is_uuid(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_string_is_e164(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_string_is_any_nullable(ks_json_t *item);
