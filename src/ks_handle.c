@@ -201,12 +201,12 @@ static inline ks_status_t __validate_handle(ks_handle_type_t type,
 
 	/* Parse the type first */
 	if (status = __validate_type(type, group)) {
-		ks_log(KS_LOG_DEBUG, "Invalid type: %8.8lx", handle);
+		ks_log(KS_LOG_DEBUG, "Invalid type: %8.8llx", handle);
 		return status;
 	}
 
 	if (KS_HANDLE_TYPE_FROM_HANDLE(handle) != type) {
-		ks_log(KS_LOG_DEBUG, "Invalid type (2): %8.8lx", handle);
+		ks_log(KS_LOG_DEBUG, "Invalid type (2): %8.8llx", handle);
 		return KS_STATUS_HANDLE_TYPE_MISMATCH;
 	}
 
@@ -238,7 +238,7 @@ static ks_status_t __lookup_allocated_slot(ks_handle_type_t type, ks_handle_t ha
 
 	/* Parse the handle */
 	if (status = __validate_handle(type, handle, &group, &sequence, &slot_index)) {
-		ks_log(KS_LOG_ERROR, "VALIDATION FAILED : %lu HANDLE: %16.16lx", status, handle);
+		ks_log(KS_LOG_ERROR, "VALIDATION FAILED : %lu HANDLE: %16.16llx", status, handle);
 		return status;
 	}
 
@@ -259,7 +259,7 @@ static ks_status_t __lookup_allocated_slot(ks_handle_type_t type, ks_handle_t ha
 	/* Also validate its sequence, this catches any re-use of stale handles */
 	if (slot->sequence != sequence) {
 		status = KS_STATUS_HANDLE_SEQ_MISMATCH;
-			ks_log(KS_LOG_ERROR, "SEQ MISMATCH: %lu HANDLE VALUE: %16.16lx", status, handle);
+			ks_log(KS_LOG_ERROR, "SEQ MISMATCH: %lu HANDLE VALUE: %16.16llx", status, handle);
 		goto done;
 	}
 
@@ -392,7 +392,7 @@ KS_DECLARE(ks_status_t) __ks_handle_alloc_ex(ks_pool_t **pool, ks_handle_type_t 
 	slot->data->pool = _pool;
 
 #if KS_DEBUG_HANDLE
-	ks_log(KS_LOG_DEBUG, "ALLOC HANDLE: %16.16lx", *handle);
+	ks_log(KS_LOG_DEBUG, "ALLOC HANDLE: %16.16llx", *handle);
 #endif
 
 done:
@@ -417,7 +417,7 @@ KS_DECLARE(ks_status_t) __ks_handle_get(ks_handle_type_t type,
 	/* Lookup the slot, and expect it to be ready */
 	if (status = __lookup_allocated_slot(type, handle, KS_FALSE, KS_HANDLE_FLAG_READY, NULL, NULL, &slot)) {
 #if KS_DEBUG_HANDLE
-		ks_log(KS_LOG_ERROR, "GETHANDLE: %16.16lx %s:%lu (%s) FAILED WITH STATUS: %lu", handle, file, line, tag, status);
+		ks_log(KS_LOG_ERROR, "GETHANDLE: %16.16llx %s:%lu (%s) FAILED WITH STATUS: %lu", handle, file, line, tag, status);
 #endif
 		return status;
 	}
@@ -544,7 +544,7 @@ static ks_status_t __destroy_slot_children(ks_handle_t parent)
 			}
 
 			if (status = __handle_destroy(&_handle, &pending_child_status)) {
-				ks_abort_fmt("Error releasing dependent child handle: 16.16lx (%lu)", next, status);
+				ks_abort_fmt("Error releasing dependent child handle: 16.16llx (%lu)", next, status);
 			}
 		}
 
@@ -585,7 +585,7 @@ static ks_status_t __handle_destroy(ks_handle_t *handle, ks_status_t *child_stat
 		void *data;
 
 		if (slot->deinit_cb == NULL)
-			ks_abort_fmt("Cannot destroy a ready handle that does not have a deint callback set on handle: 16.16lx", *handle);
+			ks_abort_fmt("Cannot destroy a ready handle that does not have a deint callback set on handle: 16.16llx", *handle);
 
 		/* Right it has one so set it not ready */
 		__unlock_slot(slot);
@@ -632,7 +632,7 @@ KS_DECLARE(ks_status_t) __ks_handle_destroy(ks_handle_t *handle, const char *fil
 	if (!handle)
 		return KS_STATUS_HANDLE_INVALID;
 #if KS_DEBUG_HANDLE
-	ks_log(KS_LOG_DEBUG, "HANDLE DESTROY: %16.16lx %s:%lu (%s)", *handle, file, line, tag);
+	ks_log(KS_LOG_DEBUG, "HANDLE DESTROY: %16.16llx %s:%lu (%s)", *handle, file, line, tag);
 #endif
 	return __handle_destroy(handle, &child_status);
 }
@@ -691,14 +691,14 @@ KS_DECLARE(ks_status_t) ks_handle_set_ready(ks_handle_t handle)
 	ks_handle_slot_t *slot;
 
 #if KS_DEBUG_HANDLE
-	ks_log(KS_LOG_DEBUG, "READY HANDLE: %16.16lx", handle);
+	ks_log(KS_LOG_DEBUG, "READY HANDLE: %16.16llx", handle);
 #endif
 
 	/* Lookup the not ready slot */
 	if (status = __lookup_allocated_slot(KS_HANDLE_TYPE_FROM_HANDLE(handle), handle, KS_TRUE,
 			KS_HANDLE_FLAG_NOT_READY, NULL, NULL, &slot)) {
 #if KS_DEBUG_HANDLE
-		ks_log(KS_LOG_ERROR, "READYHANDLE: %16.16lx FAILED: %lu", handle, status);
+		ks_log(KS_LOG_ERROR, "READYHANDLE: %16.16llx FAILED: %lu", handle, status);
 #endif
 		return status;
 	}
@@ -713,7 +713,7 @@ KS_DECLARE(ks_status_t) ks_handle_set_ready(ks_handle_t handle)
 	__unlock_slot(slot);
 
 #if KS_DEBUG_HANDLE
-	ks_log(KS_LOG_DEBUG, "READYHANDLE: %16.16lx SUCCESS", handle);
+	ks_log(KS_LOG_DEBUG, "READYHANDLE: %16.16llx SUCCESS", handle);
 #endif
 
 	return KS_STATUS_SUCCESS;
@@ -749,20 +749,20 @@ KS_DECLARE(ks_status_t) ks_handle_set_parent(ks_handle_t child, ks_handle_t pare
 
 	/* Lookup the ready child slot (must be allocated) */
 	if (status = __lookup_allocated_slot(KS_HANDLE_TYPE_FROM_HANDLE(child), child, KS_TRUE, KS_HANDLE_FLAG_ALLOCATED, NULL, NULL, &child_slot)) {
-		ks_log(KS_LOG_DEBUG, "Attempt to set child on non-allocated child handle: %16.16lx", child);
+		ks_log(KS_LOG_DEBUG, "Attempt to set child on non-allocated child handle: %16.16llx", child);
 		return status;
 	}
 
 	/* Lookup the parent slot (must be allocated) */
 	if (status = __lookup_allocated_slot(KS_HANDLE_TYPE_FROM_HANDLE(parent), parent, KS_TRUE, KS_HANDLE_FLAG_ALLOCATED, NULL, NULL, &parent_slot)) {
-		ks_log(KS_LOG_DEBUG, "Attempt to set child on non-allocated parent handle: %16.16lx", parent);
+		ks_log(KS_LOG_DEBUG, "Attempt to set child on non-allocated parent handle: %16.16llx", parent);
 		__unlock_slot(child_slot);
 		return status;
 	}
 
 	/* Set its parent (illegal to re-set an already set parent) */
 	if (child_slot->parent && child_slot->parent != parent) {
-		ks_log(KS_LOG_WARNING, "Attempt to set parent on child which already has parent, child handle: %16.16lx", child);
+		ks_log(KS_LOG_WARNING, "Attempt to set parent on child which already has parent, child handle: %16.16llx", child);
 		ks_debug_break();
 		__unlock_slot(child_slot);
 		__unlock_slot(parent_slot);
@@ -961,13 +961,13 @@ KS_DECLARE(void) ks_handle_shutdown()
 			continue;
 
 #if defined(KS_BUILD_DEBUG)
-		ks_log(KS_LOG_WARNING, "Un-released handle %16.16lx (%s) at location: %s:%lu:%s",
+		ks_log(KS_LOG_WARNING, "Un-released handle %16.16llx (%s) at location: %s:%lu:%s",
 			next, ks_handle_describe_ctx(slot->data), slot->file, slot->line, slot->tag);
 #elif defined(KS_DEBUG_HANDLE)
-		ks_log(KS_LOG_WARNING, "Un-released handle %16.16lx (%s) at location: %s:%lu:%s, last checkout: %s:%lu:%s",
+		ks_log(KS_LOG_WARNING, "Un-released handle %16.16llx (%s) at location: %s:%lu:%s, last checkout: %s:%lu:%s",
 			next, ks_handle_describe_ctx(slot->data),  slot->file, slot->line, slot->tag, slot->last_get_file, slot->last_get_line, slot->last_get_tag);
 #else
-		ks_log(KS_LOG_WARNING, "Un-released handle %16.16lx (%s)", next, ks_handle_describe_ctx(slot->data));
+		ks_log(KS_LOG_WARNING, "Un-released handle %16.16llx (%s)", next, ks_handle_describe_ctx(slot->data));
 #endif
 
 		__unlock_slot(slot);
