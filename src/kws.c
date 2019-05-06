@@ -191,9 +191,9 @@ static void gen_nonce(unsigned char *buf, uint16_t len)
 
 static int verify_accept(kws_t *kws, const unsigned char *enonce, const char *accept)
 {
-	char input[256] = "";
-	unsigned char output[SHA1_HASH_SIZE] = "";
-	char b64[256] = "";
+	char input[256] = { 0 };
+	unsigned char output[SHA1_HASH_SIZE] = { 0 };
+	char b64[256] = { 0 };
 
 	snprintf(input, sizeof(input), "%s%s", enonce, WEBSOCKET_GUID);
 	sha1_digest(output, input);
