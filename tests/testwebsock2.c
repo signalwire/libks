@@ -306,6 +306,13 @@ static int test_ws(char *url)
 
 	kws_write_frame(kws, WSOC_TEXT, __MSG, strlen(__MSG));
 
+	int32_t poll_flags = 0;
+
+	while (1) {
+		poll_flags = kws_wait_sock(kws, 50, KS_POLL_READ | KS_POLL_ERROR);
+		if (poll_flags == KS_POLL_READ) break;
+	}
+
 	bytes = kws_read_frame(kws, &oc, &rdata);
 	printf("read bytes=%d oc=%d [%s]\n", bytes, oc, (char *)rdata);
 

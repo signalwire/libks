@@ -1507,6 +1507,8 @@ KS_DECLARE(int) kws_wait_sock(kws_t *kws, uint32_t ms, ks_poll_t flags)
 {
 	if (kws->sock == KS_SOCK_INVALID) return KS_POLL_ERROR;
 
+	if (kws->unprocessed_buffer_len > 0) return KS_POLL_READ;
+
 	return ks_wait_sock(kws->sock, ms, flags);
 }
 
