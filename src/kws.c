@@ -204,9 +204,9 @@ static int verify_accept(kws_t *kws, const unsigned char *enonce, const char *ac
 
 static int ws_client_handshake(kws_t *kws)
 {
-	unsigned char nonce[16];
-	unsigned char enonce[128] = "";
-	char req[2048] = "";
+	unsigned char nonce[16] = { 0 };
+	unsigned char enonce[128] = { 0 };
+	char req[2048] = { 0 };
 
 	gen_nonce(nonce, sizeof(nonce));
 	b64encode(nonce, sizeof(nonce), enonce, sizeof(enonce));
@@ -234,7 +234,7 @@ static int ws_client_handshake(kws_t *kws)
 	} while (bytes > 0 && !strstr((char *)kws->buffer, "\r\n\r\n"));
 
 	if (bytes > 0) {
-		char accept[128] = "";
+		char accept[128] = { 0 };
 
 		cheezy_get_var(kws->buffer, "Sec-WebSocket-Accept", accept, sizeof(accept));
 
