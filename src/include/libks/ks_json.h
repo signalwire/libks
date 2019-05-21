@@ -164,6 +164,7 @@ KS_DECLARE(void) ks_json_delete_item_from_array(ks_json_t *array, int index);
 KS_DECLARE(void) ks_json_delete_item_from_object(ks_json_t *object, const char * const key);
 
 KS_DECLARE(ks_json_t *) ks_json_get_object_item(const ks_json_t * const object, const char * const string);
+KS_DECLARE(ks_json_t *) ks_json_get_object_item_safe(const ks_json_t * const object, const char * const string);
 KS_DECLARE(ks_bool_t) ks_json_get_object_bool(const ks_json_t * const object, const char * const string);
 KS_DECLARE(ks_bool_t) ks_json_get_object_bool_def(const ks_json_t * const object, const char * const string, ks_bool_t def);
 KS_DECLARE(const char * const) ks_json_get_object_cstr(const ks_json_t * const object, const char * const key);
@@ -175,6 +176,7 @@ KS_DECLARE(double) ks_json_get_object_number_double_def(const ks_json_t * const 
 KS_DECLARE(ks_uuid_t) ks_json_get_object_uuid(const ks_json_t * const object, const char * const key);
 
 KS_DECLARE(ks_json_t *) ks_json_get_array_item(const ks_json_t * const array, int index);
+KS_DECLARE(ks_json_t *) ks_json_get_array_item_safe(const ks_json_t * const array, int index);
 KS_DECLARE(ks_bool_t) ks_json_get_array_bool(const ks_json_t * const array, int index);
 KS_DECLARE(int) ks_json_get_array_size(const ks_json_t * const array);
 KS_DECLARE(const char * const) ks_json_get_array_cstr(const ks_json_t * const array, int index);

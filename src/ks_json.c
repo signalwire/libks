@@ -389,6 +389,11 @@ KS_DECLARE(ks_json_t *) ks_json_get_array_item(const ks_json_t * const array, in
 	return item;
 }
 
+KS_DECLARE(ks_json_t *) ks_json_get_array_item_safe(const ks_json_t * const array, int index)
+{
+	return cJSON_GetArrayItem(array, index);
+}
+
 KS_DECLARE(ks_bool_t) ks_json_get_array_bool(const ks_json_t * const array, int index)
 {
 	const ks_json_t *item;
@@ -442,6 +447,11 @@ KS_DECLARE(ks_json_t *) ks_json_get_object_item(const ks_json_t * const object, 
 	return cJSON_GetObjectItemCaseSensitive(object, string);
 }
 
+KS_DECLARE(ks_json_t *) ks_json_get_object_item_safe(const ks_json_t * const object, const char * const string)
+{
+	return cJSON_GetObjectItemCaseSensitive(object, string);
+}
+
 KS_DECLARE(ks_uuid_t) ks_json_get_object_uuid(const ks_json_t *const object, const char * const string)
 {
 	const ks_json_t *item = ks_json_get_object_item(object, string);
@@ -461,7 +471,7 @@ KS_DECLARE(ks_bool_t) ks_json_get_object_bool(const ks_json_t * const object, co
 }
 KS_DECLARE(ks_bool_t) ks_json_get_object_bool_def(const ks_json_t * const object, const char * const string, ks_bool_t def)
 {
-	const ks_json_t *item = ks_json_get_object_item(object, string);
+	const ks_json_t *item = ks_json_get_object_item_safe(object, string);
 	if (item && item->type == cJSON_True) {
 		return KS_TRUE;
 	} else if (item && item->type == cJSON_False) {
@@ -482,7 +492,7 @@ KS_DECLARE(const char * const) ks_json_get_object_cstr(const ks_json_t * const o
 
 KS_DECLARE(const char * const) ks_json_get_object_cstr_def(const ks_json_t * const object, const char * const key, const char * def)
 {
-	const ks_json_t *item = ks_json_get_object_item(object, key);
+	const ks_json_t *item = ks_json_get_object_item_safe(object, key);
 	if (!item || !ks_json_type_is_string(item) || !item->valuestring) {
 		return def;
 	}
@@ -498,7 +508,7 @@ KS_DECLARE(int) ks_json_get_object_number_int(const ks_json_t * const object, co
 
 KS_DECLARE(int) ks_json_get_object_number_int_def(const ks_json_t * const object, const char * const key, int def)
 {
-	const ks_json_t *item = ks_json_get_object_item(object, key);
+	const ks_json_t *item = ks_json_get_object_item_safe(object, key);
 	if (item && ks_json_type_is_number(item)) return item->valueint;
 	return def;
 }
@@ -512,7 +522,7 @@ KS_DECLARE(double) ks_json_get_object_number_double(const ks_json_t * const obje
 
 KS_DECLARE(double) ks_json_get_object_number_double_def(const ks_json_t * const object, const char * const key, double def)
 {
-	const ks_json_t *item = ks_json_get_object_item(object, key);
+	const ks_json_t *item = ks_json_get_object_item_safe(object, key);
 	if (item && ks_json_type_is_number(item)) return item->valuedouble;
 	return def;
 }
@@ -530,7 +540,7 @@ KS_DECLARE(ks_json_t *) ks_json_valookup(const ks_json_t * const object, int com
 	uint32_t index = 0;
 
 	for (int index = 0; index < components && next_item; index++) {
-		next_item = ks_json_get_object_item(next_item, va_arg(args, const char *));
+		next_item = ks_json_get_object_item_safe(next_item, va_arg(args, const char *));
 	}
 
 	return (ks_json_t *)next_item;
@@ -631,7 +641,7 @@ KS_DECLARE(ks_json_t *) ks_json_lookup_array_item(const ks_json_t * const object
 	va_end(argptr);
 
 	if (item)
-		return ks_json_get_array_item(item, array_index);
+		return ks_json_get_array_item_safe(item, array_index);
 
 	return NULL;
 }
