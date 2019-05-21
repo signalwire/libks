@@ -641,7 +641,7 @@ KS_DECLARE(ks_json_t *) ks_json_lookup_array_item(const ks_json_t * const object
 	va_end(argptr);
 
 	if (item)
-		return ks_json_get_array_item(item, array_index);
+		return ks_json_get_array_item_safe(item, array_index);
 
 	return NULL;
 }
