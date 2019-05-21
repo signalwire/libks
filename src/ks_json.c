@@ -389,6 +389,11 @@ KS_DECLARE(ks_json_t *) ks_json_get_array_item(const ks_json_t * const array, in
 	return item;
 }
 
+KS_DECLARE(ks_json_t *) ks_json_get_array_item_safe(const ks_json_t * const array, int index)
+{
+	return cJSON_GetArrayItem(array, index);
+}
+
 KS_DECLARE(ks_bool_t) ks_json_get_array_bool(const ks_json_t * const array, int index)
 {
 	const ks_json_t *item;
@@ -535,7 +540,7 @@ KS_DECLARE(ks_json_t *) ks_json_valookup(const ks_json_t * const object, int com
 	uint32_t index = 0;
 
 	for (int index = 0; index < components && next_item; index++) {
-		next_item = ks_json_get_object_item(next_item, va_arg(args, const char *));
+		next_item = ks_json_get_object_item_safe(next_item, va_arg(args, const char *));
 	}
 
 	return (ks_json_t *)next_item;
