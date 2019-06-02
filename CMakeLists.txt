@@ -286,16 +286,17 @@ if("${CMAKE_OS_NAME}" STREQUAL "Debian")
 		# Get git log info
 		execute_process(COMMAND ${GIT_EXECUTABLE} log --no-merges --pretty=format:"%n  [%an]%n   * %s" --since="last month"
 			OUTPUT_VARIABLE CHANGELOG
-			WORKING_DIRECTORY .
+			WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
 			OUTPUT_STRIP_TRAILING_WHITESPACE)
 		string(REPLACE "\"" "" CHANGELOG ${CHANGELOG})
 
 		# Create changelog
 		file(WRITE changelog.Debian ${CHANGELOG_HEADER}\n${CHANGELOG}\n\n${CHANGELOG_FOOTER})
-		execute_process(COMMAND ${GZIP_CMD} -f -9 -n changelog.Debian)
+		execute_process(COMMAND ${GZIP_CMD} -f -9 -n changelog.Debian
+				WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
 
 		# Install changelog
-		install(FILES "${CMAKE_BINARY_DIR}/changelog.Debian.gz" COMPONENT "runtime" DESTINATION "share/doc/${CPACK_DEBIAN_PACKAGE_NAME}")
+		install(FILES "${PROJECT_SOURCE_DIR}/changelog.Debian.gz" COMPONENT "runtime" DESTINATION "share/doc/${CPACK_DEBIAN_PACKAGE_NAME}")
 
 		# Delete changelog related variables
 		unset(CHANGELOG_HEADER)
@@ -540,12 +541,12 @@ if (NOT KS_PLAT_WIN)
 	# Set path for pkg-config based on ARCH and distro type
 	if("${CMAKE_OS_NAME}" STREQUAL "Centos") # pkg-config --variable pc_path pkg-config
 		if(${CPACK_SYSTEM_NAME} MATCHES "x86_64")
-			install(FILES ${PROJECT_BINARY_DIR}/libks.pc COMPONENT "runtime" DESTINATION lib64/pkgconfig)
+			install(FILES ${PROJECT_SOURCE_DIR}/libks.pc COMPONENT "runtime" DESTINATION lib64/pkgconfig)
 		else()
-			install(FILES ${PROJECT_BINARY_DIR}/libks.pc COMPONENT "runtime" DESTINATION lib/pkgconfig)
+			install(FILES ${PROJECT_SOURCE_DIR}/libks.pc COMPONENT "runtime" DESTINATION lib/pkgconfig)
 		endif()
 	else()
-		install(FILES ${PROJECT_BINARY_DIR}/libks.pc COMPONENT "runtime" DESTINATION lib/pkgconfig)
+		install(FILES ${PROJECT_SOURCE_DIR}/libks.pc COMPONENT "runtime" DESTINATION lib/pkgconfig)
 	endif()
 
 	install(FILES cmake/ksutil.cmake COMPONENT "runtime" DESTINATION include/libks/cmake)
@@ -553,7 +554,7 @@ if (NOT KS_PLAT_WIN)
 	install(FILES cmake/FindConfig.cmake COMPONENT "runtime" DESTINATION include/libks/cmake)
 	install(FILES cmake/FindConfigCpp.cmake COMPONENT "runtime" DESTINATION include/libks/cmake)
 	install(FILES cmake/AddLibBacktrace.cmake COMPONENT "runtime" DESTINATION include/libks/cmake)
-	install(FILES ${PROJECT_BINARY_DIR}/copyright COMPONENT "runtime" DESTINATION share/doc/libks)
+	install(FILES ${PROJECT_SOURCE_DIR}/copyright COMPONENT "runtime" DESTINATION share/doc/libks)
 	install(EXPORT LibKSConfig COMPONENT "runtime" DESTINATION include/libks/cmake)
 
 	# Set uninstall target
@@ -579,7 +580,7 @@ if (NOT KS_PLAT_WIN)
 	set(PC_PREFIX ${CMAKE_INSTALL_PREFIX})
 	set(PACKAGE_VERSION ${PROJECT_VERSION})
 	get_property(PC_DEFINITIONS TARGET ks PROPERTY INTERFACE_COMPILE_DEFINITIONS)
-	configure_file("${CMAKE_CURRENT_LIST_DIR}/libks.pc.in" "${PROJECT_BINARY_DIR}/libks.pc" @ONLY)
+	configure_file("${CMAKE_CURRENT_LIST_DIR}/libks.pc.in" "${PROJECT_SOURCE_DIR}/libks.pc" @ONLY)
 endif()
 
 cotire(ks)
