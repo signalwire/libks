@@ -216,8 +216,12 @@ if("${CMAKE_OS_NAME}" STREQUAL "Debian")
 	# Set package name
 	set(CPACK_DEBIAN_PACKAGE_NAME "libks")
 
+	set(CPACK_DEBIAN_PACKAGE_SOURCE)
+
 	# Abuse Cmake runtime component name
 	set(CPACK_DEBIAN_RUNTIME_PACKAGE_NAME ${CPACK_DEBIAN_PACKAGE_NAME})
+
+	set(CPACK_DEBIAN_RUNTIME_PACKAGE_SOURCE)
 
 	# Set package type to build
 	set(CPACK_GENERATOR DEB)
