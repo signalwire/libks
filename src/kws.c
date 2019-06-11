@@ -79,6 +79,8 @@ struct kws_s {
 	ks_bool_t certified_client;
 	char **sans;
 	ks_size_t sans_count;
+	ks_size_t unprocessed_buffer_len; /* extra data remains unprocessed */
+	char *unprocessed_position;
 };
 
 
@@ -207,6 +209,7 @@ static int ws_client_handshake(kws_t *kws)
 	unsigned char nonce[16] = { 0 };
 	unsigned char enonce[128] = { 0 };
 	char req[2048] = { 0 };
+	char *frame_end = NULL;
 
 	gen_nonce(nonce, sizeof(nonce));
 	b64encode(nonce, sizeof(nonce), enonce, sizeof(enonce));
@@ -236,6 +239,9 @@ static int ws_client_handshake(kws_t *kws)
 	if (bytes > 0) {
 		char accept[128] = { 0 };
 
+		frame_end = strstr((char *)kws->buffer, "\r\n\r\n");
+		if (frame_end) frame_end += 4;
+
 		cheezy_get_var(kws->buffer, "Sec-WebSocket-Accept", accept, sizeof(accept));
 
 		if (ks_zstr_buf(accept) || !verify_accept(kws, enonce, (char *)accept)) {
@@ -243,6 +249,12 @@ static int ws_client_handshake(kws_t *kws)
 		}
 	} else {
 		return -1;
+	}
+
+	/* check if any more data */
+	if (frame_end && frame_end - kws->buffer < bytes) {
+		kws->unprocessed_buffer_len = bytes - (frame_end - kws->buffer);
+		kws->unprocessed_position = frame_end;
 	}
 
 	kws->handshake = 1;
@@ -354,6 +366,21 @@ KS_DECLARE(ks_ssize_t) kws_raw_read(kws_t *kws, void *data, ks_size_t bytes, int
 {
 	int r;
 	int ssl_err = 0;
+
+	if (kws->unprocessed_buffer_len > 0) {
+		if (kws->unprocessed_buffer_len > bytes) {
+			memmove((char *)data, kws->unprocessed_position, bytes);
+			kws->unprocessed_position += bytes;
+			kws->unprocessed_buffer_len -= bytes;
+			return bytes;
+		} else {
+			ssize_t len = kws->unprocessed_buffer_len;
+			memmove((char *)data, kws->unprocessed_position, len);
+			kws->unprocessed_buffer_len = 0;
+			kws->unprocessed_position = NULL;
+			return len;
+		}
+	}
 
 	kws->x++;
 	if (kws->x > 250) ks_sleep_ms(1);
@@ -719,6 +746,8 @@ KS_DECLARE(ks_status_t) kws_init(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl_ct
 
 	kws = ks_pool_alloc(pool, sizeof(*kws));
 	kws->flags = flags;
+	kws->unprocessed_buffer_len = 0;
+	kws->unprocessed_position = NULL;
 
 	if ((flags & KWS_BLOCK)) {
 		kws->block = 1;
@@ -1477,6 +1506,8 @@ KS_DECLARE(ks_status_t) kws_connect_ex(kws_t **kwsP, ks_json_t *params, kws_flag
 KS_DECLARE(int) kws_wait_sock(kws_t *kws, uint32_t ms, ks_poll_t flags)
 {
 	if (kws->sock == KS_SOCK_INVALID) return KS_POLL_ERROR;
+
+	if (kws->unprocessed_buffer_len > 0) return KS_POLL_READ;
 
 	return ks_wait_sock(kws->sock, ms, flags);
 }
