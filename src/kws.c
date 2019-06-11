@@ -206,9 +206,9 @@ static int verify_accept(kws_t *kws, const unsigned char *enonce, const char *ac
 
 static int ws_client_handshake(kws_t *kws)
 {
-	unsigned char nonce[16];
-	unsigned char enonce[128] = "";
-	char req[2048] = "";
+	unsigned char nonce[16] = { 0 };
+	unsigned char enonce[128] = { 0 };
+	char req[2048] = { 0 };
 	char *frame_end = NULL;
 
 	gen_nonce(nonce, sizeof(nonce));
@@ -237,7 +237,7 @@ static int ws_client_handshake(kws_t *kws)
 	} while (bytes > 0 && !strstr((char *)kws->buffer, "\r\n\r\n"));
 
 	if (bytes > 0) {
-		char accept[128] = "";
+		char accept[128] = { 0 };
 
 		frame_end = strstr((char *)kws->buffer, "\r\n\r\n");
 		if (frame_end) frame_end += 4;
