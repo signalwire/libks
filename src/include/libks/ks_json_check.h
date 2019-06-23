@@ -32,6 +32,8 @@ typedef int (*ks_json_check_function)(ks_json_t *, const char **);
 #define JSON_CHECK(name, rule) KS_DECLARE(int) CHECK_##name(ks_json_t *item, const char **error_msg) { ks_json_t *cur = NULL; if (!ks_json_check_object(item, rule)) { *error_msg = #name " error"; return 0; }
 #define JSON_CHECK_ARRAY(name, rule) KS_DECLARE(int) CHECK_##name(ks_json_t *item, const char **error_msg) { if (!ks_json_check_array_items(item, CHECK_##rule, error_msg)) { return 0; }
 
+#define JSON_CHECK_CUSTOM(name, chk_fn, param) { cur = ks_json_get_object_item(item, #name); if (!chk_fn(cur, param, error_msg)) return 0; }
+
 #define JSON_CHECK_OBJECT(name, rule) if (!CHECK_##rule(ks_json_get_object_item(item, #name), error_msg)) { return 0; }
 #define JSON_CHECK_OBJECT_OPTIONAL(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !CHECK_##rule(cur, error_msg)) { return 0; }
 #define JSON_CHECK_OBJECT_IF_STRING_MATCHES(value, name, rule) if (ks_json_check_string_matches(cur, value) && !CHECK_##rule(ks_json_get_object_item(item, #name), error_msg)) { return 0; }
@@ -60,10 +62,12 @@ KS_DECLARE(int) ks_json_check_is_array(ks_json_t *item);
 
 KS_DECLARE(int) ks_json_check_number_is_any(ks_json_t *item);
 KS_DECLARE(int) ks_json_check_number_is_8_bit_unsigned(ks_json_t *item);
+KS_DECLARE(int) ks_json_check_number_is_16_bit_unsigned(ks_json_t *item);
 KS_DECLARE(int) ks_json_check_number_is_not_negative(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_number_is_positive(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_number_is_positive_or_neg_one(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_number_is_decimal_between_zero_and_one(ks_json_t* item);
+KS_DECLARE(int) ks_json_check_number_is_ip_port(ks_json_t *item);
 
 KS_DECLARE(int) ks_json_check_string_matches(ks_json_t *item, const char *rule);
 KS_DECLARE(int) ks_json_check_string_array_items(ks_json_t *item, ks_json_simple_check_function check);
@@ -80,7 +84,13 @@ KS_DECLARE(int) ks_json_check_string_is_e164(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_string_is_any_nullable(ks_json_t *item);
 KS_DECLARE(int) ks_json_check_string_is_any_or_empty(ks_json_t *item);
 KS_DECLARE(int) ks_json_check_string_is_https(ks_json_t *item);
+KS_DECLARE(int) ks_json_check_string_is_http(ks_json_t *item);
+KS_DECLARE(int) ks_json_check_string_is_http_or_https(ks_json_t *item);
+KS_DECLARE(int) ks_json_check_string_is_ws_uri(ks_json_t *item);
+KS_DECLARE(int) ks_json_check_string_is_wss_uri(ks_json_t *item);
+KS_DECLARE(int) ks_json_check_string_is_ws_or_wss_uri(ks_json_t *item);
 
+KS_DECLARE(int) ks_json_check_string_starts_with_insensitive(ks_json_t *item, const char *match);
 KS_DECLARE(int) ks_json_check_string_starts_with(ks_json_t *item, const char *match);
 KS_DECLARE(int) ks_json_check_string_ends_with(ks_json_t *item, const char *match);
 

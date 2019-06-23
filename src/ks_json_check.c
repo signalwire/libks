@@ -109,6 +109,16 @@ KS_DECLARE(int) ks_json_check_number_is_8_bit_unsigned(ks_json_t *item)
 	return ks_json_type_is_number(item) && item->valueint >= 0 && item->valueint <= 255;
 }
 
+KS_DECLARE(int) ks_json_check_number_is_16_bit_unsigned(ks_json_t *item)
+{
+	return ks_json_type_is_number(item) && item->valueint >= 0 && item->valueint <= 65535;
+}
+
+KS_DECLARE(int) ks_json_check_number_is_ip_port(ks_json_t *item)
+{
+	return ks_json_type_is_number(item) && item->valueint >= 1 && item->valueint <= 65535;
+}
+
 KS_DECLARE(int) ks_json_check_string_is_any_or_empty(ks_json_t* item)
 {
 	return ks_json_type_is_string(item);
@@ -122,6 +132,19 @@ KS_DECLARE(int) ks_json_check_string_is_any(ks_json_t* item)
 KS_DECLARE(int) ks_json_check_string_is_any_nullable(ks_json_t* item)
 {
 	return ks_json_type_is_null(item) || ks_json_type_is_string(item);
+}
+
+KS_DECLARE(int) ks_json_check_string_starts_with_insensitive(ks_json_t *item, const char *match)
+{
+	if (!ks_json_type_is_string(item) || zstr(item->valuestring) || zstr(match)) {
+		return 0;
+	}
+	size_t item_len = strlen(item->valuestring);
+	size_t match_len = strlen(match);
+	if (item_len < match_len) {
+		return 0;
+	}
+	return !strncasecmp(item->valuestring, match, match_len);
 }
 
 KS_DECLARE(int) ks_json_check_string_starts_with(ks_json_t *item, const char *match)
@@ -254,8 +277,32 @@ KS_DECLARE(int) ks_json_check_string_matches(ks_json_t *item, const char *rule)
 
 KS_DECLARE(int) ks_json_check_string_is_https(ks_json_t *item)
 {
-	return ks_json_type_is_string(item) && !zstr(item->valuestring) && 
-		strlen(item->valuestring) > 8 && !strncasecmp("https://", item->valuestring, strlen("https://"));
+	return ks_json_check_string_starts_with_insensitive(item, "https://");
+}
+
+KS_DECLARE(int) ks_json_check_string_is_http(ks_json_t *item)
+{
+	return ks_json_check_string_starts_with_insensitive(item, "http://");
+}
+
+KS_DECLARE(int) ks_json_check_string_is_http_or_https(ks_json_t *item)
+{
+	return ks_json_check_string_is_http(item) || ks_json_check_string_is_https(item);
+}
+
+KS_DECLARE(int) ks_json_check_string_is_ws_uri(ks_json_t *item)
+{
+	return ks_json_check_string_starts_with_insensitive(item, "ws://");
+}
+
+KS_DECLARE(int) ks_json_check_string_is_wss_uri(ks_json_t *item)
+{
+	return ks_json_check_string_starts_with_insensitive(item, "wss://");
+}
+
+KS_DECLARE(int) ks_json_check_string_is_ws_or_wss_uri(ks_json_t *item)
+{
+	return ks_json_check_string_is_ws_uri(item) || ks_json_check_string_is_wss_uri(item);
 }
 
 KS_DECLARE(int) ks_json_check_object(ks_json_t *json, const char *item_names)
