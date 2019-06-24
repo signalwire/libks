@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2019 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -206,7 +206,7 @@ static void server_callback(ks_socket_t server_sock, ks_socket_t client_sock, ks
 
 	printf("%s\n", buf);
 
-	status = ks_socket_send(client_sock, buf, &bytes);
+	ks_socket_send(client_sock, buf, &bytes);
 	printf("TCP SERVER WRITE %ld bytes\n", (long)bytes);
 
 	ks_socket_close(&client_sock);
@@ -237,18 +237,16 @@ static int start_tcp_server_and_test_ws(char *ip)
 	ks_socket_t cl_sock = KS_SOCK_INVALID;
 	char buf[8192] = "";
 	struct tcp_data tcp_data = { 0 };
-	int r = 1, sanity = 100;
+	int sanity = 100;
 
 	ks_pool_open(&pool);
 
 	if (ks_addr_set(&tcp_data.addr, ip, LISTEN_PORT, family) != KS_STATUS_SUCCESS) {
-		r = 0;
 		printf("TCP CLIENT Can't set ADDR\n");
 		goto end;
 	}
 
 	if ((tcp_data.sock = socket(family, SOCK_STREAM, IPPROTO_TCP)) == KS_SOCK_INVALID) {
-		r = 0;
 		printf("TCP CLIENT Can't create sock family %d\n", family);
 		goto end;
 	}
@@ -321,7 +319,7 @@ static int test_ws(char *url)
 		printf("read bytes=%d oc=%d [%s]\n", bytes, oc, (char *)rdata);
 	}
 
-	ok(strstr((char *)rdata, __MSG) != NULL);
+	ok(rdata != NULL && strstr((char *)rdata, __MSG) != NULL);
 
 	kws_destroy(&kws);
 

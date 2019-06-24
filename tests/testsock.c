@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2019 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -59,7 +59,7 @@ void server_callback(ks_socket_t server_sock, ks_socket_t client_sock, ks_sockad
 	} while(ks_zstr_buf(buf) || strcmp(buf, __MSG));
 
 	bytes = strlen(buf);
-	status = ks_socket_send(client_sock, buf, &bytes);
+	ks_socket_send(client_sock, buf, &bytes);
 	printf("TCP SERVER WRITE %ld bytes\n", (long)bytes);
 
 	ks_socket_close(&client_sock);

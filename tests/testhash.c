@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2019 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -144,25 +144,19 @@ int test2(void)
 	return 1;
 }
 
-//#include "sodium.h"
 #define TEST3_SIZE 20
 int test3(void)
 {
 	ks_pool_t *pool;
 	ks_hash_t *hash;
-	ks_byte_t data[TEST3_SIZE];
-	ks_byte_t data2[TEST3_SIZE];
-	ks_byte_t data3[TEST3_SIZE];
+	ks_byte_t data[TEST3_SIZE] = { 52, 116, 29, 120, 56, 135, 31, 196, 165, 219, 102, 169, 217, 228, 24, 163, 203, 93, 98, 71 };
+	ks_byte_t data2[TEST3_SIZE] = { 248, 96, 216, 171, 94, 116, 77, 48, 114, 0, 49, 61, 93, 229, 224, 10, 6, 8, 112, 248 };
+	ks_byte_t data3[TEST3_SIZE] = { 171, 58, 43, 4, 49, 222, 42, 253, 18, 122, 230, 51, 180, 66, 154, 130, 114, 117, 172, 193 };
 	char *A, *B, *C;
 
 	ks_pool_open(&pool);
 	ks_hash_create(&hash, KS_HASH_MODE_ARBITRARY, KS_HASH_FLAG_NOLOCK, pool);
 	ks_hash_set_keysize(hash, TEST3_SIZE);
-
-	ks_rng_get_data(data, sizeof(data));
-	ks_rng_get_data(data2, sizeof(data));
-	//randombytes_buf(data, sizeof(data));
-	//randombytes_buf(data2, sizeof(data2));
 
 	ks_hash_insert(hash, data, "FOO");
 	ks_hash_insert(hash, data2, "BAR");

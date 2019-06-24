@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2019 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -90,7 +90,7 @@ int main(int argc, char **argv)
 	}
 
 
-	status = ks_pool_open(&pool);
+	ks_pool_open(&pool);
 
 	void *blah = ks_pool_alloc(pool, 64 * 1024);
 

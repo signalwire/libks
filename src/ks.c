@@ -62,7 +62,6 @@ KS_DECLARE(ks_status_t) ks_init(void)
 	ks_global_pool();
 	ks_json_init();
 	ks_ssl_init_ssl_locks();
-	ks_rng_init();
 
 #ifdef __WINDOWS__
 	WSADATA wsaData;
@@ -97,8 +96,6 @@ KS_DECLARE(ks_status_t) ks_shutdown(void)
 	ks_ssl_destroy_ssl_locks();
 
 	ks_handle_shutdown();
-
-	ks_rng_shutdown();
 
 	if (g_pool) {
 		status = ks_pool_close(&g_pool);
