@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2019 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -52,7 +52,6 @@ KS_END_EXTERN_C
 #include "libks/ks_log.h"
 #include "libks/ks_env.h"
 #include "libks/ks_handle.h"
-#include "libks/ks_rng.h"
 #include "libks/ks_string.h"
 #include "libks/ks_printf.h"
 #include "libks/ks_json.h"
@@ -78,12 +77,10 @@ KS_END_EXTERN_C
 #include "libks/ks_base64.h"
 #include "libks/ks_time.h"
 #include "libks/ks_sb.h"
-#include "libks/ks_resp.h"
 #include "libks/ks_utf8.h"
-#include "libks/ks_faktory.h"
 #include "libks/ks_atomic.h"
 #include "libks/ks_metrics.h"
-						
+
 /* For Emacs:
  * Local Variables:
  * mode:c

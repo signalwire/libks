@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2019 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -363,7 +363,6 @@ static void __join_os_thread(ks_thread_t *thread) {
  */
 KS_DECLARE(ks_status_t) ks_thread_join(ks_thread_t *thread) {
 	ks_bool_t self_join = thread->id == ks_thread_self_id();
-	ks_bool_t detached = thread->flags & KS_THREAD_FLAG_DETACHED;
 
 	ks_log(KS_LOG_DEBUG, "Join requested by thread: %8.8lx for thread address: %p, tid: %8.8lx\n", ks_thread_self_id(), (void *)&thread, thread->id);
 
