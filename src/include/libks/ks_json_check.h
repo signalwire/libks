@@ -80,6 +80,8 @@ KS_DECLARE(int) ks_json_check_string_is_e164(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_string_is_any_nullable(ks_json_t *item);
 KS_DECLARE(int) ks_json_check_string_is_any_or_empty(ks_json_t *item);
 KS_DECLARE(int) ks_json_check_string_is_https(ks_json_t *item);
+KS_DECLARE(int) ks_json_check_string_is_http_or_https(ks_json_t *item);
+
 
 KS_DECLARE(int) ks_json_check_string_starts_with(ks_json_t *item, const char *match);
 KS_DECLARE(int) ks_json_check_string_ends_with(ks_json_t *item, const char *match);

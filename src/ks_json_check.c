@@ -252,6 +252,13 @@ KS_DECLARE(int) ks_json_check_string_matches(ks_json_t *item, const char *rule)
 	return string_matches(item->valuestring, rule);
 }
 
+KS_DECLARE(int) ks_json_check_string_is_http_or_https(ks_json_t *item)
+{
+	return ks_json_type_is_string(item) && !zstr(item->valuestring) && 
+		(strlen(item->valuestring) > 8 && !strncasecmp("https://", item->valuestring, strlen("https://"))
+		 || strlen(item->valuestring) > 7 && !strncasecmp("http://", item->valuestring, strlen("http://")));
+}
+
 KS_DECLARE(int) ks_json_check_string_is_https(ks_json_t *item)
 {
 	return ks_json_type_is_string(item) && !zstr(item->valuestring) && 
