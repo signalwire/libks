@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2019 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -1409,7 +1409,7 @@ KS_DECLARE(ks_status_t) kws_connect_ex(kws_t **kwsP, ks_json_t *params, kws_flag
 	const char *host = NULL;
 	const char *protocol = ks_json_get_object_cstr(params, "protocol");
 	const char *path = NULL;
-	char *p = (char *)url;
+	char *p = NULL;
 	const char *client_data = NULL;
 	int destroy_ssl_ctx = 0;
 
