@@ -1709,7 +1709,7 @@ KS_DECLARE(char *) __ks_pstrcat(const char *file, int line, const char *tag, ks_
 {
     char *endp, *argp;
 	char *result;
-    ks_size_t lengths[10];
+    ks_size_t lengths[10] = { 0 };
     int i = 0;
     ks_size_t len = 0;
     va_list ap;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2019 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -257,26 +257,6 @@ typedef struct ks_thread_pool_s ks_thread_pool_t;
 
 struct ks_network_list;
 typedef struct ks_network_list ks_network_list_t;
-
-typedef enum {
-	KS_FAKTORY_STATE_NONE = 0,
-	KS_FAKTORY_STATE_CONNECTING,
-	KS_FAKTORY_STATE_UNIDENTIFIED,
-	KS_FAKTORY_STATE_IDENTIFIED,
-	KS_FAKTORY_STATE_QUIET,
-	KS_FAKTORY_STATE_TERMINATE,
-	KS_FAKTORY_STATE_END,
-	KS_FAKTORY_STATE_SHUTDOWN,
-	KS_FAKTORY_STATE_CLEANUP
-} ks_faktory_state_t;
-
-struct ks_faktory_s;
-typedef struct ks_faktory_s ks_faktory_t;
-
-struct respObject;
-typedef struct respObject respObject;
-typedef void(*ks_faktory_state_callback_t) (ks_faktory_t *faktory, ks_faktory_state_t state);
-typedef void (*ks_faktory_command_callback_t) (ks_faktory_t *faktory, respObject *resp, void *data);
 
 KS_END_EXTERN_C
 

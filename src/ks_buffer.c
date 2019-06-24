@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2019 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -163,6 +163,7 @@ KS_DECLARE(ks_size_t) ks_buffer_read(ks_buffer_t *buffer, void *data, ks_size_t 
 	ks_size_t reading = 0;
 
 	ks_assert(buffer != NULL);
+	ks_assert(buffer->head != NULL);
 	ks_assert(data != NULL);
 
 
