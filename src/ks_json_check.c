@@ -186,14 +186,6 @@ static int is_dtmf_digit(char digit)
 		case '7':
 		case '8':
 		case '9':
-		case 'A':
-		case 'a':
-		case 'B':
-		case 'b':
-		case 'C':
-		case 'c':
-		case 'D':
-		case 'd':
 		case '*':
 		case '#':
 			return 1;
