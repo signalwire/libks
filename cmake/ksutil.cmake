@@ -29,7 +29,7 @@ endfunction()
 # This function will do the check_include_file call, and if successful add the definition
 # to the target inline.
 function(ksutil_target_check_include_file TARGET SCOPE HEADER DEFINITION)
-	check_function_exists(${HEADER} ${DEFINITION})
+	check_include_file(${HEADER} ${DEFINITION})
 	if (${DEFINITION})
 		target_compile_definitions(${TARGET} ${SCOPE} "-D${DEFINITION}=1")
 	endif()
