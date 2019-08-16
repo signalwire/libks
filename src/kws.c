@@ -390,7 +390,9 @@ KS_DECLARE(ks_ssize_t) kws_raw_read(kws_t *kws, void *data, ks_size_t bytes, int
 			r = SSL_read(kws->ssl, data, (int)bytes);
 			if (r == 0) {
 				ssl_err = SSL_get_error(kws->ssl, r);
-				ks_log(KS_LOG_ERROR, "Weird SSL_read error: %d\n", ssl_err);
+				if (ssl_err != SSL_ERROR_ZERO_RETURN) {
+					ks_log(KS_LOG_WARNING, "Weird SSL_read error: %d\n", ssl_err);
+				}
 			}
 
 			if (r < 0) {
