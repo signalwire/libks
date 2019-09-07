@@ -238,7 +238,7 @@ static ks_status_t __lookup_allocated_slot(ks_handle_type_t type, ks_handle_t ha
 
 	/* Parse the handle */
 	if (status = __validate_handle(type, handle, &group, &sequence, &slot_index)) {
-		ks_log(KS_LOG_ERROR, "VALIDATION FAILED : %lu HANDLE: %16.16llx", status, handle);
+		ks_log(KS_LOG_WARNING, "VALIDATION FAILED : %lu HANDLE: %16.16llx", status, handle);
 		return status;
 	}
 
