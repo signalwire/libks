@@ -25,7 +25,7 @@
 #include "libks/internal/ks_thread.h"
 
 /* Keep some basic counters for some basic debugging info when needed */
-static uint32_t g_active_detached_thread_count, g_active_attached_thread_count;
+static uint32_t g_active_detached_thread_count = 0, g_active_attached_thread_count = 0;
 
 /* Define the max number of seconds we'll wait for the thread to set its state to ready */
 #define KS_THREAD_SANITY_WAIT_MS 1000
@@ -644,7 +644,7 @@ KS_DECLARE(void) ks_thread_destroy(ks_thread_t **threadp)
 	pthread_attr_destroy(&thread->attribute);
 #endif
 
-	ks_log(KS_LOG_DEBUG, "Current active and attached count: %lu, current active and detatched count: %lu\n",
+	ks_log(KS_LOG_DEBUG, "Current active and attached count: %u, current active and detatched count: %u\n",
 		g_active_attached_thread_count, g_active_detached_thread_count);
 
 	if (detached) {
@@ -767,7 +767,7 @@ KS_DECLARE(ks_status_t) __ks_thread_create_ex(
 		ks_atomic_increment_uint32(&g_active_attached_thread_count);
 	}
 
-	ks_log(KS_LOG_DEBUG, "Allocating new thread, current active and attached count: %lu, current active and detatched count: %lu\n",
+	ks_log(KS_LOG_DEBUG, "Allocating new thread, current active and attached count: %u, current active and detatched count: %u\n",
 		g_active_attached_thread_count, g_active_detached_thread_count);
 
 	thread->private_data = data;
