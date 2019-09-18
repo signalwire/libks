@@ -673,9 +673,7 @@ static ks_status_t __handle_destroy(ks_handle_t *handle, ks_status_t *child_stat
 	}
 
 	/* Release it */
-	if (group && slot_index > 0) {
-		unmark_allocated_slot(group, slot_index);
-	}
+	unmark_allocated_slot(group, slot_index);
 	__release_slot(slot);
 
 	/* Mark the group as next free as a hint */
