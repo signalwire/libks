@@ -29,7 +29,9 @@ KS_BEGIN_EXTERN_C
  * tracking structures across ks are all small fixed sized items.
  */
 #define KS_HANDLE_MAX_SIZE 		512
-#define KS_HANDLE_MAX_SLOTS 	65535 	/* max value of uint16_t */
+#define KS_HANDLE_MAX_SLOTS 	65535 	  /* max value of uint16_t */
+#define KS_HANDLE_MAX_SLOT_CHUNKS 	2048  /* 32-bits to track slot allocations as a 32-slot chunk */
+#define KS_HANDLE_MAX_SLOT_PAGES 	64 	  /* 32-bits top track slot allocations as a 32-chunk page */
 #define KS_HANDLE_MAX_GROUPS	20
 
 #define KS_HANDLE_MAX_NOTREADY_WAIT_MS	(30 * 1000)	/* Wait 30 seconds before considering a hung not ready call */
@@ -81,6 +83,9 @@ typedef struct ks_handle_slot_s {
 
 typedef struct ks_handle_group_s {
 	ks_handle_slot_t slots[KS_HANDLE_MAX_SLOTS];
+	ks_spinlock_t lock;
+	uint32_t slot_chunks[KS_HANDLE_MAX_SLOT_CHUNKS];
+	uint32_t slot_pages[KS_HANDLE_MAX_SLOT_PAGES];
 	uint32_t sequence;				/* This is an incrementing number that validates an allocated slot instance */
 	volatile uint16_t next_free;   	/* set by visitors as they release slots to give us a quick way to
 									 * find the next free one on allocation

@@ -27,6 +27,65 @@
 static ks_handle_group_t g_handle_groups[KS_HANDLE_MAX_GROUPS];
 static ks_bool_t g_initialized;
 
+/* Try to return most likely next allocated slot, skipping over pages and chunks that have no allocated slots  */
+static uint32_t next_allocated_slot(ks_handle_group_t *group, uint32_t slot_index)
+{
+	ks_spinlock_acquire(&group->lock);
+	// check if page has any allocated slots
+	uint32_t page_index = slot_index / 1024;
+	if (group->slot_pages[page_index] == 0) {
+		// skip to next page
+		ks_spinlock_release(&group->lock);
+		return (page_index + 1) * 1024;
+	}
+
+	// check if chunk has any allocated slots
+	uint32_t chunk_index = slot_index / 32;
+	if (group->slot_pages[chunk_index] == 0) {
+		// skip to next chunk
+		ks_spinlock_release(&group->lock);
+		return (chunk_index + 1) * 32;
+	}
+	ks_spinlock_release(&group->lock);
+
+	// next slot
+	return slot_index + 1;
+}
+
+static ks_status_t mark_allocated_slot(ks_handle_group_t *group, uint32_t slot_index)
+{
+	if (group && slot_index > 0 && slot_index < KS_HANDLE_MAX_SLOTS) {
+		ks_spinlock_acquire(&group->lock);
+		uint32_t chunk_index = slot_index / 32;
+		uint32_t chunk_bit = slot_index % 32;
+		group->slot_chunks[chunk_index] |= (1 << chunk_bit);
+		uint32_t page_index = chunk_index / 32;
+		uint32_t page_bit = chunk_index % 32;
+		group->slot_pages[page_index] |= (1 << page_bit);
+		ks_spinlock_release(&group->lock);
+		return KS_STATUS_SUCCESS;
+	}
+	return KS_STATUS_INVALID_ARGUMENT;
+}
+
+static ks_status_t unmark_allocated_slot(ks_handle_group_t *group, uint32_t slot_index)
+{
+	if (group && slot_index > 0 && slot_index < KS_HANDLE_MAX_SLOTS) {
+		ks_spinlock_acquire(&group->lock);
+		uint32_t chunk_index = slot_index / 32;
+		uint32_t chunk_bit = slot_index % 32;
+		group->slot_chunks[chunk_index] &= ~(1 << chunk_bit);
+		if (group->slot_chunks[chunk_index] == 0) {
+			uint32_t page_index = chunk_index / 32;
+			uint32_t page_bit = chunk_index % 32;
+			group->slot_pages[page_index] &= ~(1 << page_bit);
+		}
+		ks_spinlock_release(&group->lock);
+		return KS_STATUS_SUCCESS;
+	}
+	return KS_STATUS_INVALID_ARGUMENT;
+}
+
 /**
  * Lock controls for a slot. Each slot has an atomic_flag in it
  * which gets set to true whenever we want to gate access to it.
@@ -116,6 +175,7 @@ static inline ks_status_t __reserve_slot(ks_handle_group_t *group,
 		if (!__try_allocate_slot(slot)) {
 			continue;
 		}
+		mark_allocated_slot(group, slot_index);
 
 		/* Enforce 0 is invalid */
 		ks_assert(slot_index != 0);
@@ -309,7 +369,7 @@ KS_DECLARE(ks_status_t) __ks_handle_alloc_ex(ks_pool_t **pool, ks_handle_type_t 
 	uint16_t group_id = KS_HANDLE_GROUP_FROM_TYPE(type);
 	ks_handle_group_t *group = NULL;
 	ks_handle_slot_t *slot = NULL;
-	uint16_t slot_index;
+	uint16_t slot_index = 0;
 	ks_pool_t *_pool = NULL;
 	ks_status_t status;
 
@@ -397,6 +457,9 @@ KS_DECLARE(ks_status_t) __ks_handle_alloc_ex(ks_pool_t **pool, ks_handle_type_t 
 
 done:
 	if (status) {
+		if (group && slot_index > 0) {
+			unmark_allocated_slot(group, slot_index);
+		}
 		__release_slot(slot);
 	}
 
@@ -561,8 +624,8 @@ static ks_status_t __destroy_slot_children(ks_handle_t parent)
 static ks_status_t __handle_destroy(ks_handle_t *handle, ks_status_t *child_status)
 {
 	ks_status_t status = KS_STATUS_SUCCESS;
-	uint16_t slot_index;
-	ks_handle_group_t *group;
+	uint16_t slot_index = 0;
+	ks_handle_group_t *group = NULL;
 	ks_handle_slot_t *slot;
 
 	if (!handle || !*handle)
@@ -612,6 +675,7 @@ static ks_status_t __handle_destroy(ks_handle_t *handle, ks_status_t *child_stat
 	}
 
 	/* Release it */
+	unmark_allocated_slot(group, slot_index);
 	__release_slot(slot);
 
 	/* Mark the group as next free as a hint */
@@ -805,8 +869,8 @@ KS_DECLARE(ks_status_t) ks_handle_enum_children(ks_handle_t parent, ks_handle_t 
 KS_DECLARE(ks_status_t) ks_handle_enum(ks_handle_t *handle)
 {
 	for (uint32_t group_index = KS_HANDLE_GROUP_FROM_HANDLE(*handle); group_index < KS_HANDLE_MAX_GROUPS; group_index++) {
-		for (uint32_t slot_index = KS_HANDLE_SLOT_INDEX_FROM_HANDLE(*handle) + 1; slot_index < KS_HANDLE_MAX_SLOTS; slot_index++) {
-			ks_handle_group_t *group = &g_handle_groups[group_index];
+		ks_handle_group_t *group = &g_handle_groups[group_index];
+		for (uint32_t slot_index = KS_HANDLE_SLOT_INDEX_FROM_HANDLE(*handle) + 1; slot_index < KS_HANDLE_MAX_SLOTS; slot_index = next_allocated_slot(group, slot_index)) {
 			ks_handle_slot_t *slot = &group->slots[slot_index];
 
 			if (!__try_lock_slot(slot))
@@ -836,7 +900,7 @@ KS_DECLARE(uint32_t) ks_handle_count(ks_handle_type_t type)
 
 	group = &g_handle_groups[group_id];
 
-	for (uint32_t slot_index = 1; slot_index < KS_HANDLE_MAX_SLOTS; slot_index++) {
+	for (uint32_t slot_index = 1; slot_index < KS_HANDLE_MAX_SLOTS; slot_index = next_allocated_slot(group, slot_index)) {
 		ks_handle_slot_t *slot = &group->slots[slot_index];
 
 		if (!__try_lock_slot(slot))
@@ -863,7 +927,7 @@ KS_DECLARE(ks_status_t) ks_handle_enum_type(ks_handle_type_t type, ks_handle_t *
 
 	group = &g_handle_groups[group_id];
 
-	for (uint32_t slot_index = KS_HANDLE_SLOT_INDEX_FROM_HANDLE(*handle) + 1; slot_index < KS_HANDLE_MAX_SLOTS; slot_index++) {
+	for (uint32_t slot_index = KS_HANDLE_SLOT_INDEX_FROM_HANDLE(*handle) + 1; slot_index < KS_HANDLE_MAX_SLOTS; slot_index = next_allocated_slot(group, slot_index)) {
 		ks_handle_slot_t *slot = &group->slots[slot_index];
 
 		if (!__try_lock_slot(slot))
