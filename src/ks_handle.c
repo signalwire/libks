@@ -75,9 +75,11 @@ static ks_status_t unmark_allocated_slot(ks_handle_group_t *group, uint32_t slot
 		uint32_t chunk_index = slot_index / 32;
 		uint32_t chunk_bit = slot_index % 32;
 		group->slot_chunks[chunk_index] &= ~(1 << chunk_bit);
-		uint32_t page_index = chunk_index / 32;
-		uint32_t page_bit = chunk_index % 32;
-		group->slot_pages[page_index] &= ~(1 << page_bit);
+		if (group->slot_chunks[chunk_index] == 0) {
+			uint32_t page_index = chunk_index / 32;
+			uint32_t page_bit = chunk_index % 32;
+			group->slot_pages[page_index] &= ~(1 << page_bit);
+		}
 		ks_spinlock_release(&group->lock);
 		return KS_STATUS_SUCCESS;
 	}
