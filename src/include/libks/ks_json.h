@@ -100,59 +100,43 @@ KS_DECLARE(ks_json_t *) __ks_json_parse(ks_pool_t *pool, const char *file, int l
 
 KS_DECLARE(ks_json_t *) ks_json_add_item_to_array(ks_json_t *array, ks_json_t *item);
 
-KS_DECLARE(ks_json_t *) __ks_json_add_uuid_to_array(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t *array, ks_uuid_t uuid);
-#define ks_json_add_uuid_to_array(array, uuid)	__ks_json_add_uuid_to_array(NULL, __FILE__, __LINE__, __PRETTY_FUNCTION__, array, uuid)
-#define ks_json_padd_uuid_to_array(pool, array, uuid)	__ks_json_add_uuid_to_array(pool, __FILE__, __LINE__, __PRETTY_FUNCTION__, array, uuid)
+KS_DECLARE(ks_json_t *) __ks_json_add_uuid_to_array(const char *file, int line, const char *tag, ks_json_t *array, ks_uuid_t uuid);
+#define ks_json_add_uuid_to_array(array, uuid)	__ks_json_add_uuid_to_array( __FILE__, __LINE__, __PRETTY_FUNCTION__, array, uuid)
 
-KS_DECLARE(ks_json_t *) __ks_json_add_number_to_array(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t * const array, const double number);
-#define ks_json_add_number_to_array(array, number)	__ks_json_add_number_to_array(NULL, __FILE__, __LINE__, __PRETTY_FUNCTION__, array, number)
-#define ks_json_padd_number_to_array(pool, array, number)	__ks_json_add_number_to_array(pool, __FILE__, __LINE__, __PRETTY_FUNCTION__, array, number)
+KS_DECLARE(ks_json_t *) __ks_json_add_number_to_array(const char *file, int line, const char *tag, ks_json_t * const array, const double number);
+#define ks_json_add_number_to_array(array, number)	__ks_json_add_number_to_array( __FILE__, __LINE__, __PRETTY_FUNCTION__, array, number)
 
-KS_DECLARE(ks_json_t *) __ks_json_add_string_to_array(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t * const array, const char * const string);
-#define ks_json_add_string_to_array(array, string)	__ks_json_add_string_to_array(NULL, __FILE__, __LINE__, __PRETTY_FUNCTION__, array, string)
-#define ks_json_padd_string_to_array(pool, array, string)	__ks_json_add_string_to_array(pool, __FILE__, __LINE__, __PRETTY_FUNCTION__, array, string)
+KS_DECLARE(ks_json_t *) __ks_json_add_string_to_array(const char *file, int line, const char *tag, ks_json_t * const array, const char * const string);
+#define ks_json_add_string_to_array(array, string)	__ks_json_add_string_to_array( __FILE__, __LINE__, __PRETTY_FUNCTION__, array, string)
 
-KS_DECLARE(ks_json_t *) __ks_json_add_true_to_array(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t * const array);
-#define ks_json_add_true_to_array(array)	__ks_json_add_true_to_array(NULL, __FILE__, __LINE__, __PRETTY_FUNCTION__, array)
-#define ks_json_padd_true_to_array(pool, array)	__ks_json_add_true_to_array(pool, __FILE__, __LINE__, __PRETTY_FUNCTION__, array)
+KS_DECLARE(ks_json_t *) __ks_json_add_true_to_array(const char *file, int line, const char *tag, ks_json_t * const array);
+#define ks_json_add_true_to_array(array)	__ks_json_add_true_to_array( __FILE__, __LINE__, __PRETTY_FUNCTION__, array)
 
-KS_DECLARE(ks_json_t *) __ks_json_add_false_to_array(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t * const array);
-#define ks_json_add_false_to_array(array)	__ks_json_add_false_to_array(NULL, __FILE__, __LINE__, __PRETTY_FUNCTION__, array)
-#define ks_json_padd_false_to_array(pool, array)	__ks_json_add_false_to_array(pool, __FILE__, __LINE__, __PRETTY_FUNCTION__, array)
+KS_DECLARE(ks_json_t *) __ks_json_add_false_to_array(const char *file, int line, const char *tag, ks_json_t * const array);
+#define ks_json_add_false_to_array(array)	__ks_json_add_false_to_array( __FILE__, __LINE__, __PRETTY_FUNCTION__, array)
 
-KS_DECLARE(ks_json_t *) __ks_json_add_bool_to_array(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t * const array, ks_bool_t value);
-#define ks_json_add_bool_to_array(array, value)		__ke_json_add_bool_to_array(NULL, __FILE__, __LINE__, __PRETTY_FUNCTION__, array, value)
-#define ks_json_padd_bool_to_array(pool, array, value)		__ke_json_add_bool_to_array(pool, __FILE__, __LINE__, __PRETTY_FUNCTION__, array, value)
+KS_DECLARE(ks_json_t *) __ks_json_add_bool_to_array(const char *file, int line, const char *tag, ks_json_t * const array, ks_bool_t value);
+#define ks_json_add_bool_to_array(array, value)		__ks_json_add_bool_to_array( __FILE__, __LINE__, __PRETTY_FUNCTION__, array, value)
 
 KS_DECLARE(ks_json_t *) ks_json_add_item_to_object(ks_json_t *object, const char * const string, ks_json_t *item);
 
-KS_DECLARE(ks_json_t *) __ks_json_add_uuid_to_object(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t *object, const char * const string, ks_uuid_t uuid);
-#define ks_json_add_uuid_to_object(object, string, uuid)		__ks_json_add_uuid_to_object(NULL, __FILE__, __LINE__, __PRETTY_FUNCTION__, object, string, uuid)
-#define ks_json_padd_uuid_to_object(pool, object, string, uuid)		__ks_json_add_uuid_to_object(pool, __FILE__, __LINE__, __PRETTY_FUNCTION__, object, string, uuid)
+KS_DECLARE(ks_json_t *) __ks_json_add_uuid_to_object(const char *file, int line, const char *tag, ks_json_t *object, const char * const string, ks_uuid_t uuid);
+#define ks_json_add_uuid_to_object(object, string, uuid)		__ks_json_add_uuid_to_object( __FILE__, __LINE__, __PRETTY_FUNCTION__, object, string, uuid)
 
-KS_DECLARE(ks_json_t *) __ks_json_add_number_to_object(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t * const object, const char * const name, const double number);
-#define ks_json_add_number_to_object(object, name, number)	__ks_json_add_number_to_object(NULL, __FILE__, __LINE__, __PRETTY_FUNCTION__, object, name, number)
-#define ks_json_padd_number_to_object(pool, object, name, number)	__ks_json_add_number_to_object(pool, __FILE__, __LINE__, __PRETTY_FUNCTION__, object, name, number)
+KS_DECLARE(ks_json_t *) __ks_json_add_number_to_object(const char *file, int line, const char *tag, ks_json_t * const object, const char * const name, const double number);
+#define ks_json_add_number_to_object(object, name, number)	__ks_json_add_number_to_object( __FILE__, __LINE__, __PRETTY_FUNCTION__, object, name, number)
 
-KS_DECLARE(ks_json_t *) __ks_json_add_string_to_object(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t * const object, const char * const name, const char * const string);
-#define ks_json_add_string_to_object(object, name, string) __ks_json_add_string_to_object(NULL, __FILE__, __LINE__, __PRETTY_FUNCTION__, object, name, string)
-#define ks_json_padd_string_to_object(pool, object, name, string) __ks_json_add_string_to_object(pool, __FILE__, __LINE__, __PRETTY_FUNCTION__, object, name, string)
+KS_DECLARE(ks_json_t *) __ks_json_add_string_to_object(const char *file, int line, const char *tag, ks_json_t * const object, const char * const name, const char * const string);
+#define ks_json_add_string_to_object(object, name, string) __ks_json_add_string_to_object( __FILE__, __LINE__, __PRETTY_FUNCTION__, object, name, string)
 
-KS_DECLARE(ks_json_t *) __ks_json_add_false_to_object(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t * const object, const char * const name);
-#define ks_json_add_false_to_object(object, name)	__ks_json_add_false_to_object(NULL, __FILE__, __LINE__, __PRETTY_FUNCTION__, object, name)
-#define ks_json_padd_false_to_object(pool, object, name)	__ks_json_add_false_to_object(pool, __FILE__, __LINE__, __PRETTY_FUNCTION__, object, name)
+KS_DECLARE(ks_json_t *) __ks_json_add_false_to_object(const char *file, int line, const char *tag, ks_json_t * const object, const char * const name);
+#define ks_json_add_false_to_object(object, name)	__ks_json_add_false_to_object( __FILE__, __LINE__, __PRETTY_FUNCTION__, object, name)
 
-KS_DECLARE(ks_json_t *) __ks_json_add_true_to_object(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t * const object, const char * const name);
-#define ks_json_add_true_to_object(object, name)	__ks_json_add_true_to_object(NULL, __FILE__, __LINE__, __PRETTY_FUNCTION__, object, name)
-#define ks_json_padd_true_to_object(pool, object, name)	__ks_json_add_true_to_object(pool, __FILE__, __LINE__, __PRETTY_FUNCTION__, object, name)
+KS_DECLARE(ks_json_t *) __ks_json_add_true_to_object(const char *file, int line, const char *tag, ks_json_t * const object, const char * const name);
+#define ks_json_add_true_to_object(object, name)	__ks_json_add_true_to_object( __FILE__, __LINE__, __PRETTY_FUNCTION__, object, name)
 
-KS_DECLARE(ks_json_t *) __ks_json_add_bool_to_object(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t * const array, const char * const name, ks_bool_t value);
-#define ks_json_add_bool_to_object(array, name, value) __ks_json_add_bool_to_object(NULL, __FILE__, __LINE__, __PRETTY_FUNCTION__, array, name, value)
-#define ks_json_padd_bool_to_object(pool, array, name, value) __ks_json_add_bool_to_object(pool, __FILE__, __LINE__, __PRETTY_FUNCTION__, array, name, value)
-
-KS_DECLARE(ks_json_t *) __ks_json_add_false_to_object(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t * const object, const char * const name);
-#define ks_json_add_false_to_object(object, name) __ks_json_add_false_to_object(NULL, __FILE__, __LINE__, __PRETTY_FUNCTION__, object, name)
-#define ks_json_padd_false_to_object(pool, object, name) __ks_json_add_false_to_object(pool, __FILE__, __LINE__, __PRETTY_FUNCTION__, object, name)
+KS_DECLARE(ks_json_t *) __ks_json_add_bool_to_object(const char *file, int line, const char *tag, ks_json_t * const array, const char * const name, ks_bool_t value);
+#define ks_json_add_bool_to_object(array, name, value) __ks_json_add_bool_to_object( __FILE__, __LINE__, __PRETTY_FUNCTION__, array, name, value)
 
 KS_DECLARE(ks_json_t *) __ks_json_duplicate(ks_pool_t *pool, const char *file, int line, const char *tag, const ks_json_t *item, ks_bool_t recurse);
 #define ks_json_duplicate(item, recurse)	__ks_json_duplicate(NULL, __FILE__, __LINE__, __PRETTY_FUNCTION__, item, recurse)
