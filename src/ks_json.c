@@ -193,8 +193,17 @@ KS_DECLARE(ks_json_t *) __ks_json_parse(ks_pool_t *pool, const char *file, int l
 // Add apis
 KS_DECLARE(ks_json_t *) ks_json_add_item_to_array(ks_json_t *array, ks_json_t *item)
 {
+	ks_pool_t *item_pool;
+	ks_pool_t *array_pool;
 	ks_assert(array);
 	ks_assert(ks_json_type_is_array(array));
+
+	item_pool = ks_pool_get(item);
+	array_pool = ks_pool_get(array);
+	if (item_pool != ks_global_pool() && item_pool != array_pool) {
+		item = ks_json_pduplicate(array_pool, item, KS_TRUE);
+	}
+
 	cJSON_AddItemToArray(array, item);
 	return item;
 }
@@ -218,6 +227,7 @@ KS_DECLARE(ks_json_t*) __ks_json_add_string_to_array(ks_pool_t *pool, const char
 	ks_assert(ks_json_type_is_array(array));
 	item = cJSON_CreateString(string);
 	ks_assert(item);
+
 	cJSON_AddItemToArray(array, item);
 	return item;
 }
@@ -275,8 +285,17 @@ KS_DECLARE(ks_json_t *) __ks_json_add_bool_to_array(ks_pool_t *pool, const char 
 
 KS_DECLARE(ks_json_t *) ks_json_add_item_to_object(ks_json_t *object, const char * const string, ks_json_t *item)
 {
+	ks_pool_t *item_pool;
+	ks_pool_t *object_pool;
 	ks_assert(object);
 	ks_assert(ks_json_type_is_object(object));
+
+	item_pool = ks_pool_get(item);
+	object_pool = ks_pool_get(object);
+	if (item_pool != ks_global_pool() && item_pool != object_pool) {
+		item = ks_json_pduplicate(object_pool, item, KS_TRUE);
+	}
+
 	cJSON_AddItemToObject(object, string, item);
 	return item;
 }
