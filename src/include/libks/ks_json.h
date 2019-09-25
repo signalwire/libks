@@ -66,10 +66,6 @@ KS_DECLARE(ks_json_t *) __ks_json_create_array(ks_pool_t *pool, const char *file
 #define ks_json_create_array() __ks_json_create_array(NULL, __FILE__, __LINE__, __PRETTY_FUNCTION__)
 #define ks_json_pcreate_array(pool) __ks_json_create_array(pool, __FILE__, __LINE__, __PRETTY_FUNCTION__)
 
-KS_DECLARE(ks_json_t *) __ks_json_create_array_inline(ks_pool_t *pool, const char *file, int line, const char *tag, uint32_t count, ...);
-#define ks_json_create_array_inline(count, ...) __ks_json_create_array_inline(NULL, __FILE__, __LINE__, __PRETTY_FUNCTION__, count, __VA_ARGS__)
-#define ks_json_pcreate_array_inline(pool, count, ...) __ks_json_create_array_inline(pool, __FILE__, __LINE__, __PRETTY_FUNCTION__, count, __VA_ARGS__)
-
 KS_DECLARE(ks_json_t *) __ks_json_create_object(ks_pool_t *pool, const char *file, int line, const char *tag);
 #define ks_json_create_object() __ks_json_create_object(NULL, __FILE__, __LINE__, __PRETTY_FUNCTION__)
 #define ks_json_pcreate_object(pool) __ks_json_create_object(pool, __FILE__, __LINE__, __PRETTY_FUNCTION__)

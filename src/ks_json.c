@@ -78,30 +78,6 @@ KS_DECLARE(ks_json_t *) __ks_json_create_array(ks_pool_t *pool, const char *file
 	return cJSON_CreateArray();
 }
 
-KS_DECLARE(ks_json_t *) __ks_json_create_array_inline(ks_pool_t *pool, const char *file, int line, const char *tag, uint32_t count, ...)
-{
-	va_list ap;
-	ks_json_t *array;
-
-	KS_JSON_DEBUG_TAG_SET
-
-	if (!(array = __ks_json_create_array(pool, file, line, tag)))
-		return NULL;
-
-	va_start(ap, count);
-
-	for (uint32_t index = 0; index < count; index++) {
-		if (!ks_json_add_item_to_array(array, va_arg(ap, ks_json_t *))) {
-			va_end(ap);
-			ks_json_delete(&array);
-			return NULL;
-		}
-	}
-
-	va_end(ap);
-	return array;
-}
-
 KS_DECLARE(ks_json_t *) __ks_json_create_object(ks_pool_t *pool, const char *file, int line, const char *tag)
 {
 	KS_JSON_DEBUG_TAG_SET
