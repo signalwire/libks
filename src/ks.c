@@ -60,7 +60,6 @@ KS_DECLARE(ks_status_t) ks_init(void)
 	srand(pid * (unsigned int)(intptr_t)&g_pool + (unsigned int)time(NULL));
 	ks_handle_init();
 	ks_global_pool();
-	ks_json_init();
 	ks_ssl_init_ssl_locks();
 
 #ifdef __WINDOWS__
@@ -100,9 +99,6 @@ KS_DECLARE(ks_status_t) ks_shutdown(void)
 	if (g_pool) {
 		status = ks_pool_close(&g_pool);
 	}
-
-	/* Deinit json after pool/handle so cleanup still works */
-	ks_json_deinit();
 
 done:
 

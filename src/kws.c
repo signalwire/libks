@@ -1406,10 +1406,10 @@ KS_DECLARE(ks_status_t) kws_connect_ex(kws_t **kwsP, ks_json_t *params, kws_flag
 	ks_port_t port = 443;
 	// char buf[50] = "";
 	struct hostent *he;
-	const char *url = ks_json_get_object_cstr(params, "url");
-	// const char *headers = ks_json_get_object_cstr(params, "headers");
+	const char *url = ks_json_get_object_string(params, "url", NULL);
+	// const char *headers = ks_json_get_object_string(params, "headers", NULL);
 	const char *host = NULL;
-	const char *protocol = ks_json_get_object_cstr(params, "protocol");
+	const char *protocol = ks_json_get_object_string(params, "protocol", NULL);
 	const char *path = NULL;
 	char *p = NULL;
 	const char *client_data = NULL;
@@ -1418,13 +1418,10 @@ KS_DECLARE(ks_status_t) kws_connect_ex(kws_t **kwsP, ks_json_t *params, kws_flag
 	if (!url) {
 		ks_json_t *tmp;
 
-		path = ks_json_get_object_cstr(params, "path");
-		host = ks_json_get_object_cstr(params, "host");
+		path = ks_json_get_object_string(params, "path", NULL);
+		host = ks_json_get_object_string(params, "host", NULL);
 		tmp = ks_json_get_object_item(params, "port");
-
-		if (ks_json_type_is_number(tmp) && ks_json_value_number_int(tmp) > 0) {
-			port = (ks_port_t)ks_json_value_number_int(tmp);
-		}
+		ks_json_value_number_int(tmp, (int *)&port);
 	} else {
 		if (!strncmp(url, "wss://", 6)) {
 			if (!ssl_ctx) {
