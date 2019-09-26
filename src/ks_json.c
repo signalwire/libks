@@ -26,17 +26,17 @@
 // Create apis
 KS_DECLARE(ks_json_t *) ks_json_create_array(void)
 {
-	return cJSON_CreateArray();
+	return kJSON_CreateArray();
 }
 
 KS_DECLARE(ks_json_t *) ks_json_create_object(void)
 {
-	return cJSON_CreateObject();
+	return kJSON_CreateObject();
 }
 
 KS_DECLARE(ks_json_t *) ks_json_create_number(double number)
 {
-	return cJSON_CreateNumber(number);
+	return kJSON_CreateNumber(number);
 }
 
 KS_DECLARE(ks_json_t *) ks_json_create_string_fmt(const char *fmt, ...)
@@ -51,7 +51,7 @@ KS_DECLARE(ks_json_t *) ks_json_create_string_fmt(const char *fmt, ...)
 
 	if (!str) return NULL;
 
-	item = cJSON_CreateString(str);
+	item = kJSON_CreateString(str);
 
 	free(str);	/* Managed by glibc for the formatting allocation */
 
@@ -60,39 +60,39 @@ KS_DECLARE(ks_json_t *) ks_json_create_string_fmt(const char *fmt, ...)
 
 KS_DECLARE(ks_json_t *) ks_json_create_string(const char *string)
 {
-	return cJSON_CreateString(string);
+	return kJSON_CreateString(string);
 }
 
 KS_DECLARE(ks_json_t *) ks_json_create_false(void)
 {
-	return cJSON_CreateFalse();
+	return kJSON_CreateFalse();
 }
 
 KS_DECLARE(ks_json_t *) ks_json_create_true(void)
 {
-	return cJSON_CreateTrue();
+	return kJSON_CreateTrue();
 }
 
 KS_DECLARE(ks_json_t *) ks_json_create_null(void)
 {
-	return cJSON_CreateNull();
+	return kJSON_CreateNull();
 }
 
 KS_DECLARE(ks_json_t *) ks_json_create_bool(ks_bool_t value)
 {
-	return cJSON_CreateBool(value == KS_TRUE);
+	return kJSON_CreateBool(value == KS_TRUE);
 }
 
 // Parse apis
 KS_DECLARE(ks_json_t *) ks_json_parse(const char *value)
 {
-	return cJSON_Parse(value);
+	return kJSON_Parse(value);
 }
 
 // Add apis
 KS_DECLARE(void) ks_json_add_item_to_array(ks_json_t *array, ks_json_t *item)
 {
-	cJSON_AddItemToArray(array, item);
+	kJSON_AddItemToArray(array, item);
 }
 
 KS_DECLARE(ks_json_t *) ks_json_add_array_to_array(ks_json_t *array)
@@ -141,7 +141,7 @@ KS_DECLARE(void) ks_json_add_bool_to_array(ks_json_t *array, ks_bool_t value)
 KS_DECLARE(void) ks_json_add_item_to_object(ks_json_t *object, const char *string, ks_json_t *item)
 {
 	// TODO check if item parent is NULL
-	cJSON_AddItemToObject(object, string, item);
+	kJSON_AddItemToObject(object, string, item);
 }
 
 KS_DECLARE(ks_json_t *) ks_json_add_array_to_object(ks_json_t *object, const char *string)
@@ -189,7 +189,7 @@ KS_DECLARE(void) ks_json_add_string_to_object(ks_json_t *object, const char *nam
 
 KS_DECLARE(ks_json_t *) ks_json_duplicate(ks_json_t *c, ks_bool_t recurse)
 {
-	return cJSON_Duplicate(c, recurse);
+	return kJSON_Duplicate(c, recurse);
 }
 
 KS_DECLARE(void) ks_json_delete(ks_json_t **c)
@@ -197,24 +197,24 @@ KS_DECLARE(void) ks_json_delete(ks_json_t **c)
 	if (!c || !*c)
 		return;
 
-	cJSON_Delete(*c);
+	kJSON_Delete(*c);
 	*c = NULL;
 }
 
 KS_DECLARE(void) ks_json_delete_item_from_array(ks_json_t *array, int index)
 {
-	cJSON_DeleteItemFromArray(array, index);
+	kJSON_DeleteItemFromArray(array, index);
 }
 
 KS_DECLARE(void) ks_json_delete_item_from_object(ks_json_t *obj, const char *key)
 {
-	cJSON_DeleteItemFromObject(obj, key);
+	kJSON_DeleteItemFromObject(obj, key);
 }
 
 // Get apis
 KS_DECLARE(ks_json_t *) ks_json_get_array_item(ks_json_t *array, int index)
 {
-	return cJSON_GetArrayItem(array, index);
+	return kJSON_GetArrayItem(array, index);
 }
 
 KS_DECLARE(ks_bool_t) ks_json_get_array_bool(ks_json_t *array, int index, ks_bool_t def)
@@ -251,12 +251,12 @@ KS_DECLARE(double) ks_json_get_array_number_double(ks_json_t *array, int index, 
 
 KS_DECLARE(int) ks_json_get_array_size(ks_json_t *array)
 {
-	return cJSON_GetArraySize(array);
+	return kJSON_GetArraySize(array);
 }
 
 KS_DECLARE(ks_json_t *) ks_json_get_object_item(ks_json_t *object, const char *string)
 {
-	return cJSON_GetObjectItemCaseSensitive(object, string);
+	return kJSON_GetObjectItemCaseSensitive(object, string);
 }
 
 KS_DECLARE(ks_bool_t) ks_json_get_object_bool(ks_json_t *object, const char *string, ks_bool_t def)
@@ -325,12 +325,12 @@ KS_DECLARE(ks_bool_t) ks_json_get_bool(ks_json_t *item, ks_bool_t def)
 
 KS_DECLARE(char *) ks_json_print(ks_json_t *item)
 {
-	return cJSON_Print(item);
+	return kJSON_Print(item);
 }
 
 KS_DECLARE(char *) ks_json_print_unformatted(ks_json_t *item)
 {
-	return cJSON_PrintUnformatted(item);
+	return kJSON_PrintUnformatted(item);
 }
 
 KS_DECLARE(ks_json_type_t) ks_json_type_get(ks_json_t *item)

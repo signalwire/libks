@@ -24,7 +24,7 @@
 
 KS_BEGIN_EXTERN_C
 
-typedef struct cJSON ks_json_t;
+typedef struct kJSON ks_json_t;
 
 typedef enum {
 	KS_JSON_TYPE_INVALID = 0,
