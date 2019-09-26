@@ -51,55 +51,59 @@ KS_DECLARE(ks_json_t *) ks_json_create_bool(ks_bool_t value);
 KS_DECLARE(ks_json_t *) ks_json_parse(const char *value);
 
 KS_DECLARE(void) ks_json_add_item_to_array(ks_json_t *array, ks_json_t *item);
-KS_DECLARE(void) ks_json_add_number_to_array(ks_json_t * const array, const double number);
-KS_DECLARE(void) ks_json_add_string_to_array(ks_json_t * const array, const char * const string);
-KS_DECLARE(void) ks_json_add_true_to_array(ks_json_t * const array);
-KS_DECLARE(void) ks_json_add_false_to_array(ks_json_t * const array);
-KS_DECLARE(void) ks_json_add_bool_to_array(ks_json_t * const array, ks_bool_t value);
-KS_DECLARE(void) ks_json_add_item_to_object(ks_json_t *object, const char * const string, ks_json_t *item);
-KS_DECLARE(void) ks_json_add_number_to_object(ks_json_t * const object, const char * const name, const double number);
-KS_DECLARE(void) ks_json_add_string_to_object(ks_json_t * const object, const char * const name, const char * const string);
-KS_DECLARE(void) ks_json_add_false_to_object(ks_json_t * const object, const char * const name);
-KS_DECLARE(void) ks_json_add_true_to_object(ks_json_t * const object, const char * const name);
-KS_DECLARE(void) ks_json_add_bool_to_object(ks_json_t * const array, const char * const name, ks_bool_t value);
+KS_DECLARE(ks_json_t *) ks_json_add_array_to_array(ks_json_t *array);
+KS_DECLARE(ks_json_t *) ks_json_add_object_to_array(ks_json_t *array);
+KS_DECLARE(void) ks_json_add_number_to_array(ks_json_t * array, double number);
+KS_DECLARE(void) ks_json_add_string_to_array(ks_json_t * array, const char *string);
+KS_DECLARE(void) ks_json_add_true_to_array(ks_json_t * array);
+KS_DECLARE(void) ks_json_add_false_to_array(ks_json_t *array);
+KS_DECLARE(void) ks_json_add_bool_to_array(ks_json_t * array, ks_bool_t value);
+KS_DECLARE(ks_json_t *) ks_json_add_array_to_object(ks_json_t *object, const char *name);
+KS_DECLARE(ks_json_t *) ks_json_add_object_to_object(ks_json_t *object, const char *name);
+KS_DECLARE(void) ks_json_add_item_to_object(ks_json_t *object, const char *string, ks_json_t *item);
+KS_DECLARE(void) ks_json_add_number_to_object(ks_json_t *object, const char *name, double number);
+KS_DECLARE(void) ks_json_add_string_to_object(ks_json_t *object, const char *name, const char *string);
+KS_DECLARE(void) ks_json_add_false_to_object(ks_json_t *object, const char *name);
+KS_DECLARE(void) ks_json_add_true_to_object(ks_json_t *object, const char *name);
+KS_DECLARE(void) ks_json_add_bool_to_object(ks_json_t *array, const char *name, ks_bool_t value);
 
-KS_DECLARE(ks_json_t *) ks_json_duplicate(const ks_json_t *item, ks_bool_t recurse);
+KS_DECLARE(ks_json_t *) ks_json_duplicate(ks_json_t *item, ks_bool_t recurse);
 
 KS_DECLARE(void) ks_json_delete(ks_json_t **c);
 KS_DECLARE(void) ks_json_delete_item_from_array(ks_json_t *array, int index);
 KS_DECLARE(void) ks_json_delete_item_from_object(ks_json_t *object, const char * const key);
 
-KS_DECLARE(ks_json_t *) ks_json_get_object_item(const ks_json_t * const object, const char * const string);
-KS_DECLARE(ks_bool_t) ks_json_get_object_bool(const ks_json_t * const object, const char * const string, ks_bool_t def);
-KS_DECLARE(const char * const) ks_json_get_object_string(const ks_json_t * const object, const char * const key, const char * def);
-KS_DECLARE(int) ks_json_get_object_number_int(const ks_json_t * const object, const char * const key, int def);
-KS_DECLARE(double) ks_json_get_object_number_double(const ks_json_t * const object, const char * const key, double def);
+KS_DECLARE(ks_json_t *) ks_json_get_object_item(ks_json_t *object, const char *string);
+KS_DECLARE(ks_bool_t) ks_json_get_object_bool(ks_json_t *object, const char *string, ks_bool_t def);
+KS_DECLARE(const char *) ks_json_get_object_string(ks_json_t *object, const char *key, const char *def);
+KS_DECLARE(int) ks_json_get_object_number_int(ks_json_t *object, const char * key, int def);
+KS_DECLARE(double) ks_json_get_object_number_double(ks_json_t *object, const char *key, double def);
 
-KS_DECLARE(ks_json_t *) ks_json_get_array_item(const ks_json_t * const array, int index);
-KS_DECLARE(int) ks_json_get_array_size(const ks_json_t * const array);
-KS_DECLARE(ks_bool_t) ks_json_get_array_bool(const ks_json_t * const array, int index, ks_bool_t def);
-KS_DECLARE(const char * const) ks_json_get_array_string(const ks_json_t * const array, int index, const char *def);
-KS_DECLARE(int) ks_json_get_array_number_int(const ks_json_t * const array, int index, int def);
-KS_DECLARE(double) ks_json_get_array_number_double(const ks_json_t * const array, int index, double def);
+KS_DECLARE(ks_json_t *) ks_json_get_array_item(ks_json_t *array, int index);
+KS_DECLARE(int) ks_json_get_array_size(ks_json_t *array);
+KS_DECLARE(ks_bool_t) ks_json_get_array_bool(ks_json_t *array, int index, ks_bool_t def);
+KS_DECLARE(const char *) ks_json_get_array_string(ks_json_t *array, int index, const char *def);
+KS_DECLARE(int) ks_json_get_array_number_int(ks_json_t *array, int index, int def);
+KS_DECLARE(double) ks_json_get_array_number_double(ks_json_t *array, int index, double def);
 
-KS_DECLARE(char *) ks_json_print(const ks_json_t * const item);
-KS_DECLARE(char *) ks_json_print_unformatted(const ks_json_t * const item);
+KS_DECLARE(char *) ks_json_print(ks_json_t *item);
+KS_DECLARE(char *) ks_json_print_unformatted(ks_json_t *item);
 
-KS_DECLARE(ks_status_t) ks_json_value_string(const ks_json_t * const item, const char **value);
-KS_DECLARE(ks_status_t) ks_json_value_number_int(const ks_json_t * const item, int *value);
-KS_DECLARE(ks_status_t) ks_json_value_number_double(const ks_json_t * const item, double *value);
-KS_DECLARE(ks_status_t) ks_json_value_bool(const ks_json_t * const item, ks_bool_t *value);
+KS_DECLARE(ks_status_t) ks_json_value_string(ks_json_t *item, const char **value);
+KS_DECLARE(ks_status_t) ks_json_value_number_int(ks_json_t *item, int *value);
+KS_DECLARE(ks_status_t) ks_json_value_number_double(ks_json_t *item, double *value);
+KS_DECLARE(ks_status_t) ks_json_value_bool(ks_json_t *item, ks_bool_t *value);
 
-KS_DECLARE(ks_json_type_t) ks_json_type_get(const ks_json_t * const item);
-KS_DECLARE(ks_bool_t) ks_json_type_is(const ks_json_t * const item, ks_json_type_t type);
-KS_DECLARE(ks_bool_t) ks_json_type_is_array(const ks_json_t * const item);
-KS_DECLARE(ks_bool_t) ks_json_type_is_string(const ks_json_t * const item);
-KS_DECLARE(ks_bool_t) ks_json_type_is_number(const ks_json_t * const item);
-KS_DECLARE(ks_bool_t) ks_json_type_is_null(const ks_json_t * const item);
-KS_DECLARE(ks_bool_t) ks_json_type_is_object(const ks_json_t * const item);
-KS_DECLARE(ks_bool_t) ks_json_type_is_false(const ks_json_t * const item);
-KS_DECLARE(ks_bool_t) ks_json_type_is_true(const ks_json_t * const item);
-KS_DECLARE(ks_bool_t) ks_json_type_is_bool(const ks_json_t * const item);
+KS_DECLARE(ks_json_type_t) ks_json_type_get(ks_json_t *item);
+KS_DECLARE(ks_bool_t) ks_json_type_is(ks_json_t *item, ks_json_type_t type);
+KS_DECLARE(ks_bool_t) ks_json_type_is_array(ks_json_t *item);
+KS_DECLARE(ks_bool_t) ks_json_type_is_string(ks_json_t *item);
+KS_DECLARE(ks_bool_t) ks_json_type_is_number(ks_json_t *item);
+KS_DECLARE(ks_bool_t) ks_json_type_is_null(ks_json_t *item);
+KS_DECLARE(ks_bool_t) ks_json_type_is_object(ks_json_t *item);
+KS_DECLARE(ks_bool_t) ks_json_type_is_false(ks_json_t *item);
+KS_DECLARE(ks_bool_t) ks_json_type_is_true(ks_json_t *item);
+KS_DECLARE(ks_bool_t) ks_json_type_is_bool(ks_json_t *item);
 
 KS_DECLARE(ks_json_t *) ks_json_enum_child(ks_json_t *item);
 KS_DECLARE(ks_json_t *) ks_json_enum_next(ks_json_t *item);
