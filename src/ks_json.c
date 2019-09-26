@@ -287,6 +287,42 @@ KS_DECLARE(double) ks_json_get_object_number_double(ks_json_t *object, const cha
 	return retval;
 }
 
+KS_DECLARE(const char *) ks_json_get_name(ks_json_t *item)
+{
+	if (item) {
+		return item->string;
+	}
+	return NULL;
+}
+
+KS_DECLARE(const char *) ks_json_get_string(ks_json_t *item, const char *def)
+{
+	const char *val = def;
+	ks_json_value_string(item, &val);
+	return val;
+}
+
+KS_DECLARE(int) ks_json_get_number_int(ks_json_t *item, int def)
+{
+	int val = def;
+	ks_json_value_number_int(item, &val);
+	return val;
+}
+
+KS_DECLARE(double) ks_json_get_number_double(ks_json_t *item, double def)
+{
+	double val = def;
+	ks_json_value_number_double(item, &val);
+	return val;
+}
+
+KS_DECLARE(ks_bool_t) ks_json_get_bool(ks_json_t *item, ks_bool_t def)
+{
+	ks_bool_t val = def;
+	ks_json_value_bool(item, &val);
+	return val;
+}
+
 KS_DECLARE(char *) ks_json_print(ks_json_t *item)
 {
 	return cJSON_Print(item);
@@ -347,6 +383,15 @@ KS_DECLARE(ks_bool_t) ks_json_type_is_true(ks_json_t *item)
 KS_DECLARE(ks_bool_t) ks_json_type_is_bool(ks_json_t *item)
 {
 	return ks_json_type_is(item, KS_JSON_TYPE_FALSE) || ks_json_type_is(item, KS_JSON_TYPE_TRUE);
+}
+
+KS_DECLARE(ks_status_t) ks_json_name(ks_json_t *item, const char **name)
+{
+	if (!item->string || !*item->string) {
+		return KS_STATUS_FAIL;
+	}
+	*name = item->string;
+	return KS_STATUS_SUCCESS;
 }
 
 // Value apis

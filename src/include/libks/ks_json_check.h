@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2019 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -45,7 +45,7 @@ typedef int (*ks_json_check_function)(ks_json_t *, const char **);
 #define JSON_CHECK_STRING_ARRAY(name, rule) if (!(cur = ks_json_get_object_item(item, #name)) || !ks_json_check_string_array(cur, ks_json_check_string_##rule)) { *error_msg = #name " error"; return 0; }
 #define JSON_CHECK_STRING_ARRAY_OPTIONAL(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_check_string_array(cur, ks_json_check_string_##rule)) { *error_msg = #name " error"; return 0; }
 #define JSON_CHECK_STRING_OPTIONAL(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_check_string_##rule(cur)) { *error_msg = #name " error"; return 0; }
-#define JSON_CHECK_STRING_OR_EMPTY(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && ks_json_type_is_string(cur) && ks_json_value_string(cur) && *ks_json_value_string(cur) && !ks_json_check_string_##rule(cur)) { *error_msg = #name " error"; return 0; }
+#define JSON_CHECK_STRING_OR_EMPTY(name, rule) {const char *val_str = ""; if ((cur = ks_json_get_object_item(item, #name)) && (!ks_json_value_string(cur, &val_str) || !zstr(val_str) && !ks_json_check_string_##rule(cur))) { *error_msg = #name " error"; return 0; } }
 #define JSON_CHECK_STRING_MATCHES(name, rule) if (!(cur = ks_json_get_object_item(item, #name)) || !ks_json_check_string_matches(cur, rule)) { *error_msg = #name " error"; return 0; }
 #define JSON_CHECK_STRING_MATCHES_OPTIONAL(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_check_string_matches(cur, rule)) { *error_msg = #name " error"; return 0; }
 

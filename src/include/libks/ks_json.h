@@ -89,10 +89,17 @@ KS_DECLARE(double) ks_json_get_array_number_double(ks_json_t *array, int index, 
 KS_DECLARE(char *) ks_json_print(ks_json_t *item);
 KS_DECLARE(char *) ks_json_print_unformatted(ks_json_t *item);
 
+KS_DECLARE(ks_status_t) ks_json_name(ks_json_t *item, const char **name);
 KS_DECLARE(ks_status_t) ks_json_value_string(ks_json_t *item, const char **value);
 KS_DECLARE(ks_status_t) ks_json_value_number_int(ks_json_t *item, int *value);
 KS_DECLARE(ks_status_t) ks_json_value_number_double(ks_json_t *item, double *value);
 KS_DECLARE(ks_status_t) ks_json_value_bool(ks_json_t *item, ks_bool_t *value);
+
+KS_DECLARE(const char *) ks_json_get_name(ks_json_t *item);
+KS_DECLARE(const char *) ks_json_get_string(ks_json_t *item, const char *def);
+KS_DECLARE(int) ks_json_get_number_int(ks_json_t *item, int def);
+KS_DECLARE(double) ks_json_get_number_double(ks_json_t *item, double def);
+KS_DECLARE(ks_bool_t) ks_json_get_bool(ks_json_t *item, ks_bool_t def);
 
 KS_DECLARE(ks_json_type_t) ks_json_type_get(ks_json_t *item);
 KS_DECLARE(ks_bool_t) ks_json_type_is(ks_json_t *item, ks_json_type_t type);
