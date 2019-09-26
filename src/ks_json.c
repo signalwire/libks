@@ -43,7 +43,7 @@ KS_DECLARE(ks_json_t *) ks_json_create_string_fmt(const char *fmt, ...)
 {
 	va_list ap;
 	char *str;
-	cJSON *item;
+	ks_json_t *item;
 
 	va_start(ap, fmt);
 	str = ks_vmprintf(fmt, ap);

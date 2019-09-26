@@ -121,7 +121,7 @@ KS_DECLARE(ks_json_t *) ks_json_enum_next(ks_json_t *item);
 #define KS_JSON_PRINT(_h, _j) do { \
 		char *_json = ks_json_print(_j); \
 		ks_log(KS_LOG_INFO, "--- %s ---\n%s\n---\n", _h, _json); \
-		free(&_json); \
+		free(_json); \
 	} while (0)
 
 KS_END_EXTERN_C
