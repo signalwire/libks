@@ -259,31 +259,31 @@ KS_DECLARE(ks_json_t *) ks_json_get_object_item(ks_json_t *object, const char *s
 	return cJSON_GetObjectItemCaseSensitive(object, string);
 }
 
-KS_DECLARE(ks_bool_t) ks_json_get_object_bool_def(ks_json_t *object, const char *string, ks_bool_t def)
+KS_DECLARE(ks_bool_t) ks_json_get_object_bool(ks_json_t *object, const char *string, ks_bool_t def)
 {
 	ks_bool_t retval = def;
-	ks_json_value_bool(object, &retval);
+	ks_json_value_bool(ks_json_get_object_item(object, string), &retval);
 	return retval;
 }
 
 KS_DECLARE(const char *) ks_json_get_object_string(ks_json_t *object, const char *key, const char *def)
 {
 	const char *retval = def;
-	ks_json_value_string(object, &retval);
+	ks_json_value_string(ks_json_get_object_item(object, key), &retval);
 	return retval;
 }
 
 KS_DECLARE(int) ks_json_get_object_number_int(ks_json_t *object, const char *key, int def)
 {
 	int retval = def;
-	ks_json_value_number_int(object, &retval);
+	ks_json_value_number_int(ks_json_get_object_item(object, key), &retval);
 	return retval;
 }
 
 KS_DECLARE(double) ks_json_get_object_number_double(ks_json_t *object, const char *key, double def)
 {
 	double retval = def;
-	ks_json_value_number_double(object, &retval);
+	ks_json_value_number_double(ks_json_get_object_item(object, key), &retval);
 	return retval;
 }
 
