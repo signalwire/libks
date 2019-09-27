@@ -70,7 +70,7 @@ KS_DECLARE(int) ks_json_check_number_is_decimal_between_zero_and_one(ks_json_t* 
 KS_DECLARE(int) ks_json_check_number_is_ip_port(ks_json_t *item);
 
 KS_DECLARE(int) ks_json_check_string_matches(ks_json_t *item, const char *rule);
-KS_DECLARE(int) ks_json_check_string_array_items(ks_json_t *item, ks_json_simple_check_function check);
+KS_DECLARE(int) ks_json_check_string_array(ks_json_t *item, ks_json_simple_check_function check);
 KS_DECLARE(int) ks_json_check_string_is_not_negative(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_string_is_positive(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_string_is_positive_or_neg_one(ks_json_t* item);
