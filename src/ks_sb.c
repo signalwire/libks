@@ -180,7 +180,7 @@ done:
 	return ret;
 }
 
-KS_DECLARE(ks_status_t) ks_sb_json(ks_sb_t *sb, const ks_json_t *json)
+KS_DECLARE(ks_status_t) ks_sb_json(ks_sb_t *sb, ks_json_t *json)
 {
 	ks_status_t ret = KS_STATUS_SUCCESS;
 	char *str = NULL;
