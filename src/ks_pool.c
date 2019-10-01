@@ -601,19 +601,13 @@ static ks_json_t * __pack_pool_stats(ks_pool_t *pool, ks_debug_pool_pack_type_t 
 		);
 
 		if (!(pool_heap_group_object= ks_json_get_object_item(heap_stats_object, workspace))) {
-			if (!(pool_heap_group_object = ks_json_add_item_to_object(heap_stats_object, workspace, ks_json_create_object()))) {
-				err = KS_STATUS_NO_MEM;
-				goto error;
-			}
+			pool_heap_group_object = ks_json_add_object_to_object(heap_stats_object, workspace);
 		}
 
 		/* Now make sure the heap stats array exists */
 		if (type == KS_DEBUG_POOL_PACK_TYPE_POOL_HEAP) {
 			if (!(heap_stat_array = ks_json_get_object_item(pool_heap_group_object, "allocation_pointers"))) {
-				if (!(heap_stat_array = ks_json_add_item_to_object(pool_heap_group_object, "allocation_pointers", ks_json_create_object()))) {
-					err = KS_STATUS_NO_MEM;
-					goto error;
-				}
+				heap_stat_array = ks_json_add_object_to_object(pool_heap_group_object, "allocation_pointers");
 			}
 		}
 
@@ -639,12 +633,11 @@ static ks_json_t * __pack_pool_stats(ks_pool_t *pool, ks_debug_pool_pack_type_t 
 
 		/* Update the allocation count in this group */
 		if (!(count_number = ks_json_get_object_item(pool_heap_group_object, "allocation_count"))) {
-			if (!(count_number = ks_json_add_item_to_object(pool_heap_group_object, "allocation_count", ks_json_create_number(1)))) {
-				goto error;
-			}
+			ks_json_add_item_to_object(pool_heap_group_object, "allocation_count", ks_json_create_number(1));
 		} else {
-			double *count = ks_json_value_number_doubleptr(count_number);
-			*count = *count + 1;
+			double count = ks_json_get_number_double(count_number, 0.0);
+			ks_json_delete_item_from_object(pool_heap_group_object, "allocation_count");
+			ks_json_add_item_to_object(pool_heap_group_object, "allocation_count", ks_json_create_number(count + 1));
 		}
 
 		index++;
@@ -681,18 +674,9 @@ static ks_status_t __pack_pool_callback(struct ks_pool_s *pool, ks_debug_pool_pa
 	}
 
 	// Fill it in
-	if (!ks_json_add_item_to_object(pool_object, "flags", ks_json_create_string_fmt("%ld", pool->flags))) {
-		err = KS_STATUS_NO_MEM;
-		goto error;
-	}
-	if (!ks_json_add_item_to_object(pool_object, "user_alloc", ks_json_create_string(ks_human_readable_size(pool->user_alloc, 1, sizeof(workspace), workspace)))) {
-		err = KS_STATUS_NO_MEM;
-		goto error;
-	}
-	if (!ks_json_add_item_to_object(pool_object, "max_alloc", ks_json_create_string(ks_human_readable_size(pool->max_alloc, 1, sizeof(workspace), workspace)))) {
-		err = KS_STATUS_NO_MEM;
-		goto error;
-	}
+	ks_json_add_item_to_object(pool_object, "flags", ks_json_create_string_fmt("%ld", pool->flags));
+	ks_json_add_item_to_object(pool_object, "user_alloc", ks_json_create_string(ks_human_readable_size(pool->user_alloc, 1, sizeof(workspace), workspace)));
+	ks_json_add_item_to_object(pool_object, "max_alloc", ks_json_create_string(ks_human_readable_size(pool->max_alloc, 1, sizeof(workspace), workspace)));
 
 	if (ctx->type == KS_DEBUG_POOL_PACK_TYPE_POOL || ctx->type == KS_DEBUG_POOL_PACK_TYPE_POOL_HEAP) {
 		heap_stats_object = __pack_pool_stats(pool, ctx->type, ctx->new_only);
@@ -738,24 +722,10 @@ static ks_status_t __pack_pool_summary(ks_json_t *object, ks_debug_pool_pack_ctx
 		return err;
 	}
 
-	if (!ks_json_add_item_to_object(summary_object, "alloc_c", ks_json_create_string_fmt("%ld", summary->alloc_c))) {
-		err = KS_STATUS_NO_MEM;
-		goto error;
-	}
-
-	if (!ks_json_add_item_to_object(summary_object, "user_alloc", ks_json_create_string(ks_human_readable_size(summary->user_alloc, 1, sizeof(workspace), workspace)))) {
-		err = KS_STATUS_NO_MEM;
-		goto error;
-	}
-	if (!ks_json_add_item_to_object(summary_object, "max_alloc", ks_json_create_string(ks_human_readable_size(summary->max_alloc, 1, sizeof(workspace), workspace)))) {
-		err = KS_STATUS_NO_MEM;
-		goto error;
-	}
-	if (!ks_json_add_item_to_object(summary_object, "total_count", ks_json_create_string_fmt("%lu", summary->total_count))) {
-		err = KS_STATUS_NO_MEM;
-		goto error;
-	}
-
+	ks_json_add_item_to_object(summary_object, "alloc_c", ks_json_create_string_fmt("%ld", summary->alloc_c));
+	ks_json_add_item_to_object(summary_object, "user_alloc", ks_json_create_string(ks_human_readable_size(summary->user_alloc, 1, sizeof(workspace), workspace)));
+	ks_json_add_item_to_object(summary_object, "max_alloc", ks_json_create_string(ks_human_readable_size(summary->max_alloc, 1, sizeof(workspace), workspace)));
+	ks_json_add_item_to_object(summary_object, "total_count", ks_json_create_string_fmt("%lu", summary->total_count));
 	ks_json_add_item_to_object(object, "summary", summary_object);
 
 error:
