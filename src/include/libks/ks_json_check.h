@@ -38,6 +38,7 @@ typedef int (*ks_json_check_function)(ks_json_t *, const char **);
 #define JSON_CHECK_OBJECT_OPTIONAL(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !CHECK_##rule(cur, error_msg)) { return 0; }
 #define JSON_CHECK_OBJECT_IF_STRING_MATCHES(value, name, rule) if (ks_json_check_string_matches(cur, value) && !CHECK_##rule(ks_json_get_object_item(item, #name), error_msg)) { return 0; }
 #define JSON_CHECK_ARRAY_ITEMS(name, rule) if (!(cur = ks_json_get_object_item(item, #name)) || !ks_json_check_array_items(cur, CHECK_##rule, error_msg)) { return 0; }
+#define JSON_CHECK_ARRAY_ITEMS_OPTIONAL(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_check_array_items(cur, CHECK_##rule, error_msg)) { return 0; }
 
 #define JSON_CHECK_NUMBER(name, rule) if (!(cur = ks_json_get_object_item(item, #name)) || !ks_json_check_number_##rule(cur)) { *error_msg = #name " error"; return 0; }
 #define JSON_CHECK_NUMBER_OPTIONAL(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_check_number_##rule(cur)) { *error_msg = #name " error"; return 0; }
