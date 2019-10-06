@@ -91,7 +91,7 @@ KS_BEGIN_EXTERN_C
 #include <sys/time.h>
 #include <sys/select.h>
 #include <netinet/tcp.h>
-#include <sys/signal.h>
+#include <signal.h>
 #include <unistd.h>
 #include <strings.h>
 #include <stdint.h>
