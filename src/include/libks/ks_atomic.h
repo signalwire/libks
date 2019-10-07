@@ -121,7 +121,6 @@ static inline void ks_spinlock_release(const ks_spinlock_t *lock)
 #endif
 
 	ks_atomic_decrement_uint32(&((ks_spinlock_t *)lock)->count);
-	ks_assert(lock->count >= 0);
 }
 
 static inline void ks_spinlock_dispatch(const ks_spinlock_t *lock, ks_time_t sleep_delay)
