@@ -29,7 +29,7 @@ typedef int (*ks_json_simple_check_function)(ks_json_t *);
 typedef int (*ks_json_check_function)(ks_json_t *, const char **);
 
 #define JSON_CHECK_DECL(name) KS_DECLARE(int) CHECK_##name(ks_json_t *item, const char **error_msg);
-#define JSON_CHECK(name, rule) KS_DECLARE(int) CHECK_##name(ks_json_t *item, const char **error_msg) { ks_json_t *cur = NULL; if (!ks_json_check_object(item, rule)) { *error_msg = #name " error"; return 0; }
+#define JSON_CHECK(name, rule) KS_DECLARE(int) CHECK_##name(ks_json_t *item, const char **error_msg) { ks_json_t *cur = NULL; (void)(cur); if (!ks_json_check_object(item, rule)) { *error_msg = #name " error"; return 0; }
 #define JSON_CHECK_ARRAY(name, rule) KS_DECLARE(int) CHECK_##name(ks_json_t *item, const char **error_msg) { if (!ks_json_check_array_items(item, CHECK_##rule, error_msg)) { return 0; }
 
 #define JSON_CHECK_CUSTOM(name, chk_fn, param) { cur = ks_json_get_object_item(item, #name); if (!chk_fn(cur, param, error_msg)) return 0; }
