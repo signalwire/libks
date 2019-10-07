@@ -311,7 +311,7 @@ static ks_status_t __lookup_allocated_slot(ks_handle_type_t type, ks_handle_t ha
 		uint16_t flags = slot->flags & rflags;
 		if (!(flags)) {
 			status = KS_STATUS_HANDLE_INVALID;
-			ks_log(KS_LOG_ERROR, "RFLAGS INVALID: %lu", status);
+			ks_log(KS_LOG_WARNING, "RFLAGS INVALID: %lu", status);
 			goto done;
 		}
 	}
@@ -319,14 +319,14 @@ static ks_status_t __lookup_allocated_slot(ks_handle_type_t type, ks_handle_t ha
 	/* Also validate its sequence, this catches any re-use of stale handles */
 	if (slot->sequence != sequence) {
 		status = KS_STATUS_HANDLE_SEQ_MISMATCH;
-			ks_log(KS_LOG_ERROR, "SEQ MISMATCH: %lu HANDLE VALUE: %16.16llx", status, handle);
+			ks_log(KS_LOG_WARNING, "SEQ MISMATCH: %lu HANDLE VALUE: %16.16llx", status, handle);
 		goto done;
 	}
 
 	/* Types better match */
 	if (slot->type != type) {
 		status = KS_STATUS_HANDLE_TYPE_MISMATCH;
-			ks_log(KS_LOG_ERROR, "TYPE MISMATCH: %lu", status);
+			ks_log(KS_LOG_WARNING, "TYPE MISMATCH: %lu", status);
 		goto done;
 	}
 
