@@ -261,12 +261,12 @@ static inline ks_status_t __validate_handle(ks_handle_type_t type,
 
 	/* Parse the type first */
 	if (status = __validate_type(type, group)) {
-		ks_log(KS_LOG_DEBUG, "Invalid type: %8.8llx", handle);
+		ks_log(KS_LOG_ERROR, "Invalid type: %8.8llx", handle);
 		return status;
 	}
 
 	if (KS_HANDLE_TYPE_FROM_HANDLE(handle) != type) {
-		ks_log(KS_LOG_DEBUG, "Invalid type (2): %8.8llx", handle);
+		ks_log(KS_LOG_ERROR, "Invalid type (2): %8.8llx", handle);
 		return KS_STATUS_HANDLE_TYPE_MISMATCH;
 	}
 
@@ -274,7 +274,7 @@ static inline ks_status_t __validate_handle(ks_handle_type_t type,
 	*slot_index = KS_HANDLE_SLOT_INDEX_FROM_HANDLE(handle);
 
 	if (*slot_index >= KS_HANDLE_MAX_SLOTS) {
-		ks_log(KS_LOG_DEBUG, "Invalid handle slot: %8.8lx\n", *slot_index);
+		ks_log(KS_LOG_ERROR, "Invalid handle slot: %8.8lx\n", *slot_index);
 		return KS_STATUS_FAIL;
 	}
 
@@ -282,8 +282,10 @@ static inline ks_status_t __validate_handle(ks_handle_type_t type,
 	*sequence = KS_HANDLE_SLOT_SEQUENCE_FROM_HANDLE(handle);
 
 	/* zero is an illegal sequence for any handle */
-	if (!*sequence)
+	if (!*sequence) {
+		ks_log(KS_LOG_ERROR, "Invalid handle sequence");
 		return KS_STATUS_HANDLE_INVALID;
+	}
 
 	return KS_STATUS_SUCCESS;
 }
@@ -424,8 +426,10 @@ KS_DECLARE(ks_status_t) __ks_handle_alloc_ex(ks_pool_t **pool, ks_handle_type_t 
 		goto done;
 	}
 
-	/* Bind the current sequence with this slot */
+	/* Bind the current sequence with this slot, but slot 0 is not allowed and group sequence is randomly seeded */
 	slot->sequence = ks_atomic_increment_uint32(&group->sequence);
+	if (!slot->sequence) slot->sequence = ks_atomic_increment_uint32(&group->sequence);
+	ks_assert(slot->sequence);
 
 	/* Mark it not ready (caller has to set it up first, then call setready) */
 	slot->flags |= KS_HANDLE_FLAG_NOT_READY;
