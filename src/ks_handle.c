@@ -261,12 +261,12 @@ static inline ks_status_t __validate_handle(ks_handle_type_t type,
 
 	/* Parse the type first */
 	if (status = __validate_type(type, group)) {
-		ks_log(KS_LOG_ERROR, "Invalid type: %8.8llx", handle);
+		ks_log(KS_LOG_WARNING, "Invalid type: %8.8llx", handle);
 		return status;
 	}
 
 	if (KS_HANDLE_TYPE_FROM_HANDLE(handle) != type) {
-		ks_log(KS_LOG_ERROR, "Invalid type (2): %8.8llx", handle);
+		ks_log(KS_LOG_WARNING, "Invalid type (2): %8.8llx", handle);
 		return KS_STATUS_HANDLE_TYPE_MISMATCH;
 	}
 
@@ -274,7 +274,7 @@ static inline ks_status_t __validate_handle(ks_handle_type_t type,
 	*slot_index = KS_HANDLE_SLOT_INDEX_FROM_HANDLE(handle);
 
 	if (*slot_index >= KS_HANDLE_MAX_SLOTS) {
-		ks_log(KS_LOG_ERROR, "Invalid handle slot: %8.8lx\n", *slot_index);
+		ks_log(KS_LOG_WARNING, "Invalid handle slot: %8.8lx\n", *slot_index);
 		return KS_STATUS_FAIL;
 	}
 
