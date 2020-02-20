@@ -81,6 +81,7 @@ struct kws_s {
 	ks_size_t sans_count;
 	ks_size_t unprocessed_buffer_len; /* extra data remains unprocessed */
 	char *unprocessed_position;
+	ks_cb_hostname_callback_t cb_hostname;
 };
 
 
@@ -553,6 +554,16 @@ static int __log_ssl_errors(const char *err, size_t len, void *u)
 	return 0;
 }
 
+static void set_ssl_ext_hostname(kws_t *kws, char *hostname)
+{
+	SSL_ctrl(kws->ssl, SSL_CTRL_SET_TLSEXT_HOSTNAME, TLSEXT_NAMETYPE_host_name, (void*)hostname);
+}
+
+KS_DECLARE(void) kws_register_ssl_hostname_cb(kws_t *kws, ks_cb_hostname_callback_t cb)
+{
+	kws->cb_hostname = cb;
+}
+
 static int establish_client_logical_layer(kws_t *kws)
 {
 
@@ -572,6 +583,13 @@ static int establish_client_logical_layer(kws_t *kws)
 			assert(kws->ssl);
 
 			SSL_set_fd(kws->ssl, (int)kws->sock);
+			if (kws->cb_hostname) {
+				char *hostname = (char *)(kws->cb_hostname());
+				if (hostname) {
+					ks_log(KS_LOG_DEBUG, "Set SSL hostname ext: %s\n", hostname);
+					set_ssl_ext_hostname(kws, hostname);
+				}
+			}
 		}
 
 		do {
@@ -668,6 +686,13 @@ static int establish_server_logical_layer(kws_t *kws)
 			assert(kws->ssl);
 
 			SSL_set_fd(kws->ssl, (int)kws->sock);
+			if (kws->cb_hostname) {
+				char *hostname = (char *)(kws->cb_hostname());
+				if (hostname) {
+					ks_log(KS_LOG_DEBUG, "Set SSL hostname ext: %s\n", hostname);
+					set_ssl_ext_hostname(kws, hostname);
+				}
+			}
 		}
 
 		do {

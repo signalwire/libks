@@ -247,6 +247,8 @@ typedef void (*ks_pool_cleanup_callback_t)(void *ptr, void *arg, ks_pool_cleanup
 typedef void (*ks_logger_t) (const char *file, const char *func, int line, int level, const char *fmt, ...);
 typedef void (*ks_listen_callback_t) (ks_socket_t server_sock, ks_socket_t client_sock, ks_sockaddr_t *addr, void *user_data);
 
+typedef char * (*ks_cb_hostname_callback_t)();  //ssl only
+
 typedef int64_t ks_time_t;
 
 struct ks_q_s;

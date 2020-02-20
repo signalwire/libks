@@ -76,7 +76,7 @@ KS_DECLARE(ks_bool_t) kws_certified_client(kws_t *kws);
 KS_DECLARE(ks_size_t) kws_sans_count(kws_t *kws);
 KS_DECLARE(const char *) kws_sans_get(kws_t *kws, ks_size_t index);
 KS_DECLARE(int) kws_wait_sock(kws_t *kws, uint32_t ms, ks_poll_t flags);
-
+KS_DECLARE(void) kws_register_ssl_hostname_cb(kws_t *kws, ks_cb_hostname_callback_t cb);
 
 KS_END_EXTERN_C
 
