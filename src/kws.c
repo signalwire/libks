@@ -81,6 +81,8 @@ struct kws_s {
 	ks_size_t sans_count;
 	ks_size_t unprocessed_buffer_len; /* extra data remains unprocessed */
 	char *unprocessed_position;
+
+	kws_init_callback_t init_callback;
 };
 
 
@@ -572,6 +574,8 @@ static int establish_client_logical_layer(kws_t *kws)
 			assert(kws->ssl);
 
 			SSL_set_fd(kws->ssl, (int)kws->sock);
+
+			if (kws->init_callback) kws->init_callback(kws, kws->ssl);
 		}
 
 		do {
@@ -839,6 +843,13 @@ KS_DECLARE(ks_status_t) kws_init(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl_ct
 	kws_destroy(&kws);
 
 	return KS_STATUS_FAIL;
+}
+
+KS_DECLARE(void) kws_set_init_callback(kws_t *kws, kws_init_callback_t callback)
+{
+	ks_assert(kws);
+
+	kws->init_callback = callback;
 }
 
 KS_DECLARE(ks_status_t) kws_create(kws_t **kwsP, ks_pool_t *pool)
