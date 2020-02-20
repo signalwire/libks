@@ -746,7 +746,9 @@ KS_DECLARE(ks_status_t) kws_init(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl_ct
 {
 	kws_t *kws;
 
-	kws = ks_pool_alloc(pool, sizeof(*kws));
+	if (*kwsP) kws = *kwsP;
+	else kws = ks_pool_alloc(pool, sizeof(*kws));
+
 	kws->flags = flags;
 	kws->unprocessed_buffer_len = 0;
 	kws->unprocessed_position = NULL;
@@ -837,6 +839,16 @@ KS_DECLARE(ks_status_t) kws_init(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl_ct
 	kws_destroy(&kws);
 
 	return KS_STATUS_FAIL;
+}
+
+KS_DECLARE(ks_status_t) kws_create(kws_t **kwsP, ks_pool_t *pool)
+{
+	kws_t *kws;
+
+	kws = ks_pool_alloc(pool, sizeof(*kws));
+	*kwsP = kws;
+
+	return KS_STATUS_SUCCESS;
 }
 
 KS_DECLARE(void) kws_destroy(kws_t **kwsP)
