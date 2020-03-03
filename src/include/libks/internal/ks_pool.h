@@ -66,9 +66,6 @@ struct ks_pool_prefix_s {
 	} while(0)
 
 struct ks_pool_s {
-#if defined(KS_DEBUG_POOL)
-	ks_handle_base_t handle_base;
-#endif
 	ks_size_t magic1; /* magic number for struct */
 	ks_size_t flags; /* flags for the struct */
 	ks_size_t alloc_c; /* number of allocations */

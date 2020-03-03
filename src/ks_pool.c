@@ -31,62 +31,7 @@
 #include "libks/ks.h"
 #include "libks/internal/ks_pool.h"
 
-#ifdef KS_DEBUG_POOL
-
-/**
- * Context structure for packing pool info
- */
-struct ks_debug_pool_pack_ctx_s {
-	void *user_data;
-	ks_json_t *pools_object;
-	ks_debug_pool_pack_type_t type;
-	ks_size_t alloc_c;
-	ks_size_t user_alloc;
-	ks_size_t max_alloc;
-	ks_size_t total_count;
-	ks_bool_t new_only;
-};
-
 typedef struct ks_debug_pool_pack_ctx_s ks_debug_pool_pack_ctx_t;
-
-static void global_debug_pool_add(struct ks_pool_s *pool)
-{
-	/* Wrap it in a debug handle to track them, pass 0 for size indicating we
-	 * are providing our own memory address (so we don't recurse in pool tracking) */
-	ks_handle_alloc(KS_HTYPE_DBG_POOL, 0, &pool, &pool->handle_base.handle, NULL);
-}
-
-static void global_debug_pool_remove(struct ks_pool_s *pool)
-{
-	ks_handle_destroy(&pool->handle_base.handle);
-}
-
-static ks_status_t global_debug_pool_iterate(ks_status_t (*callback)(struct ks_pool_s *pool, ks_debug_pool_pack_ctx_t *ctx), ks_debug_pool_pack_ctx_t *ctx)
-{
-	ks_handle_t handle = KS_NULL_HANDLE;
-	ks_status_t err = KS_STATUS_SUCCESS;
-
-	while (!ks_handle_enum_type(KS_HTYPE_DBG_POOL, &handle)) {
-		ks_pool_t *pool;
-		if (ks_handle_get(KS_HTYPE_DBG_POOL, pool->handle_base.handle, &pool))
-			continue;
-
-		if (NULL != ctx ) {
-			ctx->alloc_c += pool->alloc_c;
-			ctx->user_alloc += pool->user_alloc;
-			ctx->max_alloc += pool->max_alloc;
-			ctx->total_count++;
-		}
-
-		err = callback(pool, ctx);
-
-		ks_handle_put(KS_HTYPE_DBG_POOL, &pool);
-	}
-
-	return KS_STATUS_SUCCESS;
-}
-
-#endif
 
 static KS_THREAD_LOCAL uint32_t g_default_scanned_value = 0;
 
@@ -499,10 +444,6 @@ static ks_pool_t *ks_pool_raw_open(const ks_size_t flags, const char *file, int 
 	pool->tag = tag;
 	pool->magic2 = KS_POOL_MAGIC;
 
-#ifdef KS_DEBUG_POOL
-	global_debug_pool_add(pool);
-#endif
-
 	SET_POINTER(error_p, KS_STATUS_SUCCESS);
 	return pool;
 }
@@ -849,10 +790,6 @@ static ks_status_t ks_pool_raw_close(ks_pool_t *pool)
 	if (pool->log_func != NULL) {
 		pool->log_func(pool, KS_POOL_FUNC_CLOSE, 0, 0, NULL, NULL, 0);
 	}
-
-#ifdef KS_DEBUG_POOL
-	global_debug_pool_remove(pool);
-#endif
 
 	ks_mutex_destroy(&pool->mutex);
 
