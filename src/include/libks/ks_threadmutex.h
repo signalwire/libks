@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2020 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -48,24 +48,6 @@ typedef void *(*ks_thread_function_t) (ks_thread_t *, void *);
 	typedef pthread_t ks_thread_os_handle_t;
 #endif
 
-/* We have two states for our thread context, so that we can atomically
- * guarantee a clear order of operation between a caller (e.g. someone controlling
- * the thread), and the thread (what state the thread itself
- * is in charge of reporting.
- */
-typedef enum {
-	KS_THREAD_CALLER_STATE_INIT,				/* Initial state, unallocated, invalid */
-	KS_THREAD_CALLER_STATE_ALLOC_FAILURE,		/* Allocation of thread has failed */
-	KS_THREAD_CALLER_STATE_START_REQUESTED,		/* The caller has requested the thread start */
-	KS_THREAD_CALLER_STATE_STOP_REQUESTED,		/* The caller has requested the thread stop */
-	KS_THREAD_CALLER_STATE_JOIN_REQUESTED,		/* The caller has initiated a thread join */
-	KS_THREAD_INIT,			/* Initial state, un-allocated, invalid */
-	KS_THREAD_STARTING,		/* The thread is just starting and we're waiting for it to set itself to running */
-	KS_THREAD_RUNNING,		/* The thread has officially been started by the system */
-	KS_THREAD_STOPPED,		/* The thread has stopped, and will no longer touch the heap allocation if attached,
-							 * otherwise it will be deleting the buffer on self delete*/
-} ks_thread_state_t;
-
 typedef enum {
 	KS_PRI_LOW = 1,
 	KS_PRI_NORMAL = 10,
@@ -84,7 +66,6 @@ KS_DECLARE(ks_pid_t) ks_thread_self_id(void);
 KS_DECLARE(ks_thread_os_handle_t) ks_thread_os_handle(ks_thread_t *thread);
 KS_DECLARE(void) ks_thread_destroy(ks_thread_t **threadp);
 
-KS_DECLARE(ks_bool_t) ks_thread_is_running(ks_thread_t *thread);
 KS_DECLARE(ks_bool_t) ks_thread_stop_requested(ks_thread_t *thread);
 KS_DECLARE(ks_status_t) ks_thread_request_stop(ks_thread_t *thread);
 
