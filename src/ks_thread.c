@@ -152,6 +152,10 @@ static void *KS_THREAD_CALLING_CONVENTION thread_launch(void *args)
 	ret = thread->function(thread, thread->private_data);
 	ks_log(KS_LOG_DEBUG, "STOP call user thread callback with address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
 
+	if (thread->flags & KS_THREAD_FLAG_DETACHED) {
+		ks_thread_destroy(&thread);
+	}
+
 	return ret;
 }
 
