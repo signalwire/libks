@@ -1092,7 +1092,7 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 			ks_log(KS_LOG_ERROR, "Read frame error because OPCODE = WSOC_CLOSE\n");
 			kws->plen = kws->buffer[1] & 0x7f;
 			*data = (uint8_t *) &kws->buffer[2];
-			return kws_close(kws, 1000);
+			return kws_close(kws, WS_RECV_CLOSE);
 		}
 		break;
 	case WSOC_CONTINUATION:
