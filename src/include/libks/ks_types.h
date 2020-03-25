@@ -59,7 +59,12 @@ KS_BEGIN_EXTERN_C
 	typedef enum {
 		KS_POLL_READ = (1 << 0),
 		KS_POLL_WRITE = (1 << 1),
-		KS_POLL_ERROR = (1 << 2)
+		KS_POLL_ERROR = (1 << 2),
+		KS_POLL_HUP = (1 << 3),
+		KS_POLL_RDNORM = (1 << 4),
+		KS_POLL_RDBAND = (1 << 5),
+		KS_POLL_PRI = (1 << 6),
+		KS_POLL_INVALID = (1 << 7)
 	} ks_poll_t;
 
 #if defined(_MSC_VER)

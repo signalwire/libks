@@ -516,6 +516,10 @@ KS_DECLARE(int) ks_wait_sock(ks_socket_t sock, uint32_t ms, ks_poll_t flags)
 	fd_set efds;
 	struct timeval tv;
 
+	if (sock == KS_SOCK_INVALID) {
+	  return KS_POLL_INVALID;
+	}
+
 	FD_ZERO(&rfds);
 	FD_ZERO(&wfds);
 	FD_ZERO(&efds);
@@ -600,6 +604,10 @@ KS_DECLARE(int) ks_wait_sock(ks_socket_t sock, uint32_t ms, ks_poll_t flags)
 	struct pollfd pfds[2] = { {0} };
 	int s = 0, r = 0;
 
+	if (sock == KS_SOCK_INVALID) {
+	  return KS_POLL_INVALID;
+	}
+
 	pfds[0].fd = sock;
 
 	if ((flags & KS_POLL_READ)) {
@@ -612,6 +620,22 @@ KS_DECLARE(int) ks_wait_sock(ks_socket_t sock, uint32_t ms, ks_poll_t flags)
 
 	if ((flags & KS_POLL_ERROR)) {
 		pfds[0].events |= POLLERR;
+	}
+
+	if ((flags & KS_POLL_HUP)) {
+		pfds[0].events |= POLLHUP;
+	}
+
+	if ((flags & KS_POLL_RDNORM)) {
+		pfds[0].events |= POLLRDNORM;
+	}
+
+	if ((flags & KS_POLL_RDBAND)) {
+		pfds[0].events |= POLLRDBAND;
+	}
+
+	if ((flags & KS_POLL_PRI)) {
+		pfds[0].events |= POLLPRI;
 	}
 
 	s = ks_poll(pfds, 1, ms);
@@ -627,6 +651,21 @@ KS_DECLARE(int) ks_wait_sock(ks_socket_t sock, uint32_t ms, ks_poll_t flags)
 		}
 		if ((pfds[0].revents & POLLERR)) {
 			r |= KS_POLL_ERROR;
+		}
+		if ((pfds[0].revents & POLLHUP)) {
+			r |= KS_POLL_HUP;
+		}
+		if ((pfds[0].revents & POLLRDNORM)) {
+			r |= KS_POLL_RDNORM;
+		}
+		if ((pfds[0].revents & POLLRDBAND)) {
+			r |= KS_POLL_RDBAND;
+		}
+		if ((pfds[0].revents & POLLPRI)) {
+			r |= KS_POLL_PRI;
+		}
+		if ((pfds[0].revents & POLLNVAL)) {
+			r |= KS_POLL_INVALID;
 		}
 	}
 
