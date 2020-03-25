@@ -105,16 +105,31 @@ static void sha1_digest(unsigned char *digest, char *in)
 }
 #endif
 
+static inline uint64_t BSwap64(uint64_t x) {
+#if defined(__x86_64__)
+  uint64_t swapped_bytes;
+  __asm__ volatile("bswapq %0" : "=r"(swapped_bytes) : "0"(x));
+  return swapped_bytes;
+#elif defined(_MSC_VER)
+  return (uint64_t)_byteswap_uint64(x);
+#else   // generic code for swapping 64-bit values (suggested by bdb@)                                                                                          
+  x = ((x & 0xffffffff00000000ull) >> 32) | ((x & 0x00000000ffffffffull) << 32);
+  x = ((x & 0xffff0000ffff0000ull) >> 16) | ((x & 0x0000ffff0000ffffull) << 16);
+  x = ((x & 0xff00ff00ff00ff00ull) >> 8) | ((x & 0x00ff00ff00ff00ffull) << 8);
+  return x;
+#endif
+}
+
 static uint64_t hton64(uint64_t val)
 {
-	if (__BYTE_ORDER == __BIG_ENDIAN) return (val);
-	else return __bswap_64(val);
+	if (KS_BIG_ENDIAN) return (val);
+	else return BSwap64(val);
 }
 
 static uint64_t ntoh64(uint64_t val)
 {
-	if (__BYTE_ORDER == __BIG_ENDIAN) return (val);
-	else return __bswap_64(val);
+	if (KS_BIG_ENDIAN) return (val);
+	else return BSwap64(val);
 }
 
 static ssize_t append_text_frame(void *bp)
