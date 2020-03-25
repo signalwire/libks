@@ -29,7 +29,7 @@ KS_BEGIN_EXTERN_C
 
 typedef enum {
 	WS_NONE = 0,
-	WS_NORMAL = 1000,
+	WS_RECV_CLOSE = 1000,
 	WS_PROTO_ERR = 1002,
 	WS_DATA_TOO_BIG = 1009
 } kws_cause_t;
