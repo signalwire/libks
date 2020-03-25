@@ -9,7 +9,7 @@ option(WITH_KS_TEST "Enable KsTest c++ harness" OFF)
 option(WITH_LIBBACKTRACE "Enables linking to libbacktrace as an external project, used in abort areas in libks" OFF)
 
 # Must include cotire before anything else for auto pch setup
-include(cmake/cotire.cmake)
+#include(cmake/cotire.cmake)
 
 # Load our common utility api and setup the platfomrm and build
 include(cmake/ksutil.cmake)
@@ -582,7 +582,7 @@ if (NOT KS_PLAT_WIN)
 	configure_file("${CMAKE_CURRENT_LIST_DIR}/libks.pc.in" "${PROJECT_BINARY_DIR}/libks.pc" @ONLY)
 endif()
 
-cotire(ks)
+#cotire(ks)
 
 # Add tests
 enable_testing()
