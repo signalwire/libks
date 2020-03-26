@@ -890,22 +890,6 @@ KS_DECLARE(void) kws_destroy(kws_t **kwsP)
 	}
 
 	if (kws->ssl) {
-		int code, ssl_err, sanity = 100;
-		do {
-			code = SSL_shutdown(kws->ssl);
-			if (code == 1) {
-				break;
-			}
-			if (code < 0) {
-				ssl_err = SSL_get_error(kws->ssl, code);
-			}
-			if (kws->block) {
-				ks_sleep_ms(10);
-			} else {
-				ks_sleep_ms(1);
-			}
-
-		} while ((code == 0 || (code < 0 && SSL_ERROR_WANT_READ_WRITE(ssl_err))) && --sanity > 0);
 		SSL_free(kws->ssl);
 		kws->ssl = NULL;
 	}
@@ -946,12 +930,30 @@ KS_DECLARE(ks_ssize_t) kws_close(kws_t *kws, int16_t reason)
 		kws_raw_write(kws, fr, 4);
 	}
 
+	if (kws->ssl && kws->sock != KS_SOCK_INVALID) {
+		/* first invocation of SSL_shutdown() would normally return 0 and just try to send SSL protocol close request.
+		   we just slightly polite, since we want to close socket fast and
+		   not bother waiting for SSL protocol close response before closing socket,
+		   since we want cleanup to be done fast for scenarios like:
+		   client change NAT (like jump from one WiFi to another) and now unreachable from old ip:port, however
+		   immidiately reconnect with new ip:port but old session id (and thus should replace the old session/channel)
+		*/
+		SSL_shutdown(kws->ssl);
+	}
+
+	/* restore to blocking here, so any further read/writes will block */
 	restore_socket(kws->sock);
 
 	if ((kws->flags & KWS_CLOSE_SOCK) && kws->sock != KS_SOCK_INVALID) {
+		/* signal socket to shutdown() before close(): FIN-ACK-FIN-ACK insead of RST-RST
+		   do not really handle errors here since it all going to die anyway.
+		   all buffered writes if any(like SSL_shutdown() ones) will still be sent.
+		 */
 #ifndef WIN32
+		shutdown(kws->sock, SHUT_RDWR);
 		close(kws->sock);
 #else
+		shutdown(kws->sock, SD_BOTH);
 		closesocket(kws->sock);
 #endif
 	}
