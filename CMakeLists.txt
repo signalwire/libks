@@ -11,6 +11,10 @@ option(WITH_LIBBACKTRACE "Enables linking to libbacktrace as an external project
 # Must include cotire before anything else for auto pch setup
 #include(cmake/cotire.cmake)
 
+# Declare our project, libks
+project(LibKS VERSION 1.3.0 LANGUAGES C CXX)
+message("LibKS Version ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}")
+
 # Load our common utility api and setup the platfomrm and build
 include(cmake/ksutil.cmake)
 ksutil_setup_platform()
@@ -38,10 +42,6 @@ if (KS_PLAT_WIN OR WITH_KS_TEST)
 		)
 	endif()
 endif()
-
-# Declare our project, libks
-project(LibKS VERSION 1.3.0 LANGUAGES C CXX)
-message("LibKS Version ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}")
 
 # Set package version
 set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
