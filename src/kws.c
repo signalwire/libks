@@ -1859,6 +1859,7 @@ KS_DECLARE(ks_ssize_t) kws_read_buffer(kws_t *kws, uint8_t **data, ks_size_t byt
 		}
 	}
 
+	*data = kws->buffer;
 	return kws_raw_read(kws, kws->buffer, bytes, block);
 }
 
