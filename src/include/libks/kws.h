@@ -24,6 +24,7 @@
 
 #define WEBSOCKET_GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 #define B64BUFFLEN 1024
+#define KWS_MAX_HEADERS 64
 
 KS_BEGIN_EXTERN_C
 
@@ -54,8 +55,36 @@ typedef enum {
 	KWS_CLOSE_SOCK = (1 << 0),
 	KWS_BLOCK = (1 << 1),
 	KWS_STAY_OPEN = (1 << 2),
-	KWS_FLAG_DONTMASK = (1 << 3)
+	KWS_FLAG_DONTMASK = (1 << 3),
+	KWS_HTTP = (1 << 4) /* fallback to HTTP */
 } kws_flag_t;
+
+typedef struct kws_request_s {
+	const char *method;        /* GET POST PUT DELETE OPTIONS PATCH HEAD */
+	const char *uri;
+	const char *qs;            /* query string*/
+	const char *host;
+	ks_port_t port;
+	const char *from;
+	const char *user_agent;
+	const char *referer;
+	const char *user;
+	ks_bool_t keepalive;
+	const char *content_type;
+	const char *authorization;
+	ks_size_t content_length;
+	ks_size_t bytes_header;
+	ks_size_t bytes_read;
+	ks_size_t bytes_buffered;
+	const char *headers_k[KWS_MAX_HEADERS];
+	const char *headers_v[KWS_MAX_HEADERS];
+	ks_size_t total_headers;
+	void *user_data;           /* private user data */
+
+	/* private members used by the parser internally */
+	char *_buffer;
+} kws_request_t;
+
 
 struct kws_s;
 typedef struct kws_s kws_t;
@@ -64,6 +93,7 @@ typedef void (*kws_init_callback_t)(kws_t *kws, SSL* ssl);
 
 KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **data);
 KS_DECLARE(ks_ssize_t) kws_write_frame(kws_t *kws, kws_opcode_t oc, const void *data, ks_size_t bytes);
+KS_DECLARE(ks_ssize_t) kws_raw_read(kws_t *kws, void *data, ks_size_t bytes, int block);
 KS_DECLARE(ks_ssize_t) kws_raw_read(kws_t *kws, void *data, ks_size_t bytes, int block);
 KS_DECLARE(ks_ssize_t) kws_raw_write(kws_t *kws, void *data, ks_size_t bytes);
 KS_DECLARE(ks_status_t) kws_init(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl_ctx, const char *client_data, kws_flag_t flags, ks_pool_t *pool);
@@ -79,7 +109,28 @@ KS_DECLARE(ks_bool_t) kws_certified_client(kws_t *kws);
 KS_DECLARE(ks_size_t) kws_sans_count(kws_t *kws);
 KS_DECLARE(const char *) kws_sans_get(kws_t *kws, ks_size_t index);
 KS_DECLARE(int) kws_wait_sock(kws_t *kws, uint32_t ms, ks_poll_t flags);
-
+KS_DECLARE(int) kws_test_flag(kws_t *kws, kws_flag_t);
+KS_DECLARE(int) kws_set_flag(kws_t *kws, kws_flag_t);
+KS_DECLARE(int) kws_clear_flag(kws_t *kws, kws_flag_t);
+/**
+ * parse http headers in a buffer
+ * return status of success or not
+ * \param[in]	buffer the buffer start from the very begining of the http request, e.g. 'GET '
+ * \param[in]	datalen the buffer length
+ * \param[out]	the http request pointer or null, need destroy later if got non-NULL pointer
+ * \return	SWITCH_STATUS_SUCCESS | SWITCH_STATUS_FALSE
+ */
+KS_DECLARE(ks_status_t) kws_parse_header(kws_t *kws, kws_request_t **request);
+KS_DECLARE(void) kws_request_free(kws_request_t **request);
+KS_DECLARE(void) kws_request_reset(kws_request_t *request);
+/**
+ * \param[in] request the request
+ * \return    the returned pointer must be freed externally
+ */
+KS_DECLARE(char *) kws_request_dump(kws_request_t *request);
+KS_DECLARE(ks_status_t) kws_parse_qs(kws_request_t *request, char *qs);
+KS_DECLARE(ks_ssize_t) kws_read_buffer(kws_t *kws, uint8_t **data, ks_size_t bytes, int block);
+KS_DECLARE(ks_status_t) kws_keepalive(kws_t *kws);
 
 KS_END_EXTERN_C
 
