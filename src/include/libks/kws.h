@@ -130,6 +130,7 @@ KS_DECLARE(char *) kws_request_dump(kws_request_t *request);
 KS_DECLARE(ks_status_t) kws_parse_qs(kws_request_t *request, char *qs);
 KS_DECLARE(ks_ssize_t) kws_read_buffer(kws_t *kws, uint8_t **data, ks_size_t bytes, int block);
 KS_DECLARE(ks_status_t) kws_keepalive(kws_t *kws);
+KS_DECLARE(const char *) kws_request_get_header(kws_request_t *request, const char *key);
 
 KS_END_EXTERN_C
 

@@ -1869,6 +1869,18 @@ KS_DECLARE(ks_status_t) kws_keepalive(kws_t *kws)
 	return KS_STATUS_FAIL;
 }
 
+KS_DECLARE(const char *) kws_request_get_header(kws_request_t *request, const char *key)
+{
+	int i;
+
+	for (i = 0; i < KWS_MAX_HEADERS; i++) {
+		if (request->headers_k[i] && !strcmp(request->headers_k[i], key)) {
+			return request->headers_v[i];
+		}
+	}
+
+	return NULL;
+}
 /* For Emacs:
  * Local Variables:
  * mode:c
