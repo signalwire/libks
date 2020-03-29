@@ -1643,7 +1643,7 @@ KS_DECLARE(ks_status_t) kws_parse_qs(kws_request_t *request, char *qs)
 
 KS_DECLARE(ks_status_t) kws_parse_header(kws_t *kws, kws_request_t **requestP)
 {
-	const char *buffer = kws->buffer;
+	char *buffer = kws->buffer;
 	ks_size_t datalen = kws->datalen;
 	ks_status_t status = KS_STATUS_FAIL;
 	char *p = (char *)buffer;
@@ -1776,8 +1776,16 @@ KS_DECLARE(ks_status_t) kws_parse_header(kws_t *kws, kws_request_t **requestP)
 	}
 
 	request->total_headers = i;
-	kws->unprocessed_buffer_len = request->bytes_buffered - request->bytes_read;
-	kws->unprocessed_position = kws->buffer + kws->unprocessed_buffer_len;
+	if (datalen >= body - buffer) {
+		kws->datalen = datalen -= (body - buffer);
+	}
+
+	if (datalen > 0) {
+		// shift remining bytes to start of buffer including ending '\0'
+		memmove(buffer, body, datalen + 1);
+		kws->unprocessed_buffer_len = datalen;
+		kws->unprocessed_position = kws->buffer;
+	}
 
 noheader:
 
@@ -1842,30 +1850,13 @@ KS_DECLARE(void) kws_request_reset(kws_request_t *request)
 
 KS_DECLARE(ks_ssize_t) kws_read_buffer(kws_t *kws, uint8_t **data, ks_size_t bytes, int block)
 {
-	ks_size_t size;
-
-	if (kws->unprocessed_buffer_len > 0) {
-		*data = kws->unprocessed_position;
-
-		if (kws->unprocessed_buffer_len > bytes) {
-			kws->unprocessed_position += bytes;
-			kws->unprocessed_buffer_len -= bytes;
-			return bytes;
-		} else {
-			ks_size_t len = kws->unprocessed_buffer_len;
-			kws->unprocessed_buffer_len = 0;
-			kws->unprocessed_position = NULL;
-			return len;
-		}
-	}
-
 	*data = kws->buffer;
 	return kws_raw_read(kws, kws->buffer, bytes, block);
 }
 
 KS_DECLARE(ks_status_t) kws_keepalive(kws_t *kws)
 {
-	ks_size_t bytes = 0;;
+	ks_ssize_t bytes = 0;;
 	kws->datalen = 0;
 
 	while ((bytes = kws_raw_read(kws, kws->buffer + kws->datalen, kws->buflen - kws->datalen, WS_BLOCK)) > 0) {
