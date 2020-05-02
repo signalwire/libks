@@ -1639,6 +1639,8 @@ KS_DECLARE(ks_status_t) kws_parse_qs(kws_request_t *request, char *qs)
 	if (!qs) {
 		ks_safe_free(q);
 	}
+
+	return KS_STATUS_SUCCESS;
 }
 
 KS_DECLARE(ks_status_t) kws_parse_header(kws_t *kws, kws_request_t **requestP)
