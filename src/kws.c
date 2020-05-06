@@ -1095,7 +1095,7 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 		return kws_close(kws, WS_NONE);
 	}
 
-	if ((kws->datalen = kws_raw_read(kws, kws->buffer, 9, kws->block)) < 0) {
+	if ((kws->datalen = kws_raw_read(kws, kws->buffer, 6, kws->block)) < 0) {
 		ks_log(KS_LOG_ERROR, "Read frame error because kws_raw_read returned %ld\n", kws->datalen);
 		if (kws->datalen == -2) {
 			return -2;
@@ -1104,7 +1104,7 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 	}
 
 	if (kws->datalen < need) {
-		ssize_t bytes = kws_raw_read(kws, kws->buffer + kws->datalen, 9 - kws->datalen, WS_BLOCK);
+		ssize_t bytes = kws_raw_read(kws, kws->buffer + kws->datalen, 6 - kws->datalen, WS_BLOCK);
 
 		if (bytes < 0 || (kws->datalen += bytes) < need) {
 			/* too small - protocol err */
