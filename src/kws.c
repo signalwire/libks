@@ -546,6 +546,8 @@ KS_DECLARE(ks_ssize_t) kws_raw_write(kws_t *kws, void *data, ks_size_t bytes)
 static void setup_socket(ks_socket_t sock)
 {
 	ks_socket_option(sock, KS_SO_NONBLOCK, KS_TRUE);
+	ks_socket_option(sock, TCP_NODELAY, KS_TRUE);
+	ks_socket_option(sock, SO_KEEPALIVE, KS_TRUE);
 }
 
 static void restore_socket(ks_socket_t sock)
