@@ -395,6 +395,9 @@ KS_DECLARE(ks_status_t) __ks_thread_create_ex(
 
 	if (flags & KS_THREAD_FLAG_DETACHED) {
 		/* Detached thread owns its own pool */
+		if (pool) {
+			ks_log(KS_LOG_WARNING, "Ignoring pool passed to ks_thread_create. Detached threads create their own pool.\n");
+		}
 		pool = NULL;
 		ks_pool_open(&pool);
 	}
@@ -430,8 +433,6 @@ KS_DECLARE(ks_status_t) __ks_thread_create_ex(
 		ks_log(KS_LOG_CRIT, "Failed to allocate os thread context for thread address: %p\n", (void *)thread);
 		goto done;
 	}
-
-	ks_log(KS_LOG_DEBUG, "Waiting for thread thread to set running, with address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
 
 	/* Success! */
 	status = KS_STATUS_SUCCESS;
