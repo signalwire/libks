@@ -301,8 +301,15 @@ KS_DECLARE(void) ks_thread_destroy(ks_thread_t **threadp)
 		ks_atomic_decrement_uint32(&g_active_attached_thread_count);
 	}
 
-	 /* And free the memory */
-	 ks_pool_free(threadp);
+	ks_pool_t *thread_pool = (*threadp)->pool;
+	if (thread_pool) {
+		/* This thread owns all the memory- free its pool */
+		ks_pool_close(&thread_pool);
+		*threadp = NULL;
+	} else {
+		/* Free the memory from the pool given to the thread */
+		ks_pool_free(threadp);
+	}
 }
 
 #if KS_PLAT_WIN
@@ -386,7 +393,15 @@ KS_DECLARE(ks_status_t) __ks_thread_create_ex(
 
 	if (!func) return status;
 
+	if (flags & KS_THREAD_FLAG_DETACHED) {
+		/* Detached thread owns its own pool */
+		pool = NULL;
+		ks_pool_open(&pool);
+	}
 	thread = (ks_thread_t *) __ks_pool_alloc(pool, sizeof(ks_thread_t), file, line, tag);
+	if (flags & KS_THREAD_FLAG_DETACHED) {
+		thread->pool = pool;
+	}
 
 	ks_assertd(thread);
 
