@@ -497,7 +497,13 @@ KS_DECLARE(ks_status_t) ks_listen(const char *host, ks_port_t port, int family, 
 KS_DECLARE(int) ks_poll(struct pollfd fds[], uint32_t nfds, int timeout)
 {
 #ifdef WIN32
-	return WSAPoll(fds, nfds, timeout);
+	int ret = WSAPoll(fds, nfds, timeout);
+
+	if (ret == SOCKET_ERROR) {
+		ret = WSAGetLastError();
+	}
+
+	return ret;
 #else
 	return poll(fds, nfds, timeout);
 #endif
@@ -616,14 +622,6 @@ KS_DECLARE(int) ks_wait_sock(ks_socket_t sock, uint32_t ms, ks_poll_t flags)
 
 	if ((flags & KS_POLL_WRITE)) {
 		pfds[0].events |= POLLOUT;
-	}
-
-	if ((flags & KS_POLL_ERROR)) {
-		pfds[0].events |= POLLERR;
-	}
-
-	if ((flags & KS_POLL_HUP)) {
-		pfds[0].events |= POLLHUP;
 	}
 
 	if ((flags & KS_POLL_RDNORM)) {
