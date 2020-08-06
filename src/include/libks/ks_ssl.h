@@ -25,6 +25,8 @@
 #include <openssl/ssl.h>
 #include <openssl/engine.h>
 #include <openssl/x509v3.h>
+#include <openssl/bn.h>
+#include <openssl/rsa.h>
 
 KS_BEGIN_EXTERN_C
 

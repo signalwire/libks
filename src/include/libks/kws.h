@@ -22,6 +22,8 @@
 
 #pragma once
 
+#include <openssl/err.h>
+
 #define WEBSOCKET_GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 #define B64BUFFLEN 1024
 #define KWS_MAX_HEADERS 64
