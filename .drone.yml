@@ -12,7 +12,7 @@ steps:
       - sed -i '/cotire/d' ./CMakeLists.txt
       - mkdir -p scan-build
       - scan-build-4.0 -o ./scan-build/ cmake .
-      - echo "#!/bin/bash\nscan-build-4.0 -o ./scan-build/ make -j`nproc --all` |& tee ./scan-build-result.txt\nexitstatus=\${PIPESTATUS[0]}\necho \$exitstatus > ./scan-build-status.txt\n" > scan.sh
+      - echo '#!/bin/bash\nscan-build-4.0 -o ./scan-build/ make -j`nproc --all` |& tee ./scan-build-result.txt\nexitstatus=$${PIPESTATUS[0]}\necho $$exitstatus > ./scan-build-status.txt\n' > scan.sh
       - chmod +x scan.sh
       - ./scan.sh
       - exitstatus=`cat ./scan-build-status.txt`
@@ -41,6 +41,6 @@ trigger:
   - push
 ---
 kind: signature
-hmac: 38dfce6a07e588929305eb2c983dda31b1dc97dd84aeec9b70d267fddc65827e
+hmac: 042c5a526b15e52dc20982bf699be7baf5aa316816d4b62619756e6e02606202
 
 ...
