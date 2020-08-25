@@ -34,6 +34,7 @@ steps:
 trigger:
   branch:
   - master
+  - v2.0
 
 trigger:
   event:
@@ -41,6 +42,6 @@ trigger:
   - push
 ---
 kind: signature
-hmac: 042c5a526b15e52dc20982bf699be7baf5aa316816d4b62619756e6e02606202
+hmac: 91f64ba3a11be2d7af16db7da909dc2ce89a2e6031137c416e8c13ac7ce11a67
 
 ...
