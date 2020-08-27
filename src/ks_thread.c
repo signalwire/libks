@@ -273,7 +273,6 @@ KS_DECLARE(void) ks_thread_destroy(ks_thread_t **threadp)
 {
 	ks_thread_t *thread = NULL;
 	ks_bool_t detached;
-	ks_pid_t tid;
 
 	if (!threadp || !*threadp)
 		return;
@@ -281,7 +280,6 @@ KS_DECLARE(void) ks_thread_destroy(ks_thread_t **threadp)
 	thread = *threadp;
 
 	detached = (thread->flags & KS_THREAD_FLAG_DETACHED) ? KS_TRUE : KS_FALSE;
-	tid = thread->id;
 
 	ks_log(KS_LOG_DEBUG, "Thread destroy complete, deleting os primitives for thread address %p, tid: %8.8lx", (void *)thread, thread->id);
 
