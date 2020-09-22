@@ -1217,12 +1217,19 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 			blen = (int)(kws->body - kws->bbuffer);
 
 			// The bbuffer for the body of the message should always be 1 larger than plen from the payload size for null term
-			if (kws->plen >= (ks_ssize_t)kws->bbuflen) {
+			if (need + blen > (ks_ssize_t)kws->bbuflen || kws->plen >= (ks_ssize_t)kws->bbuflen) {
 				void *tmp;
 
-				kws->bbuflen = kws->plen;
+				kws->bbuflen = need + blen + kws->rplen;
+
+				if (kws->bbuflen < kws->plen) {
+					kws->bbuflen = kws->plen;
+				}
+
+				kws->bbuflen++;
+
 				// make room for entire payload plus null terminator
-				if ((tmp = ks_pool_resize(kws->bbuffer, (unsigned long)kws->plen + 1))) {
+				if ((tmp = ks_pool_resize(kws->bbuffer, (unsigned long)kws->bbuflen))) {
 					kws->bbuffer = tmp;
 				} else {
 					abort();
