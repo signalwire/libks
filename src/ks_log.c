@@ -384,7 +384,7 @@ static void default_logger(const char *file, const char *func, int line, int lev
 	va_end(ap);
 }
 
-ks_logger_t ks_logger = null_logger;
+static ks_logger_t ks_logger = null_logger;
 
 KS_DECLARE(void) ks_global_set_logger(ks_logger_t logger)
 {

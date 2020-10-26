@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2020 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,7 +23,6 @@
 
 KS_BEGIN_EXTERN_C
 
-//KS_DECLARE_DATA extern ks_logger_t ks_logger;
 KS_DECLARE(void) ks_log(const char *file, const char *func, int line, int level, const char *fmt, ...);
 
 KS_DECLARE(const char *) ks_log_console_color(int level);
