@@ -42,6 +42,8 @@ KS_DECLARE(void) ks_global_set_file_log_level(int level);
 KS_DECLARE(ks_bool_t) ks_global_set_file_log_path(const char *path);
 /*! Closes the global file log */
 KS_DECLARE(void) ks_global_close_file_log();
+/*! Enable json based log output */
+KS_DECLARE(void) ks_log_jsonify(void);
 /*! Sanitizes output strings */
 KS_DECLARE(void) ks_log_sanitize_string(char *str);
 
