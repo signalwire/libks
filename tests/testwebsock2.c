@@ -306,7 +306,7 @@ static int test_ws(char *url)
 	ks_json_t *req = ks_json_create_object();
 	ks_json_add_string_to_object(req, "url", url);
 
-	ks_global_set_default_logger(7);
+	ks_global_set_log_level(7);
 
 	ks_pool_open(&pool);
 	ks_assert(pool);

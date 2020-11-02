@@ -23,14 +23,6 @@
 #include "libks/ks.h"
 #include "libks/ks_atomic.h"
 
-static void null_logger(const char *file, const char *func, int line, int level, const char *fmt, ...)
-{
-	if (file && func && line && level && fmt) {
-		return;
-	}
-	return;
-}
-
 static const char *LEVEL_NAMES[] = {
 	"EMERG",
 	"ALERT",
@@ -82,6 +74,7 @@ static int ks_log_level = 7;
 static int ks_file_log_level = 7;
 static FILE *ks_file_log_fp = NULL;
 static ks_log_prefix_t ks_log_prefix = KS_LOG_PREFIX_DEFAULT;
+static ks_bool_t ks_log_jsonified = KS_FALSE;
 
 KS_DECLARE(void) ks_log_sanitize_string(char *str)
 {
@@ -292,8 +285,8 @@ static void default_logger(const char *file, const char *func, int line, int lev
 {
 	va_list ap;
 	char buf[32768];
-	ks_size_t prefixlen;
-	ks_size_t suffixlen;
+	ks_size_t prefixlen = 0;
+	ks_size_t suffixlen = 0;
 	ks_size_t len;
 	ks_bool_t toconsole = KS_FALSE;
 	ks_bool_t tofile = KS_FALSE;
@@ -308,18 +301,33 @@ static void default_logger(const char *file, const char *func, int line, int lev
 	va_start(ap, fmt);
 
 	// Prefix the buffer with the color
-	strcpy(buf, LEVEL_COLORS[level]);
-	prefixlen = strlen(buf);
-	suffixlen = strlen(KNRM);
+	if (!ks_log_jsonified) {
+		strcpy(buf, LEVEL_COLORS[level]);
+		prefixlen = strlen(buf);
+		suffixlen = strlen(KNRM);
+	}
 
 	// Add to the buffer after the color, save space for color reset
 	len = ks_log_format_output(buf + prefixlen, sizeof(buf) - prefixlen - suffixlen, file, func, line, level, fmt, ap);
 
 	if (len > 0) {
+		if (ks_log_jsonified) {
+			ks_json_t *json = ks_json_create_object();
+			ks_json_add_string_to_object(json, "message", buf); // Can ignore prefix len since color is disabled if jsonified
+			char *tmp = ks_json_print_unformatted(json);
+			strncpy(buf, tmp, sizeof(buf) - 1); // safe truncation if neccessary
+			buf[sizeof(buf)] = 0;
+			len = strlen(buf); // reassign len, which is used for both console and file output length
+			free(tmp);
+			ks_json_delete(&json);
+		}
+
 		ks_spinlock_acquire(&g_log_spin_lock);
 		if (toconsole) {
 			ks_size_t total = prefixlen + len + suffixlen;
-			strcpy(buf + prefixlen + len, KNRM);
+			if (!ks_log_jsonified) {
+				strcpy(buf + prefixlen + len, KNRM);
+			}
 		
 			//fprintf(stdout, "[%s] %s:%d %s() %s", LEVEL_NAMES[level], fp, line, func, data);
 #if KS_PLAT_WIN
@@ -384,25 +392,11 @@ static void default_logger(const char *file, const char *func, int line, int lev
 	va_end(ap);
 }
 
-static ks_logger_t ks_logger = null_logger;
+static ks_logger_t ks_logger = default_logger;
 
 KS_DECLARE(void) ks_global_set_logger(ks_logger_t logger)
 {
-	if (logger) {
-		ks_logger = logger;
-	} else {
-		ks_logger = null_logger;
-	}
-}
-
-KS_DECLARE(void) ks_global_set_default_logger(int level)
-{
-	if (level < 0 || level > 7) {
-		level = 7;
-	}
-
-	ks_logger = default_logger;
-	ks_log_level = level;
+	ks_logger = logger;
 }
 
 KS_DECLARE(void) ks_global_set_default_logger_prefix(ks_log_prefix_t prefix)
@@ -413,17 +407,11 @@ KS_DECLARE(void) ks_global_set_default_logger_prefix(ks_log_prefix_t prefix)
 KS_DECLARE(void) ks_global_set_log_level(int level)
 {
   ks_log_level = level;
-  if (ks_logger == null_logger) {
-	  ks_logger = default_logger;
-  }
 }
 
 KS_DECLARE(void) ks_global_set_file_log_level(int level)
 {
 	ks_file_log_level = level;
-	if (ks_logger == null_logger) {
-		ks_logger = default_logger;
-	}
 }
 
 KS_DECLARE(ks_bool_t) ks_global_set_file_log_path(const char *path)
@@ -431,15 +419,17 @@ KS_DECLARE(ks_bool_t) ks_global_set_file_log_path(const char *path)
 	if (ks_file_log_fp) fclose(ks_file_log_fp);
 	ks_file_log_fp = fopen(path, "w");
 	if (!ks_file_log_fp) return KS_FALSE;
-	if (ks_logger == null_logger) {
-		ks_logger = default_logger;
-	}
 	return KS_TRUE;
 }
 
 KS_DECLARE(void) ks_global_close_file_log()
 {
 	if (ks_file_log_fp) fclose(ks_file_log_fp);
+}
+
+KS_DECLARE(void) ks_log_jsonify(void)
+{
+	ks_log_jsonified = KS_TRUE;
 }
 
 KS_DECLARE(void) ks_log(const char *file, const char *func, int line, int level, const char *fmt, ...)

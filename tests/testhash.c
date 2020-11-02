@@ -183,7 +183,7 @@ int main(int argc, char **argv)
 {
 
 	ks_init();
-	ks_global_set_default_logger(KS_LOG_LEVEL_DEBUG);
+	ks_global_set_log_level(KS_LOG_LEVEL_DEBUG);
 
 	plan(3);
 

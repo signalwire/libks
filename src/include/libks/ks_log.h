@@ -32,8 +32,6 @@ KS_DECLARE(ks_size_t) ks_log_format_output(char *buf, ks_size_t bufSize, const c
 KS_DECLARE(int) ks_log_level_by_name(const char *name);
 /*! Sets the logger for libks. Default is the null_logger */
 KS_DECLARE(void) ks_global_set_logger(ks_logger_t logger);
-/*! Sets the default log level for libks */
-KS_DECLARE(void) ks_global_set_default_logger(int level);
 /*! Sets the default log prefix for libks */
 KS_DECLARE(void) ks_global_set_default_logger_prefix(ks_log_prefix_t prefix);
 /*! Sets the global console log level */
