@@ -19,17 +19,15 @@ steps:
       - echo "*** Exit status is $exitstatus"
 
     - name: notify
-      image: signalwire/scan-build-notify
+      image: signalwire/drone-notify
       pull: true
       environment:
-        GITHUB_CI_APP_PEM:
-          from_secret: github_ci_app_pem
-        SSH_KEY:
-          from_secret: ssh_key
         SLACK_WEBHOOK_URL:
           from_secret: slack_webhook_url
+        ENV_FILE:
+          from_secret: notify_env
       commands:
-      - /root/notify.sh
+      - /root/scan-build-notify.sh
       
 trigger:
   branch:
@@ -42,6 +40,6 @@ trigger:
   - push
 ---
 kind: signature
-hmac: 91f64ba3a11be2d7af16db7da909dc2ce89a2e6031137c416e8c13ac7ce11a67
+hmac: 31aaf50ef8505d27f6a12a65676b470366630610480940da13db42a37fd37a32
 
 ...
