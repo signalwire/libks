@@ -379,7 +379,7 @@ KS_DECLARE(void) ks_log_jsonify(void)
 
 KS_DECLARE(void) ks_log_init(void)
 {
-	ks_mutex_create(&g_log_mutex, KS_MUTEX_FLAG_DEFAULT, NULL);
+	ks_mutex_create(&g_log_mutex, KS_MUTEX_FLAG_DEFAULT | KS_MUTEX_FLAG_RAW_ALLOC, NULL);
 }
 
 KS_DECLARE(void) ks_log_shutdown(void)
