@@ -25,7 +25,6 @@ KS_BEGIN_EXTERN_C
 
 KS_DECLARE(void) ks_log(const char *file, const char *func, int line, int level, const char *fmt, ...);
 
-KS_DECLARE(const char *) ks_log_console_color(int level);
 KS_DECLARE(ks_size_t) ks_log_format_output(char *buf, ks_size_t bufSize, const char *file, const char *func, int line, int level, const char *fmt, va_list ap);
 
 /*! Gets the log level from a string name, returns -1 if invalid */

@@ -38,38 +38,6 @@ static const char *LEVEL_NAMES[] = {
 /* A simple spin flag for gating console writes */
 static ks_spinlock_t g_log_spin_lock;
 
-#ifdef _WIN32
-	#define KNRM  ""
-	#define KRED  ""
-	#define KGRN  ""
-	#define KYEL  ""
-	#define KBLU  ""
-	#define KMAG  ""
-	#define KCYN  ""
-	#define KWHT  ""
-#else
-	#define KNRM  "\x1B[0m"
-	#define KRED  "\x1B[31m"
-	#define KGRN  "\x1B[32m"
-	#define KYEL  "\x1B[33m"
-	#define KBLU  "\x1B[34m"
-	#define KMAG  "\x1B[35m"
-	#define KCYN  "\x1B[36m"
-	#define KWHT  "\x1B[37m"
-#endif
-
-static const char *LEVEL_COLORS[] = {
-	KRED, // EMERG
-	KRED, // ALERT
-	KRED, // CRIT
-	KRED, // ERROR
-	KYEL, // WARN
-	KWHT, // NOTICE
-	KWHT, // INFO
-	KCYN, // DEBUG
-	NULL
-};
-
 static int ks_log_level = 7;
 static int ks_file_log_level = 7;
 static FILE *ks_file_log_fp = NULL;
@@ -177,12 +145,6 @@ static ks_bool_t wakeup_stdout()
 }
 #endif
 
-KS_DECLARE(const char *) ks_log_console_color(int level)
-{
-	if (level < KS_LOG_LEVEL_EMERG || level > KS_LOG_LEVEL_DEBUG) return KNRM;
-	return LEVEL_COLORS[level];
-}
-
 KS_DECLARE(ks_size_t) ks_log_format_output(char *buf, ks_size_t bufSize, const char *file, const char *func, int line, int level, const char *fmt, va_list ap)
 {
 	const char *fp;
@@ -285,8 +247,6 @@ static void default_logger(const char *file, const char *func, int line, int lev
 {
 	va_list ap;
 	char buf[32768];
-	ks_size_t prefixlen = 0;
-	ks_size_t suffixlen = 0;
 	ks_size_t len;
 	ks_bool_t toconsole = KS_FALSE;
 	ks_bool_t tofile = KS_FALSE;
@@ -300,20 +260,12 @@ static void default_logger(const char *file, const char *func, int line, int lev
 	
 	va_start(ap, fmt);
 
-	// Prefix the buffer with the color
-	if (!ks_log_jsonified) {
-		strcpy(buf, LEVEL_COLORS[level]);
-		prefixlen = strlen(buf);
-		suffixlen = strlen(KNRM);
-	}
-
-	// Add to the buffer after the color, save space for color reset
-	len = ks_log_format_output(buf + prefixlen, sizeof(buf) - prefixlen - suffixlen, file, func, line, level, fmt, ap);
+	len = ks_log_format_output(buf, sizeof(buf), file, func, line, level, fmt, ap);
 
 	if (len > 0) {
 		if (ks_log_jsonified) {
 			ks_json_t *json = ks_json_create_object();
-			ks_json_add_string_to_object(json, "message", buf); // Can ignore prefix len since color is disabled if jsonified
+			ks_json_add_string_to_object(json, "message", buf);
 			char *tmp = ks_json_print_unformatted(json);
 			strncpy(buf, tmp, sizeof(buf) - 2); // safe truncation if neccessary, leaving 2 bytes for newline and terminator
 			buf[sizeof(buf)] = 0; // gaurentee temporary termination if strncpy used all the data
@@ -327,10 +279,7 @@ static void default_logger(const char *file, const char *func, int line, int lev
 
 		ks_spinlock_acquire(&g_log_spin_lock);
 		if (toconsole) {
-			ks_size_t total = prefixlen + len + suffixlen;
-			if (!ks_log_jsonified) {
-				strcpy(buf + prefixlen + len, KNRM);
-			}
+			ks_size_t total = len;
 		
 			//fprintf(stdout, "[%s] %s:%d %s() %s", LEVEL_NAMES[level], fp, line, func, data);
 #if KS_PLAT_WIN
@@ -374,7 +323,7 @@ static void default_logger(const char *file, const char *func, int line, int lev
 			ks_size_t written = 0;
 
 			while (!done) {
-				ks_size_t thisWrite = fwrite(buf + prefixlen + written, 1, len - written, ks_file_log_fp);
+				ks_size_t thisWrite = fwrite(buf + written, 1, len - written, ks_file_log_fp);
 				if (thisWrite > 0) {
 					written += thisWrite;
 					if (written == len) done = KS_TRUE;
