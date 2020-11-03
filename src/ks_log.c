@@ -315,10 +315,13 @@ static void default_logger(const char *file, const char *func, int line, int lev
 			ks_json_t *json = ks_json_create_object();
 			ks_json_add_string_to_object(json, "message", buf); // Can ignore prefix len since color is disabled if jsonified
 			char *tmp = ks_json_print_unformatted(json);
-			strncpy(buf, tmp, sizeof(buf) - 1); // safe truncation if neccessary
-			buf[sizeof(buf)] = 0;
+			strncpy(buf, tmp, sizeof(buf) - 2); // safe truncation if neccessary, leaving 2 bytes for newline and terminator
+			buf[sizeof(buf)] = 0; // gaurentee temporary termination if strncpy used all the data
 			len = strlen(buf); // reassign len, which is used for both console and file output length
-			free(tmp);
+			buf[len] = '\n'; // add a newline to each json output
+			buf[len + 1] = '\0'; // fix the null term we just replaced
+			++len; // add the new line character to the output length
+			free(tmp); // cleanup
 			ks_json_delete(&json);
 		}
 
