@@ -255,7 +255,7 @@ static void default_logger(const char *file, const char *func, int line, int lev
 
 	if (ks_log_jsonified) {
 		char *data = NULL;
-		int ret = ks_vasprintf(&data, fmt, ap);
+		ks_vasprintf(&data, fmt, ap);
 		len = strlen(data);
 		if (len > 0) {
 			char tbuf[256];
