@@ -35,12 +35,9 @@ static const char *LEVEL_NAMES[] = {
 	NULL
 };
 
-/* A simple spin flag for gating console writes */
-static ks_spinlock_t g_log_spin_lock;
+static ks_mutex_t *g_log_mutex;
 
 static int ks_log_level = 7;
-static int ks_file_log_level = 7;
-static FILE *ks_file_log_fp = NULL;
 static ks_log_prefix_t ks_log_prefix = KS_LOG_PREFIX_DEFAULT;
 static ks_bool_t ks_log_jsonified = KS_FALSE;
 
@@ -248,37 +245,71 @@ static void default_logger(const char *file, const char *func, int line, int lev
 	va_list ap;
 	char buf[32768];
 	ks_size_t len;
-	ks_bool_t toconsole = KS_FALSE;
-	ks_bool_t tofile = KS_FALSE;
 
 	if (level < 0 || level > 7) {
 		level = 7;
 	}
-    toconsole = level <= ks_log_level;
-	tofile = ks_file_log_fp && level <= ks_file_log_level;
-	if (!toconsole && !tofile) return;
+	if (level > ks_log_level) return;
 	
 	va_start(ap, fmt);
 
-	len = ks_log_format_output(buf, sizeof(buf), file, func, line, level, fmt, ap);
-
-	if (len > 0) {
-		if (ks_log_jsonified) {
+	if (ks_log_jsonified) {
+		char *data = NULL;
+		int ret = ks_vasprintf(&data, fmt, ap);
+		len = strlen(data);
+		if (len > 0) {
+			char tbuf[256];
 			ks_json_t *json = ks_json_create_object();
-			ks_json_add_string_to_object(json, "message", buf);
+		
+			ks_json_add_string_to_object(json, "message", data);
+
+			// TODO: Add prefix data as fields
+			ks_json_add_string_to_object(json, "level", LEVEL_NAMES[level]);
+
+			{
+				time_t now = time(0);
+				struct tm nowtm;
+
+#ifdef WIN32
+				localtime_s(&nowtm, &now);
+#else
+				localtime_r(&now, &nowtm);
+#endif
+
+				strftime(tbuf, sizeof(tbuf), "%Y-%m-%d %H:%M:%S", &nowtm);
+
+				ks_json_add_string_to_object(json, "timestamp", tbuf);
+			}
+
+			{
+				uint32_t id = (uint32_t)ks_thread_self_id();
+#ifdef __GNU__
+				id = (uint32_t)syscall(SYS_gettid);
+#endif
+				snprintf(tbuf, sizeof(tbuf), "#%8.8X", id);
+
+				ks_json_add_string_to_object(json, "thread", tbuf);
+			}
+
+			ks_json_add_string_to_object(json, "file", file);
+			ks_json_add_string_to_object(json, "func", func);
+			ks_json_add_number_to_object(json, "line", line);
+
 			char *tmp = ks_json_print_unformatted(json);
-			strncpy(buf, tmp, sizeof(buf) - 2); // safe truncation if neccessary, leaving 2 bytes for newline and terminator
-			buf[sizeof(buf)] = 0; // gaurentee temporary termination if strncpy used all the data
-			len = strlen(buf); // reassign len, which is used for both console and file output length
-			buf[len] = '\n'; // add a newline to each json output
-			buf[len + 1] = '\0'; // fix the null term we just replaced
-			++len; // add the new line character to the output length
+
+			ks_mutex_lock(g_log_mutex);
+			fprintf(stdout, "%s\n", tmp);
+			ks_mutex_unlock(g_log_mutex);
+			
 			free(tmp); // cleanup
 			ks_json_delete(&json);
 		}
+		if (data) free(data);
+	} else {
+		len = ks_log_format_output(buf, sizeof(buf), file, func, line, level, fmt, ap);
 
-		ks_spinlock_acquire(&g_log_spin_lock);
-		if (toconsole) {
+		if (len > 0) {
+			ks_mutex_lock(g_log_mutex);
 			ks_size_t total = len;
 		
 			//fprintf(stdout, "[%s] %s:%d %s() %s", LEVEL_NAMES[level], fp, line, func, data);
@@ -317,28 +348,8 @@ static void default_logger(const char *file, const char *func, int line, int lev
 				__set_blocking(fileno(stdout), KS_TRUE);
 			}
 #endif
+			ks_mutex_unlock(g_log_mutex);
 		}
-		if (tofile) {
-			ks_bool_t done = KS_FALSE;
-			ks_size_t written = 0;
-
-			while (!done) {
-				ks_size_t thisWrite = fwrite(buf + written, 1, len - written, ks_file_log_fp);
-				if (thisWrite > 0) {
-					written += thisWrite;
-					if (written == len) done = KS_TRUE;
-					if (fflush(ks_file_log_fp)) {
-						// file log cannot be flushed, stream is no longer valid?
-						fclose(ks_file_log_fp);
-						ks_file_log_fp = NULL;
-					}
-				} else {
-					// file log cannot be written to, skip logging... yuck
-					break;
-				}
-			}
-		}
-		ks_spinlock_release(&g_log_spin_lock);
 	}
 
 	va_end(ap);
@@ -361,27 +372,19 @@ KS_DECLARE(void) ks_global_set_log_level(int level)
   ks_log_level = level;
 }
 
-KS_DECLARE(void) ks_global_set_file_log_level(int level)
-{
-	ks_file_log_level = level;
-}
-
-KS_DECLARE(ks_bool_t) ks_global_set_file_log_path(const char *path)
-{
-	if (ks_file_log_fp) fclose(ks_file_log_fp);
-	ks_file_log_fp = fopen(path, "w");
-	if (!ks_file_log_fp) return KS_FALSE;
-	return KS_TRUE;
-}
-
-KS_DECLARE(void) ks_global_close_file_log()
-{
-	if (ks_file_log_fp) fclose(ks_file_log_fp);
-}
-
 KS_DECLARE(void) ks_log_jsonify(void)
 {
 	ks_log_jsonified = KS_TRUE;
+}
+
+KS_DECLARE(void) ks_log_init(void)
+{
+	ks_mutex_create(&g_log_mutex, KS_MUTEX_FLAG_DEFAULT, NULL);
+}
+
+KS_DECLARE(void) ks_log_shutdown(void)
+{
+	ks_mutex_destroy(&g_log_mutex);
 }
 
 KS_DECLARE(void) ks_log(const char *file, const char *func, int line, int level, const char *fmt, ...)

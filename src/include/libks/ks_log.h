@@ -23,6 +23,9 @@
 
 KS_BEGIN_EXTERN_C
 
+KS_DECLARE(void) ks_log_init(void);
+KS_DECLARE(void) ks_log_shutdown(void);
+
 KS_DECLARE(void) ks_log(const char *file, const char *func, int line, int level, const char *fmt, ...);
 
 KS_DECLARE(ks_size_t) ks_log_format_output(char *buf, ks_size_t bufSize, const char *file, const char *func, int line, int level, const char *fmt, va_list ap);
@@ -35,12 +38,6 @@ KS_DECLARE(void) ks_global_set_logger(ks_logger_t logger);
 KS_DECLARE(void) ks_global_set_default_logger_prefix(ks_log_prefix_t prefix);
 /*! Sets the global console log level */
 KS_DECLARE(void) ks_global_set_log_level(int level);
-/*! Sets the global file log level */
-KS_DECLARE(void) ks_global_set_file_log_level(int level);
-/*! Opens the global file log */
-KS_DECLARE(ks_bool_t) ks_global_set_file_log_path(const char *path);
-/*! Closes the global file log */
-KS_DECLARE(void) ks_global_close_file_log();
 /*! Enable json based log output */
 KS_DECLARE(void) ks_log_jsonify(void);
 /*! Sanitizes output strings */
