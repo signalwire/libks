@@ -348,6 +348,7 @@ int main(int argc, char *argv[])
 	char *url = NULL;
 
 	ks_init();
+	ks_log_jsonify();
 
 	plan(3);
 
