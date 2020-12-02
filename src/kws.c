@@ -393,6 +393,7 @@ KS_DECLARE(ks_ssize_t) kws_raw_read(kws_t *kws, void *data, ks_size_t bytes, int
 
 	if (kws->ssl) {
 		do {
+			ERR_clear_error();
 			r = SSL_read(kws->ssl, data, (int)bytes);
 			if (r == 0) {
 				ssl_err = SSL_get_error(kws->ssl, r);
@@ -464,6 +465,7 @@ KS_DECLARE(ks_ssize_t) kws_raw_write(kws_t *kws, void *data, ks_size_t bytes)
 
 	if (kws->ssl) {
 		do {
+			ERR_clear_error();
 			r = SSL_write(kws->ssl, (void *)((unsigned char *)data + wrote), (int)(bytes - wrote));
 
 			if (r == 0) {
@@ -585,6 +587,7 @@ static int establish_client_logical_layer(kws_t *kws)
 		}
 
 		do {
+			ERR_clear_error();
 			code = SSL_connect(kws->ssl);
 
 			if (code == 1) {
@@ -681,6 +684,7 @@ static int establish_server_logical_layer(kws_t *kws)
 		}
 
 		do {
+			ERR_clear_error();
 			code = SSL_accept(kws->ssl);
 
 			if (code == 1) {
@@ -944,6 +948,7 @@ KS_DECLARE(ks_ssize_t) kws_close(kws_t *kws, int16_t reason)
 		   client change NAT (like jump from one WiFi to another) and now unreachable from old ip:port, however
 		   immidiately reconnect with new ip:port but old session id (and thus should replace the old session/channel)
 		*/
+		ERR_clear_error();
 		SSL_shutdown(kws->ssl);
 	}
 
