@@ -120,7 +120,7 @@ static void *KS_THREAD_CALLING_CONVENTION thread_launch(void *args)
 	ks_thread_t *thread = (ks_thread_t *) args;
 	void *ret = NULL;
 
-	ks_log(KS_LOG_DEBUG, "Thread has launched with address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "Thread has launched with address: %p, tid: %8.8x\n", (void *)thread, thread->id);
 
 #ifdef HAVE_PTHREAD_SETSCHEDPARAM
 	if (thread->priority) {
@@ -148,9 +148,9 @@ static void *KS_THREAD_CALLING_CONVENTION thread_launch(void *args)
 		pthread_setname_np(pthread_self(), thread->tag);
 #endif
 
-	ks_log(KS_LOG_DEBUG, "START call user thread callback with address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "START call user thread callback with address: %p, tid: %8.8x\n", (void *)thread, thread->id);
 	ret = thread->function(thread, thread->private_data);
-	ks_log(KS_LOG_DEBUG, "STOP call user thread callback with address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "STOP call user thread callback with address: %p, tid: %8.8x\n", (void *)thread, thread->id);
 
 	if (thread->flags & KS_THREAD_FLAG_DETACHED) {
 		ks_thread_destroy(&thread);
@@ -231,19 +231,19 @@ static ks_status_t __join_os_thread(ks_thread_t *thread) {
 #else
 		int err = 0;
 		if ((err = pthread_join(thread->handle, NULL)) != 0) {
-			ks_log(KS_LOG_DEBUG, "Failed to join on thread address: %p, tid: %8.8lx, error = %s\n", (void *)thread, thread->id, strerror(err));
+			ks_log(KS_LOG_DEBUG, "Failed to join on thread address: %p, tid: %8.8x, error = %s\n", (void *)thread, thread->id, strerror(err));
 			return KS_STATUS_FAIL;
 		}
 #endif
-		ks_log(KS_LOG_DEBUG, "Completed join on thread address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+		ks_log(KS_LOG_DEBUG, "Completed join on thread address: %p, tid: %8.8x\n", (void *)thread, thread->id);
 	} else {
-		ks_log(KS_LOG_DEBUG, "Not joining on self address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+		ks_log(KS_LOG_DEBUG, "Not joining on self address: %p, tid: %8.8x\n", (void *)thread, thread->id);
 	}
 	return KS_STATUS_SUCCESS;
 }
 
 KS_DECLARE(ks_status_t) ks_thread_join(ks_thread_t *thread) {
-	ks_log(KS_LOG_DEBUG, "Join requested by thread: %8.8lx for thread address: %p, tid: %8.8lx\n", ks_thread_self_id(), (void *)&thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "Join requested by thread: %8.8lx for thread address: %p, tid: %8.8x\n", ks_thread_self_id(), (void *)&thread, thread->id);
 
 	return __join_os_thread(thread);
 }
@@ -281,7 +281,7 @@ KS_DECLARE(void) ks_thread_destroy(ks_thread_t **threadp)
 
 	detached = (thread->flags & KS_THREAD_FLAG_DETACHED) ? KS_TRUE : KS_FALSE;
 
-	ks_log(KS_LOG_DEBUG, "Thread destroy complete, deleting os primitives for thread address %p, tid: %8.8lx", (void *)thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "Thread destroy complete, deleting os primitives for thread address %p, tid: %8.8x", (void *)thread, thread->id);
 
 #ifdef WIN32
 	CloseHandle(thread->handle);

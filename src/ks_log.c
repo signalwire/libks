@@ -159,11 +159,11 @@ KS_DECLARE(ks_size_t) ks_log_format_output(char *buf, ks_size_t bufSize, const c
 
 	if (ret != -1) {
 		if (g_wakeup_stdout_fails > 0) {
-			used += snprintf(buf + used - 1, bufSize - used, "[LF:%d] ", g_wakeup_stdout_fails);
+			used += snprintf(buf + used - 1, bufSize - used, "[LF:%zu] ", g_wakeup_stdout_fails);
 			if (used >= bufSize) goto done;
 		}
 		if (g_wakeup_stdout_successes > 0) {
-			used += snprintf(buf + used - 1, bufSize - used, "[LS:%d] ", g_wakeup_stdout_successes);
+			used += snprintf(buf + used - 1, bufSize - used, "[LS:%zu] ", g_wakeup_stdout_successes);
 			if (used >= bufSize) goto done;
 		}
 		if (ks_log_prefix & KS_LOG_PREFIX_LEVEL) {
