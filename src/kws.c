@@ -1217,12 +1217,19 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 			blen = (int)(kws->body - kws->bbuffer);
 
 			// The bbuffer for the body of the message should always be 1 larger than plen from the payload size for null term
-			if (kws->plen >= (ks_ssize_t)kws->bbuflen) {
+			if (need + blen > (ks_ssize_t)kws->bbuflen || kws->plen >= (ks_ssize_t)kws->bbuflen) {
 				void *tmp;
 
-				kws->bbuflen = kws->plen;
+				kws->bbuflen = need + blen + kws->rplen;
+
+				if (kws->bbuflen < kws->plen) {
+					kws->bbuflen = kws->plen;
+				}
+
+				kws->bbuflen++;
+
 				// make room for entire payload plus null terminator
-				if ((tmp = ks_pool_resize(kws->bbuffer, (unsigned long)kws->plen + 1))) {
+				if ((tmp = ks_pool_resize(kws->bbuffer, (unsigned long)kws->bbuflen))) {
 					kws->bbuffer = tmp;
 				} else {
 					abort();
@@ -1631,8 +1638,8 @@ KS_DECLARE(ks_status_t) kws_parse_qs(kws_request_t *request, char *qs)
 		name = q;
 		if ((val = strchr(name, '='))) {
 			*val++ = '\0';
-			request->headers_k[request->total_headers] = name;
-			request->headers_v[request->total_headers] = val;
+			request->headers_k[request->total_headers] = strdup(name);
+			request->headers_v[request->total_headers] = strdup(val);
 			request->total_headers++;
 		}
 		q = next;
@@ -1641,6 +1648,8 @@ KS_DECLARE(ks_status_t) kws_parse_qs(kws_request_t *request, char *qs)
 	if (!qs) {
 		ks_safe_free(q);
 	}
+
+	return KS_STATUS_SUCCESS;
 }
 
 KS_DECLARE(ks_status_t) kws_parse_header(kws_t *kws, kws_request_t **requestP)
@@ -1752,8 +1761,8 @@ KS_DECLARE(ks_status_t) kws_parse_header(kws_t *kws, kws_request_t **requestP)
 
 		if (len && *(value + len - 1) == '\r') *(value + len - 1) = '\0';
 
-		request->headers_k[i] = header;
-		request->headers_v[i] = value;
+		request->headers_k[i] = strdup(header);
+		request->headers_v[i] = strdup(value);
 
 		if (!strncasecmp(header, "User-Agent", 10)) {
 			request->user_agent = value;
@@ -1805,7 +1814,7 @@ err:
 KS_DECLARE(void) kws_request_free(kws_request_t **request)
 {
 	if (!request || !*request) return;
-	if ((*request)->_buffer) free((*request)->_buffer);
+	kws_request_reset(*request);
 	free(*request);
 	*request = NULL;
 }
@@ -1843,10 +1852,18 @@ KS_DECLARE(char *) kws_request_dump(kws_request_t *request)
 
 KS_DECLARE(void) kws_request_reset(kws_request_t *request)
 {
+	int i;
+
 	if (!request) return;
 	if (request->_buffer) {
 		free(request->_buffer);
 		request->_buffer = NULL;
+	}
+
+	for (i = 0; i < KWS_MAX_HEADERS; i++) {
+		if (!request->headers_k[i] || !request->headers_v[i]) break;
+		free((void *)request->headers_k[i]);
+		free((void *)request->headers_v[i]);
 	}
 }
 

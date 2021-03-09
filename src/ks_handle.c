@@ -246,7 +246,7 @@ static inline ks_status_t __validate_type(ks_handle_type_t type, ks_handle_group
 	uint16_t group_id = KS_HANDLE_GROUP_FROM_TYPE(type);
 
 	if (group_id >= KS_HANDLE_MAX_GROUPS) {
-		ks_log(KS_LOG_DEBUG, "Invalid handle type: %8.8lx\n", type);
+		ks_log(KS_LOG_DEBUG, "Invalid handle type: %8.8x\n", type);
 		return KS_STATUS_FAIL;
 	}
 
@@ -274,7 +274,7 @@ static inline ks_status_t __validate_handle(ks_handle_type_t type,
 	*slot_index = KS_HANDLE_SLOT_INDEX_FROM_HANDLE(handle);
 
 	if (*slot_index >= KS_HANDLE_MAX_SLOTS) {
-		ks_log(KS_LOG_DEBUG, "Invalid handle slot: %8.8lx\n", *slot_index);
+		ks_log(KS_LOG_DEBUG, "Invalid handle slot: %8.8x\n", *slot_index);
 		return KS_STATUS_FAIL;
 	}
 

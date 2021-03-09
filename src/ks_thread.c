@@ -180,19 +180,19 @@ static void ks_thread_cleanup(void *ptr, void *arg, ks_pool_cleanup_action_t act
 	/* We should never be trying to free a detached thread from a pool free, it should free itself with no cleanup callback */
 	ks_assertd(!(thread->flags & KS_THREAD_FLAG_DETACHED));
 
-	ks_log(KS_LOG_DEBUG, "Thread cleanup called for thread address %p, tid: %lx\n", (void *)thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "Thread cleanup called for thread address %p, tid: %x\n", (void *)thread, thread->id);
 
 	switch(action) {
 	case KS_MPCL_ANNOUNCE:
-		ks_log(KS_LOG_DEBUG, "Requesting stop for thread cleanup callback with address: %p, tid: %lx\n", (void *)thread, thread->id);
+		ks_log(KS_LOG_DEBUG, "Requesting stop for thread cleanup callback with address: %p, tid: %x\n", (void *)thread, thread->id);
 		ks_thread_request_stop(thread);
 		break;
 	case KS_MPCL_TEARDOWN:
-		ks_log(KS_LOG_DEBUG, "Joining on thread from thread cleanup callback with address: %p, tid: %lx\n", (void *)thread, thread->id);
+		ks_log(KS_LOG_DEBUG, "Joining on thread from thread cleanup callback with address: %p, tid: %x\n", (void *)thread, thread->id);
 		ks_thread_join(thread);
 		break;
 	case KS_MPCL_DESTROY:
-		ks_log(KS_LOG_DEBUG, "Destroying thread from thread cleanup callback with address: %p, tid: %lx\n", (void *)thread, thread->id);
+		ks_log(KS_LOG_DEBUG, "Destroying thread from thread cleanup callback with address: %p, tid: %x\n", (void *)thread, thread->id);
 		ks_thread_destroy(&thread);
 		break;
 	}
@@ -203,7 +203,7 @@ static void *KS_THREAD_CALLING_CONVENTION thread_launch(void *args)
 	ks_thread_t *thread = (ks_thread_t *) args;
 	void *ret = NULL;
 
-	ks_log(KS_LOG_DEBUG, "Thread has launched with address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "Thread has launched with address: %p, tid: %8.8x\n", (void *)thread, thread->id);
 
 #ifdef HAVE_PTHREAD_SETSCHEDPARAM
 	if (thread->priority) {
@@ -217,7 +217,7 @@ static void *KS_THREAD_CALLING_CONVENTION thread_launch(void *args)
 		pthread_setschedparam(tt, policy, &param);
 	}
 #endif
-	ks_log(KS_LOG_DEBUG, "Marking thread as running, with address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "Marking thread as running, with address: %p, tid: %8.8x\n", (void *)thread, thread->id);
 
 	/* Now the caller will have thread_start_spin_lock held, and it will be looping on
 	 * an atomic fetch of the thread state, waiting for us to become alive. We first
@@ -244,14 +244,14 @@ static void *KS_THREAD_CALLING_CONVENTION thread_launch(void *args)
 
 	/* From here on out the thread start spin lock is no longer used */
 
-	ks_log(KS_LOG_DEBUG, "START call user thread callback with address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "START call user thread callback with address: %p, tid: %8.8x\n", (void *)thread, thread->id);
 	ret = thread->function(thread, thread->private_data);
 	ks_log(KS_LOG_DEBUG, "STOP call user thread callback with address: %p\n", (void *)thread);
 
 	/* Catch any memory corruptions */
 	ks_assertd(thread->id == ks_thread_self_id());
 
-	ks_log(KS_LOG_DEBUG, "Thread callback completed for addresss: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "Thread callback completed for addresss: %p, tid: %8.8x\n", (void *)thread, thread->id);
 
 	/* Now if we are detached it means we are in control of destroying ourselves so, take care of that now */
 	if ((thread->flags & KS_THREAD_FLAG_DETACHED)) {
@@ -265,7 +265,7 @@ static void *KS_THREAD_CALLING_CONVENTION thread_launch(void *args)
 		ks_assertd(ks_pool_allocation_lock_try_acquire(thread) == KS_TRUE);
 		ks_pool_allocation_lock_release(thread);
 
-		ks_log(KS_LOG_DEBUG, "Thread is attached, marking as stopped for address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+		ks_log(KS_LOG_DEBUG, "Thread is attached, marking as stopped for address: %p, tid: %8.8x\n", (void *)thread, thread->id);
 		ks_spinlock_acquire(&thread->state_spin_lock);
 		KS_THREAD_SET_STATE(thread, thread_state, KS_THREAD_STOPPED);
 
@@ -344,15 +344,15 @@ KS_DECLARE(uint8_t) ks_thread_priority(ks_thread_t *thread) {
 
 static void __join_os_thread(ks_thread_t *thread) {
 	if (ks_thread_self_id() != thread->id) {
-		ks_log(KS_LOG_DEBUG, "Joining on thread address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+		ks_log(KS_LOG_DEBUG, "Joining on thread address: %p, tid: %8.8x\n", (void *)thread, thread->id);
 #ifdef WIN32
 		ks_assertd(WaitForSingleObject(thread->handle, INFINITE) == WAIT_OBJECT_0);
 #else
 		ks_assertd(pthread_join(thread->handle, NULL) == 0);
 #endif
-		ks_log(KS_LOG_DEBUG, "Completed join on thread address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+		ks_log(KS_LOG_DEBUG, "Completed join on thread address: %p, tid: %8.8x\n", (void *)thread, thread->id);
 	} else {
-		ks_log(KS_LOG_DEBUG, "Not joining on self address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+		ks_log(KS_LOG_DEBUG, "Not joining on self address: %p, tid: %8.8x\n", (void *)thread, thread->id);
 	}
 }
 
@@ -364,7 +364,7 @@ static void __join_os_thread(ks_thread_t *thread) {
 KS_DECLARE(ks_status_t) ks_thread_join(ks_thread_t *thread) {
 	ks_bool_t self_join = thread->id == ks_thread_self_id();
 
-	ks_log(KS_LOG_DEBUG, "Join requested by thread: %8.8lx for thread address: %p, tid: %8.8lx\n", ks_thread_self_id(), (void *)&thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "Join requested by thread: %8.8x for thread address: %p, tid: %8.8x\n", ks_thread_self_id(), (void *)&thread, thread->id);
 
 	/* Now we want to be careful here as two threads may call
 	 * onto the same thread to join at the same time, and both
@@ -400,7 +400,7 @@ KS_DECLARE(ks_status_t) ks_thread_join(ks_thread_t *thread) {
 
 					ks_spinlock_release(&thread->state_spin_lock);
 
-					ks_log(KS_LOG_WARNING, "Redundant join blocked, caller already requested join for thread: %8.8lx\n", thread->id);
+					ks_log(KS_LOG_WARNING, "Redundant join blocked, caller already requested join for thread: %8.8x\n", thread->id);
 					return KS_STATUS_THREAD_ALREADY_JOINED;
 				}
 			}
@@ -428,7 +428,7 @@ KS_DECLARE(ks_status_t) ks_thread_join(ks_thread_t *thread) {
 
 				/* Request the thread to stop  (we will join below next) */
 				KS_THREAD_SET_STATE(thread, caller_state, KS_THREAD_CALLER_STATE_JOIN_REQUESTED);
-				ks_log(KS_LOG_DEBUG, "Thread is running, and caller wants to join for address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+				ks_log(KS_LOG_DEBUG, "Thread is running, and caller wants to join for address: %p, tid: %8.8x\n", (void *)thread, thread->id);
 			}
 			break;
 		case KS_THREAD_CALLER_STATE_ALLOC_FAILURE:
@@ -482,7 +482,7 @@ KS_DECLARE(ks_status_t) ks_thread_request_stop(ks_thread_t *thread)
 	if (thread->caller_state == KS_THREAD_CALLER_STATE_START_REQUESTED && thread->thread_state == KS_THREAD_RUNNING) {
 		KS_THREAD_SET_STATE(thread, caller_state, KS_THREAD_CALLER_STATE_STOP_REQUESTED);
 	} else {
-		ks_log(KS_LOG_DEBUG, "Stop request denied, thread state: %s, pointer: %p, tid: %8.8lx\n", __thread_state_str(thread->caller_state), (void *)thread, thread->id);
+		ks_log(KS_LOG_DEBUG, "Stop request denied, thread state: %s, pointer: %p, tid: %8.8x\n", __thread_state_str(thread->caller_state), (void *)thread, thread->id);
 
 		/* Assume its already stopped as far as error codes are concenred */
 		status = KS_STATUS_THREAD_ALREADY_STOPPED;
@@ -568,7 +568,7 @@ KS_DECLARE(void) ks_thread_destroy(ks_thread_t **threadp)
 		ks_abort("Illegal to self destroy when not detached");
 	}
 
-	ks_log(KS_LOG_DEBUG, "Thread destroy initiated for thread pointer: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "Thread destroy initiated for thread pointer: %p, tid: %8.8x\n", (void *)thread, thread->id);
 
 	/* Synchronize access to the thread state vars */
 	ks_spinlock_acquire(&thread->state_spin_lock);
@@ -635,7 +635,7 @@ KS_DECLARE(void) ks_thread_destroy(ks_thread_t **threadp)
 	 /* Shouldn't need the lock now no one will touch us */
 	 ks_spinlock_release(&thread->state_spin_lock);
 
-	 ks_log(KS_LOG_DEBUG, "Thread destroy complete, deleting os primitives for thread address %p, tid: %8.8lx", (void *)thread, thread->id);
+	 ks_log(KS_LOG_DEBUG, "Thread destroy complete, deleting os primitives for thread address %p, tid: %8.8x", (void *)thread, thread->id);
 
 #ifdef WIN32
 	CloseHandle(thread->handle);
@@ -793,7 +793,7 @@ KS_DECLARE(ks_status_t) __ks_thread_create_ex(
 		goto done;
 	}
 
-	ks_log(KS_LOG_DEBUG, "Waiting for thread thread to set running, with address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "Waiting for thread thread to set running, with address: %p, tid: %8.8x\n", (void *)thread, thread->id);
 
 	/* Wait for the thread to set its id  while holding the thread_start lock so we can atomically
 	 * transition states with the new thread */
@@ -813,14 +813,14 @@ KS_DECLARE(ks_status_t) __ks_thread_create_ex(
 
 	if (!sanity) {
 		status = KS_STATUS_FAIL;
-		ks_log(KS_LOG_CRIT, "Failed to wait for %d ms to wait for thread %8.8lx to set state to be ready\n", KS_THREAD_SANITY_WAIT_MS, thread->id);
+		ks_log(KS_LOG_CRIT, "Failed to wait for %d ms to wait for thread %8.8x to set state to be ready\n", KS_THREAD_SANITY_WAIT_MS, thread->id);
 		goto done;
 	}
 
 	if (thread->flags & KS_THREAD_FLAG_DETACHED) {
-		ks_log(KS_LOG_DEBUG, "Allocated (detached) thread context ptr: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+		ks_log(KS_LOG_DEBUG, "Allocated (detached) thread context ptr: %p, tid: %8.8x\n", (void *)thread, thread->id);
 	} else {
-		ks_log(KS_LOG_DEBUG, "Allocated (attached) thread context ptr: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+		ks_log(KS_LOG_DEBUG, "Allocated (attached) thread context ptr: %p, tid: %8.8x\n", (void *)thread, thread->id);
 	}
 
 	/* Success! */

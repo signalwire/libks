@@ -224,7 +224,7 @@ KS_DECLARE(int) ks_config_get_cas_bits(char *strvalue, unsigned char *outbits)
 		if ('1' == cas_bits[x]) {
 			*outbits |= bit;
 		} else if ('0' != cas_bits[x]) {
-			ks_log(KS_LOG_ERROR, "Invalid CAS pattern specified: %s, just 0 or 1 allowed for each bit\n");
+			ks_log(KS_LOG_ERROR, "Invalid CAS pattern specified: %s, just 0 or 1 allowed for each bit\n", cas_bits);
 			return -1;
 		}
 		bit >>= 1;
