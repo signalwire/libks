@@ -40,7 +40,7 @@ if (KS_PLAT_WIN OR WITH_KS_TEST)
 endif()
 
 # Declare our project, libks
-project(LibKS VERSION 1.6.1 LANGUAGES C CXX)
+project(LibKS VERSION 1.7.1 LANGUAGES C CXX)
 message("LibKS Version ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}")
 
 # Set package version
