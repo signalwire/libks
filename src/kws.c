@@ -579,7 +579,11 @@ static int establish_client_logical_layer(kws_t *kws)
 
 		if (!kws->ssl) {
 			kws->ssl = SSL_new(kws->ssl_ctx);
-			assert(kws->ssl);
+			if (!kws->ssl) {
+				unsigned long ssl_new_error = ERR_peek_error();
+				ks_log(KS_LOG_ERROR, "Failed to initiate SSL with error [%lu]\n", ssl_new_error);
+				return -1;
+			}
 
 			SSL_set_fd(kws->ssl, (int)kws->sock);
 
@@ -678,7 +682,11 @@ static int establish_server_logical_layer(kws_t *kws)
 
 		if (!kws->ssl) {
 			kws->ssl = SSL_new(kws->ssl_ctx);
-			assert(kws->ssl);
+			if (!kws->ssl) {
+				unsigned long ssl_new_error = ERR_peek_error();
+				ks_log(KS_LOG_ERROR, "Failed to initiate SSL with error [%lu]\n", ssl_new_error);
+				return -1;
+			}
 
 			SSL_set_fd(kws->ssl, (int)kws->sock);
 		}
@@ -1473,7 +1481,12 @@ KS_DECLARE(ks_status_t) kws_connect_ex(kws_t **kwsP, ks_json_t *params, kws_flag
 #else
 				ssl_ctx = SSL_CTX_new(TLSv1_2_client_method());
 #endif
-				assert(ssl_ctx);
+				if (!ssl_ctx) {
+					unsigned long ssl_ctx_error = ERR_peek_error();
+					ks_log(KS_LOG_ERROR, "Failed to initiate SSL context with ssl error [%lu].\n", ssl_ctx_error);
+					return KS_STATUS_FAIL;
+				}
+
 				destroy_ssl_ctx++;
 			}
 
