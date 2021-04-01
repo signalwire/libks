@@ -267,18 +267,9 @@ static void default_logger(const char *file, const char *func, int line, int lev
 			ks_json_add_string_to_object(json, "level", LEVEL_NAMES[level]);
 
 			{
-				time_t now = time(0);
-				struct tm nowtm;
+				double ts = (double)ks_time_now() / 1000000;
 
-#ifdef WIN32
-				localtime_s(&nowtm, &now);
-#else
-				localtime_r(&now, &nowtm);
-#endif
-
-				strftime(tbuf, sizeof(tbuf), "%Y-%m-%d %H:%M:%S", &nowtm);
-
-				ks_json_add_string_to_object(json, "timestamp", tbuf);
+				ks_json_add_number_to_object(json, "timestamp", ts);
 			}
 
 			{
@@ -291,9 +282,9 @@ static void default_logger(const char *file, const char *func, int line, int lev
 				ks_json_add_string_to_object(json, "thread", tbuf);
 			}
 
-			ks_json_add_string_to_object(json, "file", file);
-			ks_json_add_string_to_object(json, "func", func);
-			ks_json_add_number_to_object(json, "line", line);
+			ks_json_add_string_to_object(json, "calling-file", file);
+			ks_json_add_string_to_object(json, "calling-func", func);
+			ks_json_add_number_to_object(json, "calling-line", line);
 
 			char *tmp = ks_json_print_unformatted(json);
 
