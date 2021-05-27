@@ -325,7 +325,9 @@ KS_DECLARE(ks_bool_t) ks_check_network_list_ip_cidr(const char *ip_str, const ch
 		ip.v4 = htonl(ip.v4);
 	}
 
-	ks_parse_cidr(cidr_str, &net, &mask, &bits);
+	if (ks_parse_cidr(cidr_str, &net, &mask, &bits) != 0) {
+		goto done;
+	}
 
 	if (ipv6) {
 		ok = ks_testv6_subnet(ip, net, mask);
@@ -333,6 +335,7 @@ KS_DECLARE(ks_bool_t) ks_check_network_list_ip_cidr(const char *ip_str, const ch
 		ok = ks_test_subnet(ip.v4, net.v4, mask.v4);
 	}
 
+done:
 	ks_safe_free(ipv4);
 
 	return ok;
