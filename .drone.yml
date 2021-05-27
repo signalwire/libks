@@ -4,15 +4,15 @@ name: default
 
 steps:
     - name: scan-build
-      image: debian:stretch
+      image: debian:buster
       pull: true
       commands:
-      - apt-get update && apt-get install -yq build-essential autotools-dev lsb-release pkg-config automake autoconf libtool-bin clang-tools-4.0
-      - apt-get install -yq cmake uuid-dev libssl1.0-dev      
+      - apt-get update && apt-get install -yq build-essential autotools-dev lsb-release pkg-config automake autoconf libtool-bin clang-tools-7
+      - apt-get install -yq cmake uuid-dev libssl-dev
       - sed -i '/cotire/d' ./CMakeLists.txt
       - mkdir -p scan-build
-      - scan-build-4.0 -o ./scan-build/ cmake .
-      - echo '#!/bin/bash\nscan-build-4.0 -o ./scan-build/ make -j`nproc --all` |& tee ./scan-build-result.txt\nexitstatus=$${PIPESTATUS[0]}\necho $$exitstatus > ./scan-build-status.txt\n' > scan.sh
+      - scan-build-7 -o ./scan-build/ cmake .
+      - echo '#!/bin/bash\nscan-build-7 -o ./scan-build/ make -j`nproc --all` |& tee ./scan-build-result.txt\nexitstatus=$${PIPESTATUS[0]}\necho $$exitstatus > ./scan-build-status.txt\n' > scan.sh
       - chmod +x scan.sh
       - ./scan.sh
       - exitstatus=`cat ./scan-build-status.txt`
@@ -32,6 +32,7 @@ steps:
 trigger:
   branch:
   - master
+  - v2.0
 
 trigger:
   event:
@@ -39,6 +40,6 @@ trigger:
   - push
 ---
 kind: signature
-hmac: a6f0bb1ddbf48095fda5120398ac7b9acb2153c951569da32e3fb7a07b29d635
+hmac: c74bad8c61f28a9f06513f78e1fc8cc58e3b9d7a0fd2c15389aa84a27c284602
 
 ...
