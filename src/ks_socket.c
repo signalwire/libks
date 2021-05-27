@@ -439,7 +439,7 @@ KS_DECLARE(ks_status_t) ks_listen_sock(ks_socket_t server_sock, ks_sockaddr_t *a
 
 	for (;;) {
 		ks_socket_t client_sock;
-		ks_sockaddr_t remote_addr;
+		ks_sockaddr_t remote_addr = {0};
 		socklen_t slen = 0;
 
 		if (addr->family == PF_INET) {
