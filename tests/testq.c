@@ -216,6 +216,28 @@ ks_size_t qtest2(int ttl, int try, int loops)
 
 }
 
+ks_status_t qtest3()
+{
+	ks_q_t *q = NULL;
+	ks_pool_t *pool = NULL;
+	ks_status_t status = KS_STATUS_SUCCESS;
+
+	ks_pool_open(&pool);
+	ks_q_create(&q, pool, 0);
+
+	int *val = (int*)ks_pool_alloc(pool, sizeof(int));
+	int *tmp = NULL;
+
+	if ((status = ks_q_trypeek(q, (void **)&tmp)) != KS_STATUS_BREAK) return KS_STATUS_FAIL;
+	if ((status = ks_q_trypush(q, val)) != KS_STATUS_SUCCESS) return status;
+	if (ks_q_size(q) != 1) return KS_STATUS_FAIL;
+	if (ks_q_trypeek(q, (void **)&tmp) != KS_STATUS_SUCCESS) return KS_STATUS_FAIL;
+	if (tmp != val) return KS_STATUS_FAIL;
+	if (ks_q_size(q) != 1) return KS_STATUS_FAIL;
+
+	ks_q_destroy(&q);
+	ks_pool_close(&pool);
+}
 
 int main(int argc, char **argv)
 {
@@ -232,6 +254,7 @@ int main(int argc, char **argv)
 	//ttl = 5;
 
 
+	ok(qtest3() == KS_STATUS_SUCCESS);
 	for(i = 0; i < runs; i++) {
 		ok(qtest1(size));
 		ok(qtest2(ttl, 0, size) == 0);

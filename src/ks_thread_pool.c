@@ -244,7 +244,7 @@ KS_DECLARE(ks_status_t) ks_thread_pool_destroy(ks_thread_pool_t **tp)
 	while ((itt = ks_hash_first((*tp)->thread_hash, KS_UNLOCKED))) {
 		void *key;
 
-		ks_hash_this(itt, &key, NULL, NULL);
+		ks_hash_this(itt, (const void **)&key, NULL, NULL);
 		ks_thread_join((ks_thread_t*)key);
 		ks_hash_remove((*tp)->thread_hash, key);
 		ks_thread_destroy((ks_thread_t**)&key);
