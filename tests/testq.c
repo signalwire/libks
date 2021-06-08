@@ -248,7 +248,7 @@ int main(int argc, char **argv)
 
 	ks_init();
 
-	plan(4 * runs);
+	plan(4 * runs + 1);
 
 	ttl = ks_env_cpu_count() * 5;
 	//ttl = 5;
