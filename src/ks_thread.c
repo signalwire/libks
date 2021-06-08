@@ -154,6 +154,8 @@ static void *KS_THREAD_CALLING_CONVENTION thread_launch(void *args)
 
 	if (thread->flags & KS_THREAD_FLAG_DETACHED) {
 		ks_thread_destroy(&thread);
+	} else {
+		ks_thread_set_return_data(thread, ret);
 	}
 
 	return ret;
@@ -230,7 +232,7 @@ static ks_status_t __join_os_thread(ks_thread_t *thread) {
 		ks_assertd(WaitForSingleObject(thread->handle, INFINITE) == WAIT_OBJECT_0);
 #else
 		int err = 0;
-		if ((err = pthread_join(thread->handle, NULL)) != 0) {
+		if ((err = pthread_join(thread->handle, NULL)) != 0 && !(err == ESRCH && thread->return_data)) {
 			ks_log(KS_LOG_DEBUG, "Failed to join on thread address: %p, tid: %8.8x, error = %s\n", (void *)thread, thread->id, strerror(err));
 			return KS_STATUS_FAIL;
 		}
