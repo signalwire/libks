@@ -41,6 +41,7 @@ struct ks_thread_pool_s {
 	uint32_t running_thread_count;
 	uint32_t dying_thread_count;
 	ks_hash_t *thread_hash;
+	ks_hash_t *thread_die_hash;
 	ks_thread_pool_state_t state;
 	ks_mutex_t *state_mutex;
 	ks_mutex_t *mutex;
@@ -54,6 +55,29 @@ typedef struct ks_thread_job_s {
 
 static void *worker_thread(ks_thread_t *thread, void *data);
 
+static void cleanup_threads(ks_thread_pool_t *tp)
+{
+	ks_hash_iterator_t *itt;
+
+	ks_hash_write_lock(tp->thread_die_hash);
+	for (itt = ks_hash_first(tp->thread_die_hash, KS_UNLOCKED); itt; ) {
+		void *key;
+
+		ks_hash_this(itt, (const void **)&key, NULL, NULL);
+		ks_thread_join((ks_thread_t*)key);
+
+		itt = ks_hash_next(&itt);
+		ks_hash_remove(tp->thread_die_hash, key);
+
+		ks_hash_write_lock(tp->thread_hash);
+		ks_hash_remove(tp->thread_hash, key);
+		ks_hash_write_unlock(tp->thread_hash);
+
+		ks_thread_destroy((ks_thread_t**)&key);
+	}
+	ks_hash_write_unlock(tp->thread_die_hash);
+}
+
 static int check_queue(ks_thread_pool_t *tp, ks_bool_t adding)
 {
 	ks_thread_t *thread;
@@ -66,6 +90,7 @@ static int check_queue(ks_thread_pool_t *tp, ks_bool_t adding)
 		return 1;
 	}
 
+	cleanup_threads(tp);
 
 	if (tp->thread_count < tp->min) {
 		need = tp->min - tp->thread_count;
@@ -195,6 +220,7 @@ static void *worker_thread(ks_thread_t *thread, void *data)
 	if (die) {
 		tp->dying_thread_count--;
 	}
+	ks_hash_insert(tp->thread_die_hash, thread, NULL);
 	ks_mutex_unlock(tp->mutex);
 
 	return NULL;
@@ -220,6 +246,7 @@ KS_DECLARE(ks_status_t) ks_thread_pool_create(ks_thread_pool_t **tp, uint32_t mi
 	ks_mutex_create(&(*tp)->state_mutex, KS_MUTEX_FLAG_DEFAULT, pool);
 	ks_q_create(&(*tp)->q, pool, TP_MAX_QLEN);
 	ks_hash_create(&(*tp)->thread_hash, KS_HASH_MODE_PTR, KS_HASH_FLAG_NONE, pool);
+	ks_hash_create(&(*tp)->thread_die_hash, KS_HASH_MODE_PTR, KS_HASH_FLAG_NONE, pool);
 
 	check_queue(*tp, KS_FALSE);
 
@@ -241,17 +268,19 @@ KS_DECLARE(ks_status_t) ks_thread_pool_destroy(ks_thread_pool_t **tp)
 	ks_mutex_unlock((*tp)->state_mutex);
 
 	ks_hash_write_lock((*tp)->thread_hash);
-	while ((itt = ks_hash_first((*tp)->thread_hash, KS_UNLOCKED))) {
+	for (itt = ks_hash_first((*tp)->thread_hash, KS_UNLOCKED); itt; ) {
 		void *key;
 
 		ks_hash_this(itt, (const void **)&key, NULL, NULL);
 		ks_thread_join((ks_thread_t*)key);
+		itt = ks_hash_next(&itt);
 		ks_hash_remove((*tp)->thread_hash, key);
 		ks_thread_destroy((ks_thread_t**)&key);
 	}
 
 	ks_hash_write_unlock((*tp)->thread_hash);
 	ks_hash_destroy(&(*tp)->thread_hash);
+	ks_hash_destroy(&(*tp)->thread_die_hash);
 
 	pool = ks_pool_get(*tp);
 	ks_pool_close(&pool);
