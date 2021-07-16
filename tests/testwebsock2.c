@@ -306,6 +306,17 @@ static int test_ws(char *url)
 	ks_json_t *req = ks_json_create_object();
 	ks_json_add_string_to_object(req, "url", url);
 
+	ks_json_t *headers = ks_json_create_array();
+	ks_json_add_item_to_object(req, "headers", headers);
+	ks_json_t *param = ks_json_create_object();
+	ks_json_add_string_to_object(param, "key", "X-Auth-Token");
+	ks_json_add_string_to_object(param, "value", "xxxx");
+	ks_json_add_item_to_array(headers, param);
+	param = ks_json_create_object();
+	ks_json_add_string_to_object(param, "key", "Agent");
+	ks_json_add_string_to_object(param, "value", "libks");
+	ks_json_add_item_to_array(headers, param);
+
 	ks_global_set_log_level(7);
 
 	ks_pool_open(&pool);
