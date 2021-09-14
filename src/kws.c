@@ -451,6 +451,22 @@ KS_DECLARE(ks_ssize_t) kws_raw_read(kws_t *kws, void *data, ks_size_t bytes, int
 	return r;
 }
 
+/*
+ * Blocking read until bytes have been received, failure, or too many retries.
+ */
+static ks_ssize_t kws_raw_read_blocking(kws_t *kws, char *data, ks_size_t max_bytes, int max_retries)
+{
+	ks_ssize_t total_bytes_read = 0;
+	while (total_bytes_read < max_bytes && max_retries-- > 0) {
+		ks_ssize_t bytes_read = kws_raw_read(kws, data + total_bytes_read, max_bytes - total_bytes_read, WS_BLOCK);
+		if (bytes_read < 0) {
+			break;
+		}
+		total_bytes_read += bytes_read;
+	}
+	return total_bytes_read;
+}
+
 KS_DECLARE(ks_ssize_t) kws_raw_write(kws_t *kws, void *data, ks_size_t bytes)
 {
 	int r;
@@ -1138,10 +1154,13 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 				need += 4;
 
 				if (need > kws->datalen) {
-					/* too small - protocol err */
-					ks_log(KS_LOG_ERROR, "Read frame error because not enough data for mask\n");
-					*oc = WSOC_CLOSE;
-					return kws_close(kws, WS_NONE);
+					ks_ssize_t bytes = kws_raw_read_blocking(kws, kws->buffer + kws->datalen, need - kws->datalen, 10);
+					if (bytes < 0 || (kws->datalen += bytes) < need) {
+						/* too small - protocol err */
+						ks_log(KS_LOG_ERROR, "Read frame error because not enough data for mask\n");
+						*oc = WSOC_CLOSE;
+						return kws_close(kws, WS_NONE);
+					}
 				}
 			}
 
@@ -1155,21 +1174,13 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 				need += 8;
 
 				if (need > kws->datalen) {
-					/* too small - protocol err */
-					//*oc = WSOC_CLOSE;
-					//return kws_close(kws, WS_PROTO_ERR);
-
-					more = kws_raw_read(kws, kws->buffer + kws->datalen, (int)(need - kws->datalen), WS_BLOCK);
-
-					if (more < 0 || more < need - kws->datalen) {
+					ks_ssize_t bytes = kws_raw_read_blocking(kws, kws->buffer + kws->datalen, need - kws->datalen, 10);
+					if (bytes < 0 || (kws->datalen += bytes) < need) {
+						/* too small - protocol err */
 						ks_log(KS_LOG_ERROR, "Read frame error because kws_raw_read: more = %ld, need = %ld, datalen = %ld\n", more, need, kws->datalen);
 						*oc = WSOC_CLOSE;
 						return kws_close(kws, WS_NONE);
-					} else {
-						kws->datalen += more;
 					}
-
-
 				}
 
 				u64 = (uint64_t *) kws->payload;
@@ -1181,10 +1192,13 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 				need += 2;
 
 				if (need > kws->datalen) {
-					/* too small - protocol err */
-					ks_log(KS_LOG_ERROR, "Read frame error because kws_raw_read: not enough data for packet length\n");
-					*oc = WSOC_CLOSE;
-					return kws_close(kws, WS_NONE);
+					ks_ssize_t bytes = kws_raw_read_blocking(kws, kws->buffer + kws->datalen, need - kws->datalen, 10);
+					if (bytes < 0 || (kws->datalen += bytes) < need) {
+						/* too small - protocol err */
+						ks_log(KS_LOG_ERROR, "Read frame error because kws_raw_read: not enough data for packet length\n");
+						*oc = WSOC_CLOSE;
+						return kws_close(kws, WS_NONE);
+					}
 				}
 
 				u16 = (uint16_t *) kws->payload;
