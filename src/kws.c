@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 SignalWire, Inc
+ * Copyright (c) 2018-2020 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -340,6 +340,7 @@ static int ws_server_handshake(kws_t *kws)
 	}
 
 	kws->handshake = 1;
+	kws->flags &= ~KWS_HTTP;
 
 	return 0;
 
@@ -356,6 +357,9 @@ static int ws_server_handshake(kws_t *kws)
 		}
 
 		kws_close(kws, WS_NONE);
+	} else if (kws->flags & KWS_HTTP) {
+		kws->handshake = 1;
+		return 0;
 	}
 
 	return -1;
@@ -389,6 +393,7 @@ KS_DECLARE(ks_ssize_t) kws_raw_read(kws_t *kws, void *data, ks_size_t bytes, int
 
 	if (kws->ssl) {
 		do {
+			ERR_clear_error();
 			r = SSL_read(kws->ssl, data, (int)bytes);
 			if (r == 0) {
 				ssl_err = SSL_get_error(kws->ssl, r);
@@ -476,6 +481,7 @@ KS_DECLARE(ks_ssize_t) kws_raw_write(kws_t *kws, void *data, ks_size_t bytes)
 
 	if (kws->ssl) {
 		do {
+			ERR_clear_error();
 			r = SSL_write(kws->ssl, (void *)((unsigned char *)data + wrote), (int)(bytes - wrote));
 
 			if (r == 0) {
@@ -558,6 +564,8 @@ KS_DECLARE(ks_ssize_t) kws_raw_write(kws_t *kws, void *data, ks_size_t bytes)
 static void setup_socket(ks_socket_t sock)
 {
 	ks_socket_option(sock, KS_SO_NONBLOCK, KS_TRUE);
+	ks_socket_option(sock, TCP_NODELAY, KS_TRUE);
+	ks_socket_option(sock, SO_KEEPALIVE, KS_TRUE);
 }
 
 static void restore_socket(ks_socket_t sock)
@@ -587,7 +595,11 @@ static int establish_client_logical_layer(kws_t *kws)
 
 		if (!kws->ssl) {
 			kws->ssl = SSL_new(kws->ssl_ctx);
-			assert(kws->ssl);
+			if (!kws->ssl) {
+				unsigned long ssl_new_error = ERR_peek_error();
+				ks_log(KS_LOG_ERROR, "Failed to initiate SSL with error [%lu]\n", ssl_new_error);
+				return -1;
+			}
 
 			SSL_set_fd(kws->ssl, (int)kws->sock);
 
@@ -595,6 +607,7 @@ static int establish_client_logical_layer(kws_t *kws)
 		}
 
 		do {
+			ERR_clear_error();
 			code = SSL_connect(kws->ssl);
 
 			if (code == 1) {
@@ -685,12 +698,17 @@ static int establish_server_logical_layer(kws_t *kws)
 
 		if (!kws->ssl) {
 			kws->ssl = SSL_new(kws->ssl_ctx);
-			assert(kws->ssl);
+			if (!kws->ssl) {
+				unsigned long ssl_new_error = ERR_peek_error();
+				ks_log(KS_LOG_ERROR, "Failed to initiate SSL with error [%lu]\n", ssl_new_error);
+				return -1;
+			}
 
 			SSL_set_fd(kws->ssl, (int)kws->sock);
 		}
 
 		do {
+			ERR_clear_error();
 			code = SSL_accept(kws->ssl);
 
 			if (code == 1) {
@@ -906,22 +924,6 @@ KS_DECLARE(void) kws_destroy(kws_t **kwsP)
 	}
 
 	if (kws->ssl) {
-		int code, ssl_err, sanity = 100;
-		do {
-			code = SSL_shutdown(kws->ssl);
-			if (code == 1) {
-				break;
-			}
-			if (code < 0) {
-				ssl_err = SSL_get_error(kws->ssl, code);
-			}
-			if (kws->block) {
-				ks_sleep_ms(10);
-			} else {
-				ks_sleep_ms(1);
-			}
-
-		} while ((code == 0 || (code < 0 && SSL_ERROR_WANT_READ_WRITE(ssl_err))) && --sanity > 0);
 		SSL_free(kws->ssl);
 		kws->ssl = NULL;
 	}
@@ -962,12 +964,31 @@ KS_DECLARE(ks_ssize_t) kws_close(kws_t *kws, int16_t reason)
 		kws_raw_write(kws, fr, 4);
 	}
 
+	if (kws->ssl && kws->sock != KS_SOCK_INVALID) {
+		/* first invocation of SSL_shutdown() would normally return 0 and just try to send SSL protocol close request.
+		   we just slightly polite, since we want to close socket fast and
+		   not bother waiting for SSL protocol close response before closing socket,
+		   since we want cleanup to be done fast for scenarios like:
+		   client change NAT (like jump from one WiFi to another) and now unreachable from old ip:port, however
+		   immidiately reconnect with new ip:port but old session id (and thus should replace the old session/channel)
+		*/
+		ERR_clear_error();
+		SSL_shutdown(kws->ssl);
+	}
+
+	/* restore to blocking here, so any further read/writes will block */
 	restore_socket(kws->sock);
 
 	if ((kws->flags & KWS_CLOSE_SOCK) && kws->sock != KS_SOCK_INVALID) {
+		/* signal socket to shutdown() before close(): FIN-ACK-FIN-ACK insead of RST-RST
+		   do not really handle errors here since it all going to die anyway.
+		   all buffered writes if any(like SSL_shutdown() ones) will still be sent.
+		 */
 #ifndef WIN32
+		shutdown(kws->sock, SHUT_RDWR);
 		close(kws->sock);
 #else
+		shutdown(kws->sock, SD_BOTH);
 		closesocket(kws->sock);
 #endif
 	}
@@ -1131,7 +1152,7 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 			ks_log(KS_LOG_ERROR, "Read frame error because OPCODE = WSOC_CLOSE\n");
 			kws->plen = kws->buffer[1] & 0x7f;
 			*data = (uint8_t *) &kws->buffer[2];
-			return kws_close(kws, 1000);
+			return kws_close(kws, WS_RECV_CLOSE);
 		}
 		break;
 	case WSOC_CONTINUATION:
@@ -1223,12 +1244,19 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 			blen = (int)(kws->body - kws->bbuffer);
 
 			// The bbuffer for the body of the message should always be 1 larger than plen from the payload size for null term
-			if (kws->plen >= (ks_ssize_t)kws->bbuflen) {
+			if (need + blen > (ks_ssize_t)kws->bbuflen || kws->plen >= (ks_ssize_t)kws->bbuflen) {
 				void *tmp;
 
-				kws->bbuflen = kws->plen;
+				kws->bbuflen = need + blen + kws->rplen;
+
+				if (kws->bbuflen < kws->plen) {
+					kws->bbuflen = kws->plen;
+				}
+
+				kws->bbuflen++;
+
 				// make room for entire payload plus null terminator
-				if ((tmp = ks_pool_resize(kws->bbuffer, (unsigned long)kws->plen + 1))) {
+				if ((tmp = ks_pool_resize(kws->bbuffer, (unsigned long)kws->bbuflen))) {
 					kws->bbuffer = tmp;
 				} else {
 					abort();
@@ -1467,7 +1495,12 @@ KS_DECLARE(ks_status_t) kws_connect_ex(kws_t **kwsP, ks_json_t *params, kws_flag
 #else
 				ssl_ctx = SSL_CTX_new(TLSv1_2_client_method());
 #endif
-				assert(ssl_ctx);
+				if (!ssl_ctx) {
+					unsigned long ssl_ctx_error = ERR_peek_error();
+					ks_log(KS_LOG_ERROR, "Failed to initiate SSL context with ssl error [%lu].\n", ssl_ctx_error);
+					return KS_STATUS_FAIL;
+				}
+
 				destroy_ssl_ctx++;
 			}
 
@@ -1545,9 +1578,361 @@ KS_DECLARE(int) kws_wait_sock(kws_t *kws, uint32_t ms, ks_poll_t flags)
 
 	if (kws->unprocessed_buffer_len > 0) return KS_POLL_READ;
 
+	if (kws->ssl && SSL_pending(kws->ssl) > 0) return KS_POLL_READ;
+
 	return ks_wait_sock(kws->sock, ms, flags);
 }
 
+KS_DECLARE(int) kws_test_flag(kws_t *kws, kws_flag_t flag)
+{
+	return kws->flags & flag;
+}
+KS_DECLARE(int) kws_set_flag(kws_t *kws, kws_flag_t flag)
+{
+	return kws->flags |= flag;
+}
+KS_DECLARE(int) kws_clear_flag(kws_t *kws, kws_flag_t flag)
+{
+	return kws->flags &= ~flag;
+}
+
+/* clean the uri to protect us from vulnerability attack */
+static ks_status_t clean_uri(char *uri)
+{
+	int argc;
+	char *argv[64];
+	int last, i, len, uri_len = 0;
+
+	argc = ks_separate_string(uri, '/', argv, sizeof(argv) / sizeof(argv[0]));
+
+	if (argc == sizeof(argv)) { /* too deep */
+		return KS_STATUS_FAIL;
+	}
+
+	last = 1;
+	for(i = 1; i < argc; i++) {
+		if (*argv[i] == '\0' || !strcmp(argv[i], ".")) {
+			/* ignore //// or /././././ */
+		} else if (!strcmp(argv[i], "..")) {
+			/* got /../, go up one level */
+			if (last > 1) last--;
+		} else {
+			argv[last++] = argv[i];
+		}
+	}
+
+	for(i = 1; i < last; i++) {
+		len = strlen(argv[i]);
+		sprintf(uri + uri_len, "/%s", argv[i]);
+		uri_len += (len + 1);
+	}
+
+	if (*uri == '\0') {
+		*uri++ = '/';
+		*uri = '\0';
+	}
+
+	return KS_STATUS_SUCCESS;
+}
+
+KS_DECLARE(ks_status_t) kws_parse_qs(kws_request_t *request, char *qs)
+{
+	char *q;
+	char *next;
+	char *name, *val;
+
+	if (qs) {
+		q = qs;
+	} else { /*parse our own qs, dup to avoid modify the original string */
+		q = strdup(request->qs);
+	}
+
+	if (!q) return KS_STATUS_FAIL;
+
+	next = q;
+
+	while (q && request->total_headers < KWS_MAX_HEADERS) {
+		char *p;
+
+		if ((next = strchr(next, '&'))) {
+			*next++ = '\0';
+		}
+
+		for (p = q; p && *p; p++) {
+			if (*p == '+') *p = ' ';
+		}
+
+		ks_url_decode(q);
+
+		name = q;
+		if ((val = strchr(name, '='))) {
+			*val++ = '\0';
+			request->headers_k[request->total_headers] = strdup(name);
+			request->headers_v[request->total_headers] = strdup(val);
+			request->total_headers++;
+		}
+		q = next;
+	}
+
+	if (!qs) {
+		ks_safe_free(q);
+	}
+
+	return KS_STATUS_SUCCESS;
+}
+
+KS_DECLARE(ks_status_t) kws_parse_header(kws_t *kws, kws_request_t **requestP)
+{
+	char *buffer = kws->buffer;
+	ks_size_t datalen = kws->datalen;
+	ks_status_t status = KS_STATUS_FAIL;
+	char *p = (char *)buffer;
+	int i = 10;
+	char *http = NULL;
+	int header_count;
+	char *headers[64] = { 0 };
+	int argc;
+	char *argv[2] = { 0 };
+	char *body = NULL;
+
+	if (datalen < 16)	return status; /* minimum GET / HTTP/1.1\r\n */
+
+	while(i--) { // sanity check
+		if (*p++ == ' ') break;
+	}
+
+	if (i == 0) return status;
+
+	if ((body = strstr(buffer, "\r\n\r\n"))) {
+		*body = '\0';
+		body += 4;
+	} else if (( body = strstr(buffer, "\n\n"))) {
+		*body = '\0';
+		body += 2;
+	} else {
+		return status;
+	}
+
+	ks_assert(requestP);
+	kws_request_t *request = *requestP;
+
+	if (!request) request = malloc(sizeof(kws_request_t));
+	if (!request) return status;
+	memset(request, 0, sizeof(kws_request_t));
+	*requestP = request;
+
+	request->_buffer = strdup(buffer);
+	ks_assert(request->_buffer);
+	request->method = request->_buffer;
+	request->bytes_buffered = datalen;
+	request->bytes_header = body - buffer;
+	request->bytes_read = body - buffer;
+
+	p = strchr(request->method, ' ');
+
+	if (!p) goto err;
+
+	*p++ = '\0';
+
+	if (*p != '/') goto err; /* must start from '/' */
+
+	request->uri = p;
+	p = strchr(request->uri, ' ');
+
+	if (!p) goto err;
+
+	*p++ = '\0';
+	http = p;
+
+	p = strchr(request->uri, '?');
+
+	if (p) {
+		*p++ = '\0';
+		request->qs = p;
+	}
+
+	if (clean_uri((char *)request->uri) != KS_STATUS_SUCCESS) {
+		goto err;
+	}
+
+	if (!strncmp(http, "HTTP/1.1", 8)) {
+		request->keepalive = KS_TRUE;
+	} else if (strncmp(http, "HTTP/1.0", 8)) {
+		goto err;
+	}
+
+	p = strchr(http, '\n');
+
+	if (p) {
+		*p++ = '\0'; // now the first header
+	} else {
+		goto noheader;
+	}
+
+	header_count = ks_separate_string(p, '\n', headers, sizeof(headers)/ sizeof(headers[0]));
+
+	if (header_count < 1) goto err;
+
+	for (i = 0; i < header_count; i++) {
+		char *header, *value;
+		int len;
+
+		argc = ks_separate_string(headers[i], ':', argv, 2);
+
+		if (argc != 2) goto err;
+
+		header = argv[0];
+		value = argv[1];
+
+		while (*value == ' ') value++;
+
+		len = strlen(value);
+
+		if (len && *(value + len - 1) == '\r') *(value + len - 1) = '\0';
+
+		request->headers_k[i] = strdup(header);
+		request->headers_v[i] = strdup(value);
+
+		if (!strncasecmp(header, "User-Agent", 10)) {
+			request->user_agent = value;
+		} else if (!strncasecmp(header, "Host", 4)) {
+			request->host = value;
+			p = strchr(value, ':');
+
+			if (p) {
+				*p++ = '\0';
+
+				if (*p) request->port = (ks_port_t)atoi(p);
+			}
+		} else if (!strncasecmp(header, "Content-Type", 12)) {
+			request->content_type = value;
+		} else if (!strncasecmp(header, "Content-Length", 14)) {
+			request->content_length = atoi(value);
+		} else if (!strncasecmp(header, "Referer", 7)) {
+			request->referer = value;
+		} else if (!strncasecmp(header, "Authorization", 7)) {
+			request->authorization = value;
+		}
+	}
+
+	request->total_headers = i;
+	if (datalen >= body - buffer) {
+		kws->datalen = datalen -= (body - buffer);
+	}
+
+	if (datalen > 0) {
+		// shift remining bytes to start of buffer including ending '\0'
+		memmove(buffer, body, datalen + 1);
+		kws->unprocessed_buffer_len = datalen;
+		kws->unprocessed_position = kws->buffer;
+	}
+
+noheader:
+
+	if (request->qs) {
+		kws_parse_qs(request, NULL);
+	}
+
+	return KS_STATUS_SUCCESS;
+
+err:
+	kws_request_free(requestP);
+	return status;
+}
+
+KS_DECLARE(void) kws_request_free(kws_request_t **request)
+{
+	if (!request || !*request) return;
+	kws_request_reset(*request);
+	free(*request);
+	*request = NULL;
+}
+
+KS_DECLARE(char *) kws_request_dump(kws_request_t *request)
+{
+	if (!request || !request->method) return NULL;
+
+	printf("method: %s\n", request->method);
+
+	if (request->uri) printf("uri: %s\n", request->uri);
+	if (request->qs)  printf("qs: %s\n", request->qs);
+	if (request->host) printf("host: %s\n", request->host);
+	if (request->port) printf("port: %d\n", request->port);
+	if (request->from) printf("from: %s\n", request->from);
+	if (request->user_agent) printf("user_agent: %s\n", request->user_agent);
+	if (request->referer) printf("referer: %s\n", request->referer);
+	if (request->user) printf("user: %s\n", request->user);
+	printf("keepalive: %d\n", request->keepalive);
+	if (request->content_type) printf("content_type: %s\n", request->content_type);
+	if (request->content_length) printf("content_length: %u\n", (uint32_t)request->content_length);
+	if (request->authorization) printf("authorization: %s\n", request->authorization);
+
+	printf("headers:\n-------------------------\n");
+
+	int i;
+
+	for (i = 0; i < KWS_MAX_HEADERS; i++) {
+		if (!request->headers_k[i] || !request->headers_v[i]) break;
+		printf("%s: %s\n", request->headers_k[i], request->headers_v[i]);
+	}
+
+	return NULL;
+}
+
+KS_DECLARE(void) kws_request_reset(kws_request_t *request)
+{
+	int i;
+
+	if (!request) return;
+	if (request->_buffer) {
+		free(request->_buffer);
+		request->_buffer = NULL;
+	}
+
+	for (i = 0; i < KWS_MAX_HEADERS; i++) {
+		if (!request->headers_k[i] || !request->headers_v[i]) break;
+		free((void *)request->headers_k[i]);
+		request->headers_k[i] = NULL;
+		free((void *)request->headers_v[i]);
+		request->headers_v[i] = NULL;
+	}
+
+	request->total_headers = 0;
+}
+
+KS_DECLARE(ks_ssize_t) kws_read_buffer(kws_t *kws, uint8_t **data, ks_size_t bytes, int block)
+{
+	*data = kws->buffer;
+	return kws_raw_read(kws, kws->buffer, bytes, block);
+}
+
+KS_DECLARE(ks_status_t) kws_keepalive(kws_t *kws)
+{
+	ks_ssize_t bytes = 0;;
+	kws->datalen = 0;
+
+	while ((bytes = kws_raw_read(kws, kws->buffer + kws->datalen, kws->buflen - kws->datalen, WS_BLOCK)) > 0) {
+		kws->datalen += bytes;
+		if (strstr(kws->buffer, "\r\n\r\n") || strstr(kws->buffer, "\n\n")) {
+			return KS_STATUS_SUCCESS;
+		}
+	}
+
+	return KS_STATUS_FAIL;
+}
+
+KS_DECLARE(const char *) kws_request_get_header(kws_request_t *request, const char *key)
+{
+	int i;
+
+	for (i = 0; i < KWS_MAX_HEADERS; i++) {
+		if (request->headers_k[i] && !strcmp(request->headers_k[i], key)) {
+			return request->headers_v[i];
+		}
+	}
+
+	return NULL;
+}
 /* For Emacs:
  * Local Variables:
  * mode:c

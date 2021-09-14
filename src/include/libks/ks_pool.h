@@ -375,10 +375,6 @@ KS_DECLARE(void *) ks_pool_ref_ex(void *addr, ks_status_t *error_p);
 
 #define ks_pool_ref(_x) ks_pool_ref_ex(_x, NULL)
 
-KS_DECLARE(void) ks_pool_allocation_lock_release(void *addr);
-KS_DECLARE(void) ks_pool_allocation_lock_acquire(void *addr);
-KS_DECLARE(ks_bool_t) ks_pool_allocation_lock_try_acquire(void *addr);
-
 /*
  * void *__ks_pool_resize
  *

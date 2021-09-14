@@ -41,6 +41,7 @@ KS_DECLARE(ks_status_t) ks_q_push(ks_q_t *q, void *ptr);
 KS_DECLARE(ks_status_t) ks_q_trypush(ks_q_t *q, void *ptr);
 KS_DECLARE(ks_status_t) ks_q_pop(ks_q_t *q, void **ptr);
 KS_DECLARE(ks_status_t) ks_q_trypop(ks_q_t *q, void **ptr);
+KS_DECLARE(ks_status_t) ks_q_trypeek(ks_q_t *q, void **ptr);
 
 KS_END_EXTERN_C
 

@@ -439,7 +439,7 @@ KS_DECLARE(ks_status_t) ks_listen_sock(ks_socket_t server_sock, ks_sockaddr_t *a
 
 	for (;;) {
 		ks_socket_t client_sock;
-		ks_sockaddr_t remote_addr;
+		ks_sockaddr_t remote_addr = {0};
 		socklen_t slen = 0;
 
 		if (addr->family == PF_INET) {
@@ -497,7 +497,13 @@ KS_DECLARE(ks_status_t) ks_listen(const char *host, ks_port_t port, int family, 
 KS_DECLARE(int) ks_poll(struct pollfd fds[], uint32_t nfds, int timeout)
 {
 #ifdef WIN32
-	return WSAPoll(fds, nfds, timeout);
+	int ret = WSAPoll(fds, nfds, timeout);
+
+	if (ret == SOCKET_ERROR) {
+		ret = WSAGetLastError();
+	}
+
+	return ret;
 #else
 	return poll(fds, nfds, timeout);
 #endif
@@ -515,6 +521,10 @@ KS_DECLARE(int) ks_wait_sock(ks_socket_t sock, uint32_t ms, ks_poll_t flags)
 	fd_set wfds;
 	fd_set efds;
 	struct timeval tv;
+
+	if (sock == KS_SOCK_INVALID) {
+	  return KS_POLL_INVALID;
+	}
 
 	FD_ZERO(&rfds);
 	FD_ZERO(&wfds);
@@ -600,6 +610,10 @@ KS_DECLARE(int) ks_wait_sock(ks_socket_t sock, uint32_t ms, ks_poll_t flags)
 	struct pollfd pfds[2] = { {0} };
 	int s = 0, r = 0;
 
+	if (sock == KS_SOCK_INVALID) {
+	  return KS_POLL_INVALID;
+	}
+
 	pfds[0].fd = sock;
 
 	if ((flags & KS_POLL_READ)) {
@@ -610,8 +624,16 @@ KS_DECLARE(int) ks_wait_sock(ks_socket_t sock, uint32_t ms, ks_poll_t flags)
 		pfds[0].events |= POLLOUT;
 	}
 
-	if ((flags & KS_POLL_ERROR)) {
-		pfds[0].events |= POLLERR;
+	if ((flags & KS_POLL_RDNORM)) {
+		pfds[0].events |= POLLRDNORM;
+	}
+
+	if ((flags & KS_POLL_RDBAND)) {
+		pfds[0].events |= POLLRDBAND;
+	}
+
+	if ((flags & KS_POLL_PRI)) {
+		pfds[0].events |= POLLPRI;
 	}
 
 	s = ks_poll(pfds, 1, ms);
@@ -627,6 +649,21 @@ KS_DECLARE(int) ks_wait_sock(ks_socket_t sock, uint32_t ms, ks_poll_t flags)
 		}
 		if ((pfds[0].revents & POLLERR)) {
 			r |= KS_POLL_ERROR;
+		}
+		if ((pfds[0].revents & POLLHUP)) {
+			r |= KS_POLL_HUP;
+		}
+		if ((pfds[0].revents & POLLRDNORM)) {
+			r |= KS_POLL_RDNORM;
+		}
+		if ((pfds[0].revents & POLLRDBAND)) {
+			r |= KS_POLL_RDBAND;
+		}
+		if ((pfds[0].revents & POLLPRI)) {
+			r |= KS_POLL_PRI;
+		}
+		if ((pfds[0].revents & POLLNVAL)) {
+			r |= KS_POLL_INVALID;
 		}
 	}
 

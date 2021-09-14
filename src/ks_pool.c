@@ -288,7 +288,6 @@ static void *alloc_mem(ks_pool_t *pool, const ks_size_t size, const char *file, 
 	prefix->magic2 = KS_POOL_PREFIX_MAGIC;
 	prefix->refs = 1;
 	prefix->next = pool->first;
-	ks_assert(prefix->allocation_lock.count == 0);
 
 #ifdef KS_DEBUG_POOL
 	prefix->file = file;
@@ -355,12 +354,6 @@ static ks_status_t free_mem(void *addr)
 
 	CHECK_PREFIX(prefix);
 
-	/* Prevent a free on locked memory blocks */
-	if (!ks_spinlock_try_acquire(&prefix->allocation_lock)) {
-		ks_log(KS_LOG_ERROR, "Encountered locked block %p, preventing allocation\n", prefix);
-		return KS_STATUS_POOL_PREFIX_LOCKED;
-	}
-
 	pool = prefix->pool;
 
 	if (prefix->refs > 0) {
@@ -372,7 +365,6 @@ static ks_status_t free_mem(void *addr)
 	}
 
 	if (prefix->refs > 0) {
-		ks_spinlock_release(&prefix->allocation_lock);
 		return KS_STATUS_REFS_EXIST;
 	}
 
@@ -571,16 +563,6 @@ static ks_json_t * __pack_pool_stats(ks_pool_t *pool, ks_debug_pool_pack_type_t 
 		snprintf(workspace2, sizeof(workspace2), "%p", (void *)addr);
 
 		ks_json_add_item_to_object(heap_stat_array, workspace2, ks_json_create_string(ks_thr_sprintf("[%s]", workspace3)));
-
-		/* Update the allocation count in this group */
-		if (!(count_number = ks_json_get_object_item(pool_heap_group_object, "allocation_count"))) {
-			ks_json_add_item_to_object(pool_heap_group_object, "allocation_count", ks_json_create_number(1));
-		} else {
-			double count = ks_json_get_number_double(count_number, 0.0);
-			ks_json_delete_item_from_object(pool_heap_group_object, "allocation_count");
-			ks_json_add_item_to_object(pool_heap_group_object, "allocation_count", ks_json_create_number(count + 1));
-		}
-
 		index++;
 	}
 
@@ -1163,7 +1145,7 @@ done:
  *
  * DESCRIPTION:
  *
- * Ref count increment an address in a memoory pool.
+ * Ref count increment an address in a memory pool.
  *
  * RETURNS:
  *
@@ -1205,57 +1187,6 @@ done:
 	ks_assert(ret == KS_STATUS_SUCCESS);
 
 	return addr;
-}
-
-KS_DECLARE(void) ks_pool_allocation_lock_release(void *addr)
-{
-	ks_status_t ret = KS_STATUS_SUCCESS;
-	ks_pool_prefix_t *prefix = NULL;
-	ks_pool_t *pool = NULL;
-
-	ks_assertd(addr);
-
-	prefix = (ks_pool_prefix_t *)((uintptr_t)addr - KS_POOL_PREFIX_SIZE);
-	CHECK_PREFIX(prefix);
-
-	pool = prefix->pool;
-	ks_assertd(!(ret = check_pool(pool)));
-
-	ks_spinlock_release(&prefix->allocation_lock);
-}
-
-KS_DECLARE(void) ks_pool_allocation_lock_acquire(void *addr)
-{
-	ks_status_t ret = KS_STATUS_SUCCESS;
-	ks_pool_prefix_t *prefix = NULL;
-	ks_pool_t *pool = NULL;
-
-	ks_assertd(addr);
-
-	prefix = (ks_pool_prefix_t *)((uintptr_t)addr - KS_POOL_PREFIX_SIZE);
-	CHECK_PREFIX(prefix);
-
-	pool = prefix->pool;
-	ks_assertd(!(ret = check_pool(pool)));
-
-	ks_spinlock_acquire(&prefix->allocation_lock);
-}
-
-KS_DECLARE(ks_bool_t) ks_pool_allocation_lock_try_acquire(void *addr)
-{
-	ks_status_t ret = KS_STATUS_SUCCESS;
-	ks_pool_prefix_t *prefix = NULL;
-	ks_pool_t *pool = NULL;
-
-	ks_assertd(addr);
-
-	prefix = (ks_pool_prefix_t *)((uintptr_t)addr - KS_POOL_PREFIX_SIZE);
-	CHECK_PREFIX(prefix);
-
-	pool = prefix->pool;
-	ks_assertd(!(ret = check_pool(pool)));
-
-	return ks_spinlock_try_acquire(&prefix->allocation_lock);
 }
 
 /*
@@ -1547,110 +1478,110 @@ KS_DECLARE(const char *) ks_pool_strerror(const ks_status_t error)
 
 KS_DECLARE(char *) __ks_pstrdup(ks_pool_t *pool, const char *str, const char *file, int line, const char *tag)
 {
-    char *result;
-    ks_size_t len;
+	char *result;
+	ks_size_t len;
 
-    if (!str) {
-        return NULL;
-    }
+	if (!str) {
+		return NULL;
+	}
 
-    len = (ks_size_t)strlen(str) + 1;
-    result = __ks_pool_alloc(pool, len, file, line, tag);
-    memcpy(result, str, len);
+	len = (ks_size_t)strlen(str) + 1;
+	result = __ks_pool_alloc(pool, len, file, line, tag);
+	memcpy(result, str, len);
 
-    return result;
+	return result;
 }
 
 KS_DECLARE(char *) __ks_pstrndup(ks_pool_t *pool, const char *str, ks_size_t len, const char *file, int line, const char *tag)
 {
-    char *result;
-    const char *end;
+	char *result;
+	const char *end;
 
-    if (!str) {
-        return NULL;
-    }
-
-    end = memchr(str, '\0', len);
-
-    if (!end) {
-        len = end - str;
+	if (!str) {
+		return NULL;
 	}
 
-    result = ks_pool_alloc(pool, len + 1);
-    memcpy(result, str, len);
-    result[len] = '\0';
+	end = memchr(str, '\0', len);
 
-    return result;
+	if (!end) {
+		len = end - str;
+	}
+
+	result = ks_pool_alloc(pool, len + 1);
+	memcpy(result, str, len);
+	result[len] = '\0';
+
+	return result;
 }
 
 KS_DECLARE(char *) __ks_pstrmemdup(ks_pool_t *pool, const char *str, ks_size_t len, const char *file, int line, const char *tag)
 {
-    char *result;
+	char *result;
 
-    if (!str) {
-        return NULL;
-    }
+	if (!str) {
+		return NULL;
+	}
 
-    result = __ks_pool_alloc(pool, len + 1, file, line, tag);
-    memcpy(result, str, len);
-    result[len] = '\0';
+	result = __ks_pool_alloc(pool, len + 1, file, line, tag);
+	memcpy(result, str, len);
+	result[len] = '\0';
 
-    return result;
+	return result;
 }
 
 KS_DECLARE(void *) __ks_pmemdup(ks_pool_t *pool, const void *buf, ks_size_t len, const char *file, int line, const char *tag)
 {
-    void *result;
+	void *result;
 
-    if (!buf) {
+	if (!buf) {
 		return NULL;
 	}
 
-    result = __ks_pool_alloc(pool, len, file, line, tag);
-    memcpy(result, buf, len);
+	result = __ks_pool_alloc(pool, len, file, line, tag);
+	memcpy(result, buf, len);
 
-    return result;
+	return result;
 }
 
 KS_DECLARE(char *) __ks_pstrcat(const char *file, int line, const char *tag, ks_pool_t *pool, ...)
 {
-    char *endp, *argp;
+	char *endp, *argp;
 	char *result;
-    ks_size_t lengths[10] = { 0 };
-    int i = 0;
-    ks_size_t len = 0;
-    va_list ap;
+	ks_size_t lengths[10] = { 0 };
+	int i = 0;
+	ks_size_t len = 0;
+	va_list ap;
 
-    va_start(ap, pool);
+	va_start(ap, pool);
 
 	/* get lengths so we know what to allocate, cache some so we don't have to double strlen those */
 
-    while ((argp = va_arg(ap, char *))) {
+	while ((argp = va_arg(ap, char *))) {
 		ks_size_t arglen = strlen(argp);
-        if (i < 10) lengths[i++] = arglen;
-        len += arglen;
-    }
+		if (i < 10) lengths[i++] = arglen;
+		len += arglen;
+	}
 
-    va_end(ap);
+	va_end(ap);
 
-    result = (char *) __ks_pool_alloc(pool, len + 1, file, line, tag);
-    endp = result;
+	result = (char *) __ks_pool_alloc(pool, len + 1, file, line, tag);
+	endp = result;
 
-    va_start(ap, pool);
+	va_start(ap, pool);
 
-    i = 0;
+	i = 0;
 
-    while ((argp = va_arg(ap, char *))) {
-        len = (i < 10) ? lengths[i++] : strlen(argp);
-        memcpy(endp, argp, len);
-        endp += len;
-    }
+	while ((argp = va_arg(ap, char *))) {
+		len = (i < 10) ? lengths[i++] : strlen(argp);
+		memcpy(endp, argp, len);
+		endp += len;
+	}
 
-    va_end(ap);
+	va_end(ap);
 
-    *endp = '\0';
+	*endp = '\0';
 
-    return result;
+	return result;
 }
 
 KS_DECLARE(char *) __ks_psprintf(const char *file, int line, const char *tag, ks_pool_t *pool, const char *fmt, ...)

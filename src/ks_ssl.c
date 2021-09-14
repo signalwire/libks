@@ -131,7 +131,9 @@ KS_DECLARE(int) ks_gen_cert(const char *dir, const char *file)
 		rsa = ks_mprintf("%s%s%s.crt", dir, KS_PATH_SEPARATOR, file);
 	}
 
+#ifdef CRYPTO_MEM_CHECK_ON
 	CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_ON);
+#endif
 
 	//bio_err=BIO_new_fp(stderr, BIO_NOCLOSE);
 

@@ -30,7 +30,7 @@ int main(int argc, char **argv)
 	memset(a, 'a', sizeof(a));
 	a[sizeof(a) - 1] = '\0';
 	ks_init();
-	ks_global_set_default_logger(KS_LOG_LEVEL_DEBUG);
+	ks_global_set_log_level(KS_LOG_LEVEL_DEBUG);
 	ks_log(a, a, 9999999, KS_LOG_LEVEL_DEBUG, a);
 	ks_log(a, a, 9999999, KS_LOG_LEVEL_INFO, a);
 	ks_log(a, a, 9999999, KS_LOG_LEVEL_WARNING, a);

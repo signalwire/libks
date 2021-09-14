@@ -9,7 +9,7 @@ option(WITH_KS_TEST "Enable KsTest c++ harness" OFF)
 option(WITH_LIBBACKTRACE "Enables linking to libbacktrace as an external project, used in abort areas in libks" OFF)
 
 # Must include cotire before anything else for auto pch setup
-include(cmake/cotire.cmake)
+#include(cmake/cotire.cmake)
 
 # Load our common utility api and setup the platfomrm and build
 include(cmake/ksutil.cmake)
@@ -284,11 +284,35 @@ if("${CMAKE_OS_NAME}" STREQUAL "Debian")
 	# Generate a Debian compliant changelog
 	if(GIT_FOUND AND GZIP_CMD AND DATE_CMD)
 		# Get git log info
-		execute_process(COMMAND ${GIT_EXECUTABLE} log --no-merges --pretty=format:"%n  [%an]%n   * %s" --since="last month"
+		message("Detecting last git tag to generate a Debian complian changelog.")
+		execute_process(COMMAND ${GIT_EXECUTABLE} describe --tags --abbrev=0
+			OUTPUT_VARIABLE LAST_TAG
+			WORKING_DIRECTORY .
+			OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+		# Commits count since last tag
+		execute_process(COMMAND ${GIT_EXECUTABLE} rev-list ${LAST_TAG}.. --count
+			OUTPUT_VARIABLE COMMITS_COUNT_SINCE_LAST_TAG
+			WORKING_DIRECTORY .
+			OUTPUT_STRIP_TRAILING_WHITESPACE)
+		message("Found last git tag: ${LAST_TAG}")
+
+		# Check if we have commits since last tag
+		if (COMMITS_COUNT_SINCE_LAST_TAG STREQUAL "0")
+			# if not, find second tag so we could have a changelog
+			message("No commits since git tag '${LAST_TAG}' to generate a changelog, looking for a previous tag")
+			execute_process(COMMAND ${GIT_EXECUTABLE} describe --tags --abbrev=0 ${LAST_TAG}^
+				OUTPUT_VARIABLE LAST_TAG
+				WORKING_DIRECTORY .
+				OUTPUT_STRIP_TRAILING_WHITESPACE)
+		endif()
+
+		message("Generating a changelog using commits since git tag: ${LAST_TAG}")
+		execute_process(COMMAND ${GIT_EXECUTABLE} log --no-merges --pretty=format:"%n  [%an]%n   * %s" ${LAST_TAG}..HEAD
 			OUTPUT_VARIABLE CHANGELOG
 			WORKING_DIRECTORY .
 			OUTPUT_STRIP_TRAILING_WHITESPACE)
-		string(REPLACE "\"" "" CHANGELOG "${CHANGELOG}")
+		string(REPLACE "\"" "" CHANGELOG ${CHANGELOG})
 
 		# Create changelog
 		file(WRITE changelog.Debian ${CHANGELOG_HEADER}\n${CHANGELOG}\n\n${CHANGELOG_FOOTER})
@@ -550,8 +574,6 @@ if (NOT KS_PLAT_WIN)
 
 	install(FILES cmake/ksutil.cmake COMPONENT "runtime" DESTINATION include/libks/cmake)
 	install(FILES cmake/FindPCRE.cmake COMPONENT "runtime" DESTINATION include/libks/cmake)
-	install(FILES cmake/FindConfig.cmake COMPONENT "runtime" DESTINATION include/libks/cmake)
-	install(FILES cmake/FindConfigCpp.cmake COMPONENT "runtime" DESTINATION include/libks/cmake)
 	install(FILES cmake/AddLibBacktrace.cmake COMPONENT "runtime" DESTINATION include/libks/cmake)
 	install(FILES ${PROJECT_BINARY_DIR}/copyright COMPONENT "runtime" DESTINATION share/doc/libks)
 	install(EXPORT LibKSConfig COMPONENT "runtime" DESTINATION include/libks/cmake)
@@ -582,7 +604,7 @@ if (NOT KS_PLAT_WIN)
 	configure_file("${CMAKE_CURRENT_LIST_DIR}/libks.pc.in" "${PROJECT_BINARY_DIR}/libks.pc" @ONLY)
 endif()
 
-cotire(ks)
+#cotire(ks)
 
 # Add tests
 enable_testing()

@@ -51,6 +51,7 @@ KS_DECLARE(ks_status_t) ks_init(void)
 #endif
 
 	ks_time_init();
+	ks_log_init();
 
 #ifdef __WINDOWS__
 	pid = _getpid();
@@ -97,11 +98,11 @@ KS_DECLARE(ks_status_t) ks_shutdown(void)
 		status = ks_pool_close(&g_pool);
 	}
 
+	ks_log_shutdown();
+
 done:
 
 	ks_spinlock_release(&g_init_lock);
-
-	ks_global_close_file_log();
 
 	return status;
 }
