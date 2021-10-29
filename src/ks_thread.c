@@ -122,19 +122,6 @@ static void *KS_THREAD_CALLING_CONVENTION thread_launch(void *args)
 
 	ks_log(KS_LOG_DEBUG, "Thread has launched with address: %p, tid: %8.8x\n", (void *)thread, thread->id);
 
-#ifdef HAVE_PTHREAD_SETSCHEDPARAM
-	if (thread->priority) {
-		int policy = SCHED_FIFO;
-		struct sched_param param = { 0 };
-		pthread_t tt = pthread_self();
-
-		pthread_once(&init_priority, ks_thread_init_priority);
-		pthread_getschedparam(tt, &policy, &param);
-		param.sched_priority = thread->priority;
-		pthread_setschedparam(tt, policy, &param);
-	}
-#endif
-
 	thread->id = ks_thread_self_id();
 
 #if KS_PLAT_WIN
@@ -203,6 +190,9 @@ KS_DECLARE(int) ks_thread_set_priority(int nice_val)
 }
 
 KS_DECLARE(uint8_t) ks_thread_priority(ks_thread_t *thread) {
+
+	ks_assert(thread);
+
 	uint8_t priority = 0;
 #ifdef WIN32
 	//int pri = GetThreadPriority(thread->handle);
@@ -344,6 +334,35 @@ static ks_status_t __init_os_thread(ks_thread_t *thread)
 
 #else
 
+static ks_status_t __init_os_thread_set_priority(ks_thread_t *thread)
+{
+    int schedpolicy = SCHED_FIFO;
+    int inheritsched = PTHREAD_EXPLICIT_SCHED;
+    struct sched_param param = { 0 };
+
+    ks_status_t status = KS_STATUS_FAIL;
+
+    if (pthread_attr_getschedparam(&thread->attribute, &param))
+       goto done;
+
+    param.sched_priority = thread->priority;
+
+    if (pthread_attr_setinheritsched(&thread->attribute, inheritsched) != 0)
+        goto done;
+
+    if (pthread_attr_setschedpolicy(&thread->attribute, schedpolicy))
+        goto done;
+
+    if(pthread_attr_setschedparam(&thread->attribute, &param))
+        goto done;
+
+    status = KS_STATUS_SUCCESS;
+
+    done:
+
+    return status;
+}
+
 /* Gnu thread startup */
 static ks_status_t __init_os_thread(ks_thread_t *thread)
 {
@@ -357,6 +376,13 @@ static ks_status_t __init_os_thread(ks_thread_t *thread)
 
 	if (thread->stack_size && pthread_attr_setstacksize(&thread->attribute, thread->stack_size) != 0)
 		goto done;
+
+#ifdef HAVE_PTHREAD_ATTR_SETSCHEDPARAM
+    if (thread->priority) {
+       if(__init_os_thread_set_priority(thread) != KS_STATUS_SUCCESS)
+            goto done;
+    }
+#endif
 
 	if (pthread_create(&thread->handle, &thread->attribute, thread_launch, thread) != 0)
 		goto done;

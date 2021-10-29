@@ -266,7 +266,6 @@ static void check_thread_priority(void)
 
 	status = ks_thread_create_ex(&thread_p, thread_priority, d, 0, KS_THREAD_DEFAULT_STACK, KS_PRI_IMPORTANT, pool);
 	ok( status == KS_STATUS_SUCCESS );
-	ks_sleep(100000);
 	todo("Add check to see if has permission to set thread priority\n");
 	ok( ks_thread_priority(thread_p) == KS_PRI_IMPORTANT );
 	ks_thread_destroy(&thread_p);
