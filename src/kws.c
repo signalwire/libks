@@ -45,6 +45,7 @@ static const char c64[65] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxy
 struct kws_s {
 	ks_socket_t sock;
 	kws_type_t type;
+	chat *authorization_token;
 	char *buffer;
 	char *bbuffer;
 	char *body;
@@ -212,9 +213,14 @@ static int ws_client_handshake(kws_t *kws)
 	unsigned char enonce[128] = { 0 };
 	char req[2048] = { 0 };
 	char *frame_end = NULL;
+	char auth_token[512] = { 0 };
 
 	gen_nonce(nonce, sizeof(nonce));
 	b64encode(nonce, sizeof(nonce), enonce, sizeof(enonce));
+
+	if (kws->authorization_token) {
+		b64encode(kws->authorization_token, strlen(kws->authorization_token), auth_token, sizeof(auth_token));
+	}
 
 	ks_snprintf(req, sizeof(req),
 				"GET %s HTTP/1.1\r\n"
@@ -224,11 +230,15 @@ static int ws_client_handshake(kws_t *kws)
 				"Sec-WebSocket-Key: %s\r\n"
 				"Sec-WebSocket-Version: 13\r\n"
 				"%s%s%s"
+				"%s%s%s"
 				"\r\n",
 				kws->req_uri, kws->req_host, enonce,
 				kws->req_proto ? "Sec-WebSocket-Protocol: " : "",
 				kws->req_proto ? kws->req_proto : "",
-				kws->req_proto ? "\r\n" : "");
+				kws->req_proto ? "\r\n" : "",
+				auth_token[0] ? "Authorization: Basic " : "",
+				auth_token[0] ? auth_token : "",
+				auth_token[0] ? "\r\n" : "");
 
 	kws_raw_write(kws, req, strlen(req));
 
@@ -780,7 +790,7 @@ static int establish_logical_layer(kws_t *kws)
 	}
 }
 
-KS_DECLARE(ks_status_t) kws_init(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl_ctx, const char *client_data, kws_flag_t flags, ks_pool_t *pool)
+KS_DECLARE(ks_status_t) kws_init(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl_ctx, const char *client_data, kws_flag_t flags, const char *authorization_token, ks_pool_t *pool)
 {
 	kws_t *kws;
 
@@ -790,6 +800,9 @@ KS_DECLARE(ks_status_t) kws_init(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl_ct
 	kws->flags = flags;
 	kws->unprocessed_buffer_len = 0;
 	kws->unprocessed_position = NULL;
+	if (authorization_token) {
+		kws->authorization_token = ks_pstrdup(pool, authorization_token);
+	}
 
 	if ((flags & KWS_BLOCK)) {
 		kws->block = 1;
@@ -877,6 +890,11 @@ KS_DECLARE(ks_status_t) kws_init(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl_ct
 	kws_destroy(&kws);
 
 	return KS_STATUS_FAIL;
+}
+
+KS_DECLARE(ks_status_t) kws_init(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl_ctx, const char *client_data, kws_flag_t flags, ks_pool_t *pool)
+{
+	return kws_init_ex(kwsP, sock, ssl_ctx, client_data, flags, NULL, pool);
 }
 
 KS_DECLARE(void) kws_set_init_callback(kws_t *kws, kws_init_callback_t callback)
