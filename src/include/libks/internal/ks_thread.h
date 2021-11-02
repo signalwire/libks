@@ -44,4 +44,7 @@ struct ks_thread {
 	uint8_t priority;
 	void *return_data;
 	ks_pool_t *pool_to_destroy;
+
+	ks_mutex_t *mutex;
+	ks_bool_t in_use;
 };
