@@ -334,42 +334,40 @@ static ks_status_t __init_os_thread(ks_thread_t *thread)
 
 #else
 
-static ks_status_t __init_os_thread_set_priority(ks_thread_t *thread)
+static int __init_os_thread_set_priority(ks_thread_t *thread)
 {
-    int schedpolicy = SCHED_FIFO;
-    int inheritsched = PTHREAD_EXPLICIT_SCHED;
-    struct sched_param param = { 0 };
+	int schedpolicy = SCHED_FIFO;
+	int inheritsched = PTHREAD_EXPLICIT_SCHED;
+	struct sched_param param = { 0 };
+	int ret = -1;
 
-    ks_status_t status = KS_STATUS_FAIL;
+	if ((ret = pthread_attr_getschedparam(&thread->attribute, &param)) != 0)
+		goto done;
 
-    if (pthread_attr_getschedparam(&thread->attribute, &param))
-       goto done;
+	param.sched_priority = thread->priority;
 
-    param.sched_priority = thread->priority;
+	if ((ret = pthread_attr_setinheritsched(&thread->attribute, inheritsched)) != 0)
+		goto done;
 
-    if (pthread_attr_setinheritsched(&thread->attribute, inheritsched) != 0)
-        goto done;
+	if ((ret = pthread_attr_setschedpolicy(&thread->attribute, schedpolicy)) != 0)
+		goto done;
 
-    if (pthread_attr_setschedpolicy(&thread->attribute, schedpolicy))
-        goto done;
+	if ((ret = pthread_attr_setschedparam(&thread->attribute, &param)) != 0)
+		goto done;
 
-    if(pthread_attr_setschedparam(&thread->attribute, &param))
-        goto done;
+	done:
 
-    status = KS_STATUS_SUCCESS;
-
-    done:
-
-    return status;
+	return ret;
 }
 
 /* Gnu thread startup */
 static ks_status_t __init_os_thread(ks_thread_t *thread)
 {
 	ks_status_t status = KS_STATUS_FAIL;
+	int err;
 
 	if (pthread_attr_init(&thread->attribute) != 0)
-		return KS_STATUS_FAIL;
+		return status;
 
 	if ((thread->flags & KS_THREAD_FLAG_DETACHED) && pthread_attr_setdetachstate(&thread->attribute, PTHREAD_CREATE_DETACHED) != 0)
 		goto done;
@@ -378,14 +376,37 @@ static ks_status_t __init_os_thread(ks_thread_t *thread)
 		goto done;
 
 #ifdef HAVE_PTHREAD_ATTR_SETSCHEDPARAM
-    if (thread->priority) {
-       if(__init_os_thread_set_priority(thread) != KS_STATUS_SUCCESS)
-            goto done;
-    }
+	if (thread->priority) {
+		if((err = __init_os_thread_set_priority(thread)) != 0) {
+			ks_log(KS_LOG_ERROR, "Setting of schedule attributes failed. Giving a try to run thread with default settings. Error details: %s\n", strerror(err));
+
+			if (pthread_attr_destroy(&thread->attribute) != 0)
+				return status;
+
+			if (pthread_attr_init(&thread->attribute) != 0)
+				return status;
+		}
+	}
 #endif
 
-	if (pthread_create(&thread->handle, &thread->attribute, thread_launch, thread) != 0)
-		goto done;
+	if ((err = pthread_create(&thread->handle, &thread->attribute, thread_launch, thread)) != 0) {
+
+		if (err != EPERM) {
+			ks_log(KS_LOG_ERROR, "Thread cannot be created. Error details: %s\n", strerror(err));
+			goto done;
+		} else {
+			ks_log(KS_LOG_ERROR, "Not sufficient permissions to set the scheduling policy and parameters specified in attribute. Giving a try to run thread with default settings\n");
+
+			if (pthread_attr_destroy(&thread->attribute) != 0)
+				return status;
+
+			if (pthread_attr_init(&thread->attribute) != 0)
+				return status;
+
+			if (pthread_create(&thread->handle, &thread->attribute, thread_launch, thread) != 0)
+				goto done;
+		}
+	}
 
 	status = KS_STATUS_SUCCESS;
 
