@@ -45,7 +45,7 @@ static const char c64[65] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxy
 struct kws_s {
 	ks_socket_t sock;
 	kws_type_t type;
-	chat *authorization_token;
+	char *authorization_token;
 	char *buffer;
 	char *bbuffer;
 	char *body;
@@ -790,7 +790,7 @@ static int establish_logical_layer(kws_t *kws)
 	}
 }
 
-KS_DECLARE(ks_status_t) kws_init(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl_ctx, const char *client_data, kws_flag_t flags, const char *authorization_token, ks_pool_t *pool)
+KS_DECLARE(ks_status_t) kws_init_ex(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl_ctx, const char *client_data, kws_flag_t flags, const char *authorization_token, ks_pool_t *pool)
 {
 	kws_t *kws;
 
