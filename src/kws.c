@@ -219,7 +219,9 @@ static int ws_client_handshake(kws_t *kws)
 	b64encode(nonce, sizeof(nonce), enonce, sizeof(enonce));
 
 	if (kws->authorization_token) {
-		b64encode(kws->authorization_token, strlen(kws->authorization_token), auth_token, sizeof(auth_token));
+		char auth_buf[128];
+		snprintf(auth_buf, sizeof(auth_buf), "%s:", kws->authorization_token);
+		b64encode(auth_buf, strlen(auth_buf), auth_token, sizeof(auth_token));
 	}
 
 	ks_snprintf(req, sizeof(req),
