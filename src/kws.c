@@ -219,7 +219,7 @@ static int ws_client_handshake(kws_t *kws)
 	b64encode(nonce, sizeof(nonce), enonce, sizeof(enonce));
 
 	if (kws->authorization_token) {
-		char auth_buf[128];
+		char auth_buf[128] = { 0 };
 		snprintf(auth_buf, sizeof(auth_buf), "%s:", kws->authorization_token);
 		b64encode(auth_buf, strlen(auth_buf), auth_token, sizeof(auth_token));
 	}
@@ -242,6 +242,8 @@ static int ws_client_handshake(kws_t *kws)
 				auth_token[0] ? auth_token : "",
 				auth_token[0] ? "\r\n" : "");
 
+	ks_log(KS_LOG_INFO, "Sending client websocket upgrade request: %s\n%s\n", auth_token, req);
+	
 	kws_raw_write(kws, req, strlen(req));
 
 	ks_ssize_t bytes;
@@ -595,6 +597,7 @@ static int establish_client_logical_layer(kws_t *kws)
 {
 
 	if (!kws->sanity) {
+		ks_log(KS_LOG_ERROR, "Sanity check failed\n");
 		return -1;
 	}
 
@@ -628,6 +631,7 @@ static int establish_client_logical_layer(kws_t *kws)
 			}
 
 			if (code == 0) {
+				ks_log(KS_LOG_ERROR, "Logical failure 1\n");
 				return -1;
 			}
 
@@ -655,6 +659,7 @@ static int establish_client_logical_layer(kws_t *kws)
 		} while (kws->sanity > 0);
 
 		if (!kws->sanity) {
+			ks_log(KS_LOG_ERROR, "Logical failure 2\n");
 			return -1;
 		}
 	}
@@ -663,6 +668,7 @@ static int establish_client_logical_layer(kws_t *kws)
 		int r = ws_client_handshake(kws);
 
 		if (r < 0) {
+			ks_log(KS_LOG_ERROR, "Logical failure 3\n");
 			kws->down = 1;
 			return -1;
 		}
@@ -803,6 +809,7 @@ KS_DECLARE(ks_status_t) kws_init_ex(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl
 	kws->unprocessed_buffer_len = 0;
 	kws->unprocessed_position = NULL;
 	if (authorization_token) {
+		ks_log(KS_LOG_INFO, "Websocket initialized with authorization token: %s\n", authorization_token);
 		kws->authorization_token = ks_pstrdup(pool, authorization_token);
 	}
 
