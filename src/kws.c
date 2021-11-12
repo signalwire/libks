@@ -461,12 +461,21 @@ KS_DECLARE(ks_ssize_t) kws_raw_read(kws_t *kws, void *data, ks_size_t bytes, int
 static ks_ssize_t kws_raw_read_blocking(kws_t *kws, char *data, ks_size_t max_bytes, int max_retries)
 {
 	ks_ssize_t total_bytes_read = 0;
-	while (total_bytes_read < max_bytes && max_retries-- > 0) {
-		ks_ssize_t bytes_read = kws_raw_read(kws, data + total_bytes_read, max_bytes - total_bytes_read, WS_BLOCK);
-		if (bytes_read < 0) {
+	int zero_reads = 0;
+	while (total_bytes_read < max_bytes && zero_reads < max_retries)
+	{
+		int bytes_read = kws_raw_read(kws, data + total_bytes_read, max_bytes - total_bytes_read, WS_BLOCK);
+		if (bytes_read == 0)
+		{
+			zero_reads++;
+			continue;
+		}
+		else if (bytes_read < 0)
+		{
 			break;
 		}
-		total_bytes_read += bytes_read;
+		total_bytes_read += (ks_ssize_t)bytes_read;
+		zero_reads = 0;
 	}
 	return total_bytes_read;
 }
