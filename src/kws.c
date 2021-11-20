@@ -809,8 +809,8 @@ KS_DECLARE(ks_status_t) kws_init(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl_ct
 	kws->buflen = 1024 * 64;
 	kws->bbuflen = kws->buflen;
 
-	kws->buffer = ks_pool_alloc(pool, (unsigned long)kws->buflen);
-	kws->bbuffer = ks_pool_alloc(pool, (unsigned long)kws->bbuflen);
+	kws->buffer = ks_pool_alloc(pool, (unsigned long)kws->buflen + 1);
+	kws->bbuffer = ks_pool_alloc(pool, (unsigned long)kws->bbuflen + 1);
 	//printf("init %p %ld\n", (void *) kws->bbuffer, kws->bbuflen);
 	//memset(kws->buffer, 0, kws->buflen);
 	//memset(kws->bbuffer, 0, kws->bbuflen);
