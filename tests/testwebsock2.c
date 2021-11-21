@@ -243,7 +243,7 @@ static void *tcp_sock_server(ks_thread_t *thread, void *thread_data)
 
 static int test_ws(char *url);
 
-static int start_tcp_server_and_test_ws(char *ip)
+static void start_tcp_server_and_test_ws(char *ip)
 {
 	ks_thread_t *thread_p = NULL;
 	ks_pool_t *pool;
@@ -327,11 +327,11 @@ static int test_ws(char *url)
 	}
 
 	bytes = kws_read_frame(kws, &oc, &rdata);
-	printf("read bytes=%d oc=%d [%s]\n", bytes, oc, (char *)rdata);
+	printf("read bytes=%d oc=%d [%s]\n", (int)bytes, oc, (char *)rdata);
 
 	ok(oc == WSOC_TEXT);
 	if (bytes < 0 || oc != WSOC_TEXT || !rdata || !strstr((char *)rdata, "\"welcome\"")) {
-		printf("read bytes=%d oc=%d [%s]\n", bytes, oc, (char *)rdata);
+		printf("read bytes=%d oc=%d [%s]\n", (int)bytes, oc, (char *)rdata);
 	}
 
 	ok(rdata != NULL && strstr((char *)rdata, __MSG) != NULL);
