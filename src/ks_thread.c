@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020 SignalWire, Inc
+ * Copyright (c) 2018-2021 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -56,12 +56,6 @@ static uint32_t g_active_detached_thread_count = 0, g_active_attached_thread_cou
 	}
 #endif
 
-static size_t thread_default_stacksize = 240 * 1024;
-
-#ifndef WIN32
-pthread_once_t init_priority = PTHREAD_ONCE_INIT;
-#endif
-
 KS_DECLARE(ks_thread_os_handle_t) ks_thread_os_handle(ks_thread_t *thread)
 {
 	return thread->handle;
@@ -85,34 +79,6 @@ KS_DECLARE(ks_pid_t) ks_thread_self_id(void)
 #else
 	return pthread_self();
 #endif
-}
-
-static void ks_thread_init_priority(void)
-{
-#ifdef WIN32
-    SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
-#else
-#ifdef USE_SCHED_SETSCHEDULER
-    /*
-     * Try to use a round-robin scheduler
-     * with a fallback if that does not work
-     */
-    struct sched_param sched = { 0 };
-    sched.sched_priority = KS_PRI_LOW;
-    if (sched_setscheduler(0, SCHED_FIFO, &sched)) {
-        sched.sched_priority = 0;
-        if (sched_setscheduler(0, SCHED_OTHER, &sched)) {
-            return;
-        }
-    }
-#endif
-#endif
-    return;
-}
-
-void ks_thread_override_default_stacksize(size_t size)
-{
-	thread_default_stacksize = size;
 }
 
 static void *KS_THREAD_CALLING_CONVENTION thread_launch(void *args)
@@ -378,7 +344,7 @@ static ks_status_t __init_os_thread(ks_thread_t *thread)
 #ifdef HAVE_PTHREAD_ATTR_SETSCHEDPARAM
 	if (thread->priority) {
 		if((err = __init_os_thread_set_priority(thread)) != 0) {
-			ks_log(KS_LOG_ERROR, "Setting of schedule attributes failed. Giving a try to run thread with default settings. Error details: %s\n", strerror(err));
+			ks_log(KS_LOG_WARNING, "Setting of schedule attributes failed. Giving a try to run thread with default settings. Error details: %s\n", strerror(err));
 
 			if (pthread_attr_destroy(&thread->attribute) != 0)
 				return status;

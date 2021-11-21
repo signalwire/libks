@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020 SignalWire, Inc
+ * Copyright (c) 2018-2021 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -49,6 +49,7 @@ typedef void *(*ks_thread_function_t) (ks_thread_t *, void *);
 #endif
 
 typedef enum {
+	KS_PRI_DEFAULT = 0,
 	KS_PRI_LOW = 1,
 	KS_PRI_NORMAL = 10,
 	KS_PRI_IMPORTANT = 50,
@@ -78,10 +79,10 @@ KS_DECLARE(ks_status_t) __ks_thread_create_ex(ks_thread_t **thread, ks_thread_fu
 	__ks_thread_create_ex(thread, func, data, flags, stack_size, priority, pool, __FILE__, __LINE__, __PRETTY_FUNCTION__)
 
 #define ks_thread_create_tag(thread, func, data, pool, tag)	\
-	__ks_thread_create_ex(thread, func, data, KS_THREAD_FLAG_DEFAULT, KS_THREAD_DEFAULT_STACK, KS_PRI_NORMAL, pool, __FILE__, __LINE__, tag)
+	__ks_thread_create_ex(thread, func, data, KS_THREAD_FLAG_DEFAULT, KS_THREAD_DEFAULT_STACK, KS_PRI_DEFAULT, pool, __FILE__, __LINE__, tag)
 
 #define ks_thread_create(thread, func, data, pool)						\
-	__ks_thread_create_ex(thread, func, data, KS_THREAD_FLAG_DEFAULT, KS_THREAD_DEFAULT_STACK, KS_PRI_NORMAL, pool, __FILE__, __LINE__,  __PRETTY_FUNCTION__)
+	__ks_thread_create_ex(thread, func, data, KS_THREAD_FLAG_DEFAULT, KS_THREAD_DEFAULT_STACK, KS_PRI_DEFAULT, pool, __FILE__, __LINE__,  __PRETTY_FUNCTION__)
 
 KS_DECLARE(ks_status_t) ks_thread_join(ks_thread_t *thread);
 KS_DECLARE(uint8_t) ks_thread_priority(ks_thread_t *thread);
