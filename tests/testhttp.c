@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 SignalWire, Inc
+ * Copyright (c) 2020-2021 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -182,7 +182,7 @@ new_req:
 
 #define WS_BLOCK 1
 
-			if ((len = kws_raw_read(kws, buffer + bytes, len, WS_BLOCK)) < 0) {
+			if ((len = kws_string_read(kws, buffer + bytes, len + 1, WS_BLOCK)) < 0) {
 				printf("Read error %d\n", (int)len);
 				goto end;
 			}
