@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020 SignalWire, Inc
+ * Copyright (c) 2018-2021 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -264,7 +264,7 @@ static int ws_client_handshake(kws_t *kws)
 	ks_ssize_t bytes;
 
 	do {
-		bytes = kws_raw_read(kws, kws->buffer + kws->datalen, kws->buflen - kws->datalen, WS_BLOCK);
+		bytes = kws_string_read(kws, kws->buffer + kws->datalen, kws->buflen - kws->datalen, WS_BLOCK);
 	} while (bytes > 0 && !strstr((char *)kws->buffer, "\r\n\r\n"));
 
 	if (bytes > 0) {
@@ -310,7 +310,7 @@ static int ws_server_handshake(kws_t *kws)
 		return -3;
 	}
 
-	while((bytes = kws_raw_read(kws, kws->buffer + kws->datalen, kws->buflen - kws->datalen, WS_BLOCK)) > 0) {
+	while((bytes = kws_string_read(kws, kws->buffer + kws->datalen, kws->buflen - kws->datalen, WS_BLOCK)) > 0) {
 		kws->datalen += bytes;
 		if (strstr(kws->buffer, "\r\n\r\n") || strstr(kws->buffer, "\n\n")) {
 			break;
@@ -474,7 +474,7 @@ KS_DECLARE(ks_ssize_t) kws_raw_read(kws_t *kws, void *data, ks_size_t bytes, int
 		r = -1;
 	}
 
-	if (r > 0) {
+	if (r > 0 && r < bytes) {
 		*((char *)data + r) = '\0';
 	}
 
@@ -483,6 +483,52 @@ KS_DECLARE(ks_ssize_t) kws_raw_read(kws_t *kws, void *data, ks_size_t bytes, int
 	}
 
 	return r;
+}
+
+/*
+ * Blocking read until bytes have been received, failure, or too many retries.
+ */
+static ks_ssize_t kws_raw_read_blocking(kws_t *kws, char *data, ks_size_t max_bytes, int max_retries)
+{
+	ks_ssize_t total_bytes_read = 0;
+	while (total_bytes_read < max_bytes && max_retries-- > 0) {
+		ks_ssize_t bytes_read = kws_raw_read(kws, data + total_bytes_read, max_bytes - total_bytes_read, WS_BLOCK);
+		if (bytes_read < 0) {
+			break;
+		}
+		total_bytes_read += bytes_read;
+	}
+	return total_bytes_read;
+}
+
+/**
+ * Read from websocket and store as NULL terminated string. Up to buffer_size - 1 bytes will be read from websocket. Contents of str_buffer is NULL terminated if >0 bytes are read from the websocket.
+ */
+KS_DECLARE(ks_ssize_t) kws_string_read(kws_t *kws, char *str_buffer, ks_size_t buffer_size, int block)
+{
+	if (buffer_size < 1) {
+		return -1;
+	}
+	str_buffer[buffer_size - 1] = '\0';
+	if (buffer_size < 2) {
+		return 0;
+	}
+	return kws_raw_read(kws, str_buffer, buffer_size - 1, block);
+}
+
+/*
+ * Blocking read as from websocket and store as NULL terminated string until buffer_size - 1 have been received, failure, or too many retries. Contents of str_buffer is NULL terminated if >0 bytes are read from the websocket.
+ */
+static ks_ssize_t kws_string_read_blocking(kws_t *kws, char *str_buffer, ks_size_t buffer_size, int max_retries)
+{
+	if (buffer_size < 1) {
+		return -1;
+	}
+	str_buffer[buffer_size - 1] = '\0';
+	if (buffer_size < 2) {
+		return 0;
+	}
+	return kws_raw_read_blocking(kws, str_buffer, buffer_size - 1, max_retries);
 }
 
 KS_DECLARE(ks_ssize_t) kws_raw_write(kws_t *kws, void *data, ks_size_t bytes)
@@ -608,7 +654,11 @@ static int establish_client_logical_layer(kws_t *kws)
 
 		if (!kws->ssl) {
 			kws->ssl = SSL_new(kws->ssl_ctx);
-			assert(kws->ssl);
+			if (!kws->ssl) {
+				unsigned long ssl_new_error = ERR_peek_error();
+				ks_log(KS_LOG_ERROR, "Failed to initiate SSL with error [%lu]\n", ssl_new_error);
+				return -1;
+			}
 
 			SSL_set_fd(kws->ssl, (int)kws->sock);
 
@@ -707,7 +757,11 @@ static int establish_server_logical_layer(kws_t *kws)
 
 		if (!kws->ssl) {
 			kws->ssl = SSL_new(kws->ssl_ctx);
-			assert(kws->ssl);
+			if (!kws->ssl) {
+				unsigned long ssl_new_error = ERR_peek_error();
+				ks_log(KS_LOG_ERROR, "Failed to initiate SSL with error [%lu]\n", ssl_new_error);
+				return -1;
+			}
 
 			SSL_set_fd(kws->ssl, (int)kws->sock);
 		}
@@ -1133,8 +1187,8 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 		return kws_close(kws, WS_NONE);
 	}
 
-	if ((kws->datalen = kws_raw_read(kws, kws->buffer, 9, kws->block)) < 0) {
-		ks_log(KS_LOG_ERROR, "Read frame error because kws_raw_read returned %ld\n", kws->datalen);
+	if ((kws->datalen = kws_string_read(kws, kws->buffer, 9 + 1, kws->block)) < 0) { // read 9 bytes into NULL terminated 10 byte buffer
+		ks_log(KS_LOG_ERROR, "Read frame error because kws_string_read returned %ld\n", kws->datalen);
 		if (kws->datalen == -2) {
 			return -2;
 		}
@@ -1142,11 +1196,11 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 	}
 
 	if (kws->datalen < need) {
-		ssize_t bytes = kws_raw_read(kws, kws->buffer + kws->datalen, 9 - kws->datalen, WS_BLOCK);
+		ssize_t bytes = kws_string_read(kws, kws->buffer + kws->datalen, 9 - kws->datalen, WS_BLOCK);
 
 		if (bytes < 0 || (kws->datalen += bytes) < need) {
 			/* too small - protocol err */
-			ks_log(KS_LOG_ERROR, "Read frame error because kws_raw_read: bytes = %ld, datalen = %ld, needed = %ld\n", bytes, kws->datalen, need);
+			ks_log(KS_LOG_ERROR, "Read frame error because kws_string_read: bytes = %ld, datalen = %ld, needed = %ld\n", bytes, kws->datalen, need);
 			return kws_close(kws, WS_NONE);
 		}
 	}
@@ -1182,10 +1236,13 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 				need += 4;
 
 				if (need > kws->datalen) {
-					/* too small - protocol err */
-					ks_log(KS_LOG_ERROR, "Read frame error because not enough data for mask\n");
-					*oc = WSOC_CLOSE;
-					return kws_close(kws, WS_NONE);
+					ks_ssize_t bytes = kws_string_read_blocking(kws, kws->buffer + kws->datalen, need - kws->datalen + 1, 10);
+					if (bytes < 0 || (kws->datalen += bytes) < need) {
+						/* too small - protocol err */
+						ks_log(KS_LOG_ERROR, "Read frame error because not enough data for mask\n");
+						*oc = WSOC_CLOSE;
+						return kws_close(kws, WS_NONE);
+					}
 				}
 			}
 
@@ -1199,21 +1256,13 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 				need += 8;
 
 				if (need > kws->datalen) {
-					/* too small - protocol err */
-					//*oc = WSOC_CLOSE;
-					//return kws_close(kws, WS_PROTO_ERR);
-
-					more = kws_raw_read(kws, kws->buffer + kws->datalen, (int)(need - kws->datalen), WS_BLOCK);
-
-					if (more < 0 || more < need - kws->datalen) {
-						ks_log(KS_LOG_ERROR, "Read frame error because kws_raw_read: more = %ld, need = %ld, datalen = %ld\n", more, need, kws->datalen);
+					ks_ssize_t bytes = kws_string_read_blocking(kws, kws->buffer + kws->datalen, need - kws->datalen + 1, 10);
+					if (bytes < 0 || (kws->datalen += bytes) < need) {
+						/* too small - protocol err */
+						ks_log(KS_LOG_ERROR, "Read frame error because kws_string_read: more = %ld, need = %ld, datalen = %ld\n", more, need, kws->datalen);
 						*oc = WSOC_CLOSE;
 						return kws_close(kws, WS_NONE);
-					} else {
-						kws->datalen += more;
 					}
-
-
 				}
 
 				u64 = (uint64_t *) kws->payload;
@@ -1225,10 +1274,13 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 				need += 2;
 
 				if (need > kws->datalen) {
-					/* too small - protocol err */
-					ks_log(KS_LOG_ERROR, "Read frame error because kws_raw_read: not enough data for packet length\n");
-					*oc = WSOC_CLOSE;
-					return kws_close(kws, WS_NONE);
+					ks_ssize_t bytes = kws_string_read_blocking(kws, kws->buffer + kws->datalen, need - kws->datalen + 1, 10);
+					if (bytes < 0 || (kws->datalen += bytes) < need) {
+						/* too small - protocol err */
+						ks_log(KS_LOG_ERROR, "Read frame error because kws_string_read: not enough data for packet length\n");
+						*oc = WSOC_CLOSE;
+						return kws_close(kws, WS_NONE);
+					}
 				}
 
 				u16 = (uint16_t *) kws->payload;
@@ -1253,12 +1305,19 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 			blen = (int)(kws->body - kws->bbuffer);
 
 			// The bbuffer for the body of the message should always be 1 larger than plen from the payload size for null term
-			if (kws->plen >= (ks_ssize_t)kws->bbuflen) {
+			if (need + blen > (ks_ssize_t)kws->bbuflen || kws->plen >= (ks_ssize_t)kws->bbuflen) {
 				void *tmp;
 
-				kws->bbuflen = kws->plen;
+				kws->bbuflen = need + blen + kws->rplen;
+
+				if (kws->bbuflen < kws->plen) {
+					kws->bbuflen = kws->plen;
+				}
+
+				kws->bbuflen++;
+
 				// make room for entire payload plus null terminator
-				if ((tmp = ks_pool_resize(kws->bbuffer, (unsigned long)kws->plen + 1))) {
+				if ((tmp = ks_pool_resize(kws->bbuffer, (unsigned long)kws->bbuflen))) {
 					kws->bbuffer = tmp;
 				} else {
 					abort();
@@ -1276,7 +1335,7 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 
 			while(need) {
 				ks_assert((kws->body + need + kws->rplen) <= (kws->bbuffer + kws->bbuflen));
-				ks_ssize_t r = kws_raw_read(kws, kws->body + kws->rplen, need, WS_BLOCK);
+				ks_ssize_t r = kws_string_read(kws, kws->body + kws->rplen, need + 1, WS_BLOCK);
 
 				if (r < 1) {
 					/* invalid read - protocol err .. */
@@ -1497,7 +1556,12 @@ KS_DECLARE(ks_status_t) kws_connect_ex(kws_t **kwsP, ks_json_t *params, kws_flag
 #else
 				ssl_ctx = SSL_CTX_new(TLSv1_2_client_method());
 #endif
-				assert(ssl_ctx);
+				if (!ssl_ctx) {
+					unsigned long ssl_ctx_error = ERR_peek_error();
+					ks_log(KS_LOG_ERROR, "Failed to initiate SSL context with ssl error [%lu].\n", ssl_ctx_error);
+					return KS_STATUS_FAIL;
+				}
+
 				destroy_ssl_ctx++;
 			}
 
@@ -1664,8 +1728,8 @@ KS_DECLARE(ks_status_t) kws_parse_qs(kws_request_t *request, char *qs)
 		name = q;
 		if ((val = strchr(name, '='))) {
 			*val++ = '\0';
-			request->headers_k[request->total_headers] = name;
-			request->headers_v[request->total_headers] = val;
+			request->headers_k[request->total_headers] = strdup(name);
+			request->headers_v[request->total_headers] = strdup(val);
 			request->total_headers++;
 		}
 		q = next;
@@ -1674,6 +1738,8 @@ KS_DECLARE(ks_status_t) kws_parse_qs(kws_request_t *request, char *qs)
 	if (!qs) {
 		ks_safe_free(q);
 	}
+
+	return KS_STATUS_SUCCESS;
 }
 
 KS_DECLARE(ks_status_t) kws_parse_header(kws_t *kws, kws_request_t **requestP)
@@ -1785,8 +1851,8 @@ KS_DECLARE(ks_status_t) kws_parse_header(kws_t *kws, kws_request_t **requestP)
 
 		if (len && *(value + len - 1) == '\r') *(value + len - 1) = '\0';
 
-		request->headers_k[i] = header;
-		request->headers_v[i] = value;
+		request->headers_k[i] = strdup(header);
+		request->headers_v[i] = strdup(value);
 
 		if (!strncasecmp(header, "User-Agent", 10)) {
 			request->user_agent = value;
@@ -1838,7 +1904,7 @@ err:
 KS_DECLARE(void) kws_request_free(kws_request_t **request)
 {
 	if (!request || !*request) return;
-	if ((*request)->_buffer) free((*request)->_buffer);
+	kws_request_reset(*request);
 	free(*request);
 	*request = NULL;
 }
@@ -1876,17 +1942,32 @@ KS_DECLARE(char *) kws_request_dump(kws_request_t *request)
 
 KS_DECLARE(void) kws_request_reset(kws_request_t *request)
 {
+	int i;
+
 	if (!request) return;
 	if (request->_buffer) {
 		free(request->_buffer);
 		request->_buffer = NULL;
 	}
+
+	for (i = 0; i < KWS_MAX_HEADERS; i++) {
+		if (!request->headers_k[i] || !request->headers_v[i]) break;
+		free((void *)request->headers_k[i]);
+		request->headers_k[i] = NULL;
+		free((void *)request->headers_v[i]);
+		request->headers_v[i] = NULL;
+	}
+
+	request->total_headers = 0;
 }
 
 KS_DECLARE(ks_ssize_t) kws_read_buffer(kws_t *kws, uint8_t **data, ks_size_t bytes, int block)
 {
+	if (bytes > kws->buflen) {
+		bytes = kws->buflen;
+	}
 	*data = kws->buffer;
-	return kws_raw_read(kws, kws->buffer, bytes, block);
+	return kws_string_read(kws, kws->buffer, bytes, block);
 }
 
 KS_DECLARE(ks_status_t) kws_keepalive(kws_t *kws)
@@ -1894,7 +1975,7 @@ KS_DECLARE(ks_status_t) kws_keepalive(kws_t *kws)
 	ks_ssize_t bytes = 0;;
 	kws->datalen = 0;
 
-	while ((bytes = kws_raw_read(kws, kws->buffer + kws->datalen, kws->buflen - kws->datalen, WS_BLOCK)) > 0) {
+	while ((bytes = kws_string_read(kws, kws->buffer + kws->datalen, kws->buflen - kws->datalen, WS_BLOCK)) > 0) {
 		kws->datalen += bytes;
 		if (strstr(kws->buffer, "\r\n\r\n") || strstr(kws->buffer, "\n\n")) {
 			return KS_STATUS_SUCCESS;

@@ -120,20 +120,7 @@ static void *KS_THREAD_CALLING_CONVENTION thread_launch(void *args)
 	ks_thread_t *thread = (ks_thread_t *) args;
 	void *ret = NULL;
 
-	ks_log(KS_LOG_DEBUG, "Thread has launched with address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
-
-#ifdef HAVE_PTHREAD_SETSCHEDPARAM
-	if (thread->priority) {
-		int policy = SCHED_FIFO;
-		struct sched_param param = { 0 };
-		pthread_t tt = pthread_self();
-
-		pthread_once(&init_priority, ks_thread_init_priority);
-		pthread_getschedparam(tt, &policy, &param);
-		param.sched_priority = thread->priority;
-		pthread_setschedparam(tt, policy, &param);
-	}
-#endif
+	ks_log(KS_LOG_DEBUG, "Thread has launched with address: %p, tid: %8.8x\n", (void *)thread, thread->id);
 
 	thread->id = ks_thread_self_id();
 
@@ -148,12 +135,14 @@ static void *KS_THREAD_CALLING_CONVENTION thread_launch(void *args)
 		pthread_setname_np(pthread_self(), thread->tag);
 #endif
 
-	ks_log(KS_LOG_DEBUG, "START call user thread callback with address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "START call user thread callback with address: %p, tid: %8.8x\n", (void *)thread, thread->id);
 	ret = thread->function(thread, thread->private_data);
-	ks_log(KS_LOG_DEBUG, "STOP call user thread callback with address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "STOP call user thread callback with address: %p, tid: %8.8x\n", (void *)thread, thread->id);
 
 	if (thread->flags & KS_THREAD_FLAG_DETACHED) {
 		ks_thread_destroy(&thread);
+	} else {
+		ks_thread_set_return_data(thread, ret);
 	}
 
 	return ret;
@@ -201,6 +190,9 @@ KS_DECLARE(int) ks_thread_set_priority(int nice_val)
 }
 
 KS_DECLARE(uint8_t) ks_thread_priority(ks_thread_t *thread) {
+
+	ks_assert(thread);
+
 	uint8_t priority = 0;
 #ifdef WIN32
 	//int pri = GetThreadPriority(thread->handle);
@@ -230,20 +222,20 @@ static ks_status_t __join_os_thread(ks_thread_t *thread) {
 		ks_assertd(WaitForSingleObject(thread->handle, INFINITE) == WAIT_OBJECT_0);
 #else
 		int err = 0;
-		if ((err = pthread_join(thread->handle, NULL)) != 0) {
-			ks_log(KS_LOG_DEBUG, "Failed to join on thread address: %p, tid: %8.8lx, error = %s\n", (void *)thread, thread->id, strerror(err));
+		if ((err = pthread_join(thread->handle, NULL)) != 0 && err != ESRCH) {
+			ks_log(KS_LOG_DEBUG, "Failed to join on thread address: %p, tid: %8.8x, error = %s\n", (void *)thread, thread->id, strerror(err));
 			return KS_STATUS_FAIL;
 		}
 #endif
-		ks_log(KS_LOG_DEBUG, "Completed join on thread address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+		ks_log(KS_LOG_DEBUG, "Completed join on thread address: %p, tid: %8.8x\n", (void *)thread, thread->id);
 	} else {
-		ks_log(KS_LOG_DEBUG, "Not joining on self address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+		ks_log(KS_LOG_DEBUG, "Not joining on self address: %p, tid: %8.8x\n", (void *)thread, thread->id);
 	}
 	return KS_STATUS_SUCCESS;
 }
 
 KS_DECLARE(ks_status_t) ks_thread_join(ks_thread_t *thread) {
-	ks_log(KS_LOG_DEBUG, "Join requested by thread: %8.8lx for thread address: %p, tid: %8.8lx\n", ks_thread_self_id(), (void *)&thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "Join requested by thread: %8.8lx for thread address: %p, tid: %8.8x\n", ks_thread_self_id(), (void *)&thread, thread->id);
 
 	return __join_os_thread(thread);
 }
@@ -281,7 +273,7 @@ KS_DECLARE(void) ks_thread_destroy(ks_thread_t **threadp)
 
 	detached = (thread->flags & KS_THREAD_FLAG_DETACHED) ? KS_TRUE : KS_FALSE;
 
-	ks_log(KS_LOG_DEBUG, "Thread destroy complete, deleting os primitives for thread address %p, tid: %8.8lx", (void *)thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "Thread destroy complete, deleting os primitives for thread address %p, tid: %8.8x", (void *)thread, thread->id);
 
 #ifdef WIN32
 	CloseHandle(thread->handle);
@@ -342,13 +334,40 @@ static ks_status_t __init_os_thread(ks_thread_t *thread)
 
 #else
 
+static int __init_os_thread_set_priority(ks_thread_t *thread)
+{
+	int schedpolicy = SCHED_FIFO;
+	int inheritsched = PTHREAD_EXPLICIT_SCHED;
+	struct sched_param param = { 0 };
+	int ret = -1;
+
+	if ((ret = pthread_attr_getschedparam(&thread->attribute, &param)) != 0)
+		goto done;
+
+	param.sched_priority = thread->priority;
+
+	if ((ret = pthread_attr_setinheritsched(&thread->attribute, inheritsched)) != 0)
+		goto done;
+
+	if ((ret = pthread_attr_setschedpolicy(&thread->attribute, schedpolicy)) != 0)
+		goto done;
+
+	if ((ret = pthread_attr_setschedparam(&thread->attribute, &param)) != 0)
+		goto done;
+
+	done:
+
+	return ret;
+}
+
 /* Gnu thread startup */
 static ks_status_t __init_os_thread(ks_thread_t *thread)
 {
 	ks_status_t status = KS_STATUS_FAIL;
+	int err;
 
 	if (pthread_attr_init(&thread->attribute) != 0)
-		return KS_STATUS_FAIL;
+		return status;
 
 	if ((thread->flags & KS_THREAD_FLAG_DETACHED) && pthread_attr_setdetachstate(&thread->attribute, PTHREAD_CREATE_DETACHED) != 0)
 		goto done;
@@ -356,8 +375,38 @@ static ks_status_t __init_os_thread(ks_thread_t *thread)
 	if (thread->stack_size && pthread_attr_setstacksize(&thread->attribute, thread->stack_size) != 0)
 		goto done;
 
-	if (pthread_create(&thread->handle, &thread->attribute, thread_launch, thread) != 0)
-		goto done;
+#ifdef HAVE_PTHREAD_ATTR_SETSCHEDPARAM
+	if (thread->priority) {
+		if((err = __init_os_thread_set_priority(thread)) != 0) {
+			ks_log(KS_LOG_ERROR, "Setting of schedule attributes failed. Giving a try to run thread with default settings. Error details: %s\n", strerror(err));
+
+			if (pthread_attr_destroy(&thread->attribute) != 0)
+				return status;
+
+			if (pthread_attr_init(&thread->attribute) != 0)
+				return status;
+		}
+	}
+#endif
+
+	if ((err = pthread_create(&thread->handle, &thread->attribute, thread_launch, thread)) != 0) {
+
+		if (err != EPERM) {
+			ks_log(KS_LOG_ERROR, "Thread cannot be created. Error details: %s\n", strerror(err));
+			goto done;
+		} else {
+			ks_log(KS_LOG_ERROR, "Not sufficient permissions to set the scheduling policy and parameters specified in attribute. Giving a try to run thread with default settings\n");
+
+			if (pthread_attr_destroy(&thread->attribute) != 0)
+				return status;
+
+			if (pthread_attr_init(&thread->attribute) != 0)
+				return status;
+
+			if (pthread_create(&thread->handle, &thread->attribute, thread_launch, thread) != 0)
+				goto done;
+		}
+	}
 
 	status = KS_STATUS_SUCCESS;
 

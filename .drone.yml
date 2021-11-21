@@ -4,15 +4,15 @@ name: default
 
 steps:
     - name: scan-build
-      image: debian:stretch
-      pull: true
+      image: debian:buster
+      pull: always
       commands:
-      - apt-get update && apt-get install -yq build-essential autotools-dev lsb-release pkg-config automake autoconf libtool-bin clang-tools-4.0
-      - apt-get install -yq cmake uuid-dev libssl1.0-dev      
+      - apt-get update && apt-get install -yq build-essential autotools-dev lsb-release pkg-config automake autoconf libtool-bin clang-tools-7
+      - apt-get install -yq cmake uuid-dev libssl-dev
       - sed -i '/cotire/d' ./CMakeLists.txt
       - mkdir -p scan-build
-      - scan-build-4.0 -o ./scan-build/ cmake .
-      - echo '#!/bin/bash\nscan-build-4.0 -o ./scan-build/ make -j`nproc --all` |& tee ./scan-build-result.txt\nexitstatus=$${PIPESTATUS[0]}\necho $$exitstatus > ./scan-build-status.txt\n' > scan.sh
+      - scan-build-7 -o ./scan-build/ cmake .
+      - echo '#!/bin/bash\nscan-build-7 -o ./scan-build/ make -j`nproc --all` |& tee ./scan-build-result.txt\nexitstatus=$${PIPESTATUS[0]}\necho $$exitstatus > ./scan-build-status.txt\n' > scan.sh
       - chmod +x scan.sh
       - ./scan.sh
       - exitstatus=`cat ./scan-build-status.txt`
@@ -20,7 +20,7 @@ steps:
 
     - name: notify
       image: signalwire/drone-notify
-      pull: true
+      pull: always
       environment:
         SLACK_WEBHOOK_URL:
           from_secret: slack_webhook_url
@@ -28,7 +28,52 @@ steps:
           from_secret: notify_env
       commands:
       - /root/scan-build-notify.sh
-      
+     
+trigger:
+  branch:
+  - master
+  - v2.0
+
+trigger:
+  event:
+  - pull_request
+  - push
+---
+
+kind: pipeline
+name: tests
+
+steps:
+    - name: tests
+      image: debian:buster
+      pull: always
+      commands:
+      - apt-get update && apt-get install -yq build-essential autotools-dev lsb-release pkg-config automake autoconf libtool-bin clang-tools-7
+      - apt-get install -yq cmake uuid-dev libssl-dev colorized-logs
+      - sed -i '/cotire/d' ./CMakeLists.txt
+      - mkdir -p scan-build
+      - scan-build-7 -o ./scan-build/ cmake .
+      - mkdir -p tests/unit/logs
+      - echo '#!/bin/bash\nmake -j`nproc --all` |& tee ./unit-tests-build-result.txt\nexitstatus=$${PIPESTATUS[0]}\necho $$exitstatus > ./build-status.txt\n' > build.sh
+      - chmod +x build.sh
+      - ./build.sh
+      - echo 0 > tests/unit/run-tests-status.txt
+      - echo '#!/bin/bash\nenv CTEST_OUTPUT_ON_FAILURE=1 make test |& tee >(ansi2html > ./tests/unit/logs/artifacts.html)\nexitstatus=$${PIPESTATUS[0]}\nexit $$exitstatus\n' > test.sh
+      - chmod +x test.sh
+      - ./test.sh && exit 0 || echo 'Some tests failed'
+      - echo 1 > tests/unit/run-tests-status.txt
+
+    - name: notify
+      image: signalwire/drone-notify
+      pull: always
+      environment:
+        SLACK_WEBHOOK_URL:
+          from_secret: slack_webhook_url
+        ENV_FILE:
+          from_secret: notify_env
+      commands:
+      - /root/unit-tests-notify.sh
+
 trigger:
   branch:
   - master
@@ -40,6 +85,6 @@ trigger:
   - push
 ---
 kind: signature
-hmac: 31aaf50ef8505d27f6a12a65676b470366630610480940da13db42a37fd37a32
+hmac: 4b113f50913a06b099cd3de6183a6c8ef5937d0bbe747a571a855f19a8b0b539
 
 ...
