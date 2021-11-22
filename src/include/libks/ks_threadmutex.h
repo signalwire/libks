@@ -64,7 +64,7 @@ KS_DECLARE(int) ks_thread_set_priority(int nice_val);
 KS_DECLARE(ks_thread_os_handle_t) ks_thread_self(void);
 KS_DECLARE(ks_pid_t) ks_thread_self_id(void);
 KS_DECLARE(ks_thread_os_handle_t) ks_thread_os_handle(ks_thread_t *thread);
-KS_DECLARE(void) ks_thread_destroy(ks_thread_t **threadp);
+KS_DECLARE(ks_status_t) ks_thread_destroy(ks_thread_t **threadp);
 
 KS_DECLARE(ks_bool_t) ks_thread_stop_requested(ks_thread_t *thread);
 KS_DECLARE(ks_status_t) ks_thread_request_stop(ks_thread_t *thread);
