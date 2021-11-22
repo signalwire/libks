@@ -83,6 +83,7 @@ struct kws_s {
 	char *unprocessed_position;
 
 	kws_init_callback_t init_callback;
+	ks_json_t *params;
 };
 
 
@@ -210,27 +211,55 @@ static int ws_client_handshake(kws_t *kws)
 {
 	unsigned char nonce[16] = { 0 };
 	unsigned char enonce[128] = { 0 };
-	char req[2048] = { 0 };
+	char *req = NULL;
 	char *frame_end = NULL;
+	char *extra_headers = NULL;
 
 	gen_nonce(nonce, sizeof(nonce));
 	b64encode(nonce, sizeof(nonce), enonce, sizeof(enonce));
 
-	ks_snprintf(req, sizeof(req),
-				"GET %s HTTP/1.1\r\n"
+	if (kws->params) {
+		ks_json_t *headers = ks_json_get_object_item(kws->params, "headers");
+
+		if (headers) {
+			ks_json_t *param;
+
+			KS_JSON_ARRAY_FOREACH(param, headers) {
+				const char *k = ks_json_get_object_string(param, "key", NULL);
+				const char *v = ks_json_get_object_string(param, "value", NULL);
+
+				if (k && v) {
+					if (extra_headers) {
+						char *tmp = extra_headers;
+						extra_headers = ks_mprintf("%s%s: %s\r\n", tmp, k, v);
+						ks_safe_free(tmp);
+					} else {
+						extra_headers = ks_mprintf("%s: %s\r\n", k, v);
+					}
+				}
+			}
+		}
+	}
+
+	req = ks_mprintf("GET %s HTTP/1.1\r\n"
 				"Host: %s\r\n"
 				"Upgrade: websocket\r\n"
 				"Connection: Upgrade\r\n"
 				"Sec-WebSocket-Key: %s\r\n"
 				"Sec-WebSocket-Version: 13\r\n"
-				"%s%s%s"
+				"%s%s%s%s"
 				"\r\n",
 				kws->req_uri, kws->req_host, enonce,
 				kws->req_proto ? "Sec-WebSocket-Protocol: " : "",
 				kws->req_proto ? kws->req_proto : "",
-				kws->req_proto ? "\r\n" : "");
+				kws->req_proto ? "\r\n" : "",
+				extra_headers ? extra_headers : "");
+
+	if (extra_headers) free(extra_headers);
 
 	kws_raw_write(kws, req, strlen(req));
+
+	ks_safe_free(req);
 
 	ks_ssize_t bytes;
 
@@ -819,7 +848,7 @@ static int establish_logical_layer(kws_t *kws)
 	}
 }
 
-KS_DECLARE(ks_status_t) kws_init(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl_ctx, const char *client_data, kws_flag_t flags, ks_pool_t *pool)
+KS_DECLARE(ks_status_t) kws_init_ex(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl_ctx, const char *client_data, kws_flag_t flags, ks_pool_t *pool, ks_json_t *params)
 {
 	kws_t *kws;
 
@@ -829,6 +858,7 @@ KS_DECLARE(ks_status_t) kws_init(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl_ct
 	kws->flags = flags;
 	kws->unprocessed_buffer_len = 0;
 	kws->unprocessed_position = NULL;
+	kws->params = ks_json_duplicate(params, KS_TRUE);
 
 	if ((flags & KWS_BLOCK)) {
 		kws->block = 1;
@@ -975,6 +1005,7 @@ KS_DECLARE(void) kws_destroy(kws_t **kwsP)
 	if (kws->bbuffer) ks_pool_free(&kws->bbuffer);
 
 	kws->buffer = kws->bbuffer = NULL;
+	if (kws->params) ks_json_delete(&kws->params);
 
 	ks_pool_free(&kws);
 	kws = NULL;
@@ -1600,7 +1631,7 @@ KS_DECLARE(ks_status_t) kws_connect_ex(kws_t **kwsP, ks_json_t *params, kws_flag
 		client_data = ks_psprintf(pool, "%s:%s", path, host);
 	}
 
-	if (kws_init(kwsP, cl_sock, ssl_ctx, client_data, flags, pool) != KS_STATUS_SUCCESS) {
+	if (kws_init_ex(kwsP, cl_sock, ssl_ctx, client_data, flags, pool, params) != KS_STATUS_SUCCESS) {
 		if (destroy_ssl_ctx) SSL_CTX_free(ssl_ctx);
 
 		return KS_STATUS_FAIL;
