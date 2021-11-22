@@ -81,6 +81,77 @@ KS_DECLARE(ks_pid_t) ks_thread_self_id(void)
 #endif
 }
 
+/**
+ * Destroys a thread context, may be called by the caller or the thread itself
+ * (if the thread is marked as detached).
+ */
+static ks_status_t __ks_thread_destroy_ex(ks_thread_t **threadp, ks_bool_t internal_call)
+{
+	ks_thread_t *thread = NULL;
+	ks_bool_t detached;
+	ks_status_t status = KS_STATUS_FAIL;
+
+	if (!threadp || !*threadp)
+		return status;
+
+	thread = *threadp;
+
+	detached = (thread->flags & KS_THREAD_FLAG_DETACHED) ? KS_TRUE : KS_FALSE;
+
+	if (!internal_call && detached) {
+		ks_log(KS_LOG_ERROR, "Detached thread cannot be explicitly destroyed. Thread: %p, tid: %8.8x", (void *)thread, thread->id);
+		return status;
+	}
+
+	ks_mutex_lock(thread->mutex);
+	if (thread->in_use) {
+		ks_mutex_unlock(thread->mutex);
+		ks_log(KS_LOG_ERROR, "Thread still in use. Shut worker first. Thread: %p, tid: %8.8x", (void *)thread, thread->id);
+		return status;
+	}
+	ks_mutex_unlock(thread->mutex);
+
+	ks_log(KS_LOG_DEBUG, "Thread destroy complete, deleting os primitives for thread address %p, tid: %8.8x", (void *)thread, thread->id);
+
+#ifdef WIN32
+	CloseHandle(thread->handle);
+	thread->handle = NULL;
+#else
+	pthread_attr_destroy(&thread->attribute);
+#endif
+
+	ks_mutex_destroy(&thread->mutex);
+
+	ks_log(KS_LOG_DEBUG, "Current active and attached count: %u, current active and detatched count: %u\n",
+		g_active_attached_thread_count, g_active_detached_thread_count);
+
+	if (detached) {
+		ks_atomic_decrement_uint32(&g_active_detached_thread_count);
+	} else {
+		ks_atomic_decrement_uint32(&g_active_attached_thread_count);
+	}
+
+	ks_pool_t *pool_to_destroy = (*threadp)->pool_to_destroy;
+	if (pool_to_destroy) {
+		/* This thread owns all the memory- free its pool */
+		ks_pool_close(&pool_to_destroy);
+		*threadp = NULL;
+	} else {
+		/* Free the memory from the pool given to the thread */
+		ks_pool_free(threadp);
+	}
+
+	status = KS_STATUS_SUCCESS;
+
+	return status;
+}
+
+KS_DECLARE(ks_status_t) ks_thread_destroy(ks_thread_t **threadp) {
+
+	return __ks_thread_destroy_ex(threadp, KS_FALSE);
+
+}
+
 static void *KS_THREAD_CALLING_CONVENTION thread_launch(void *args)
 {
 	ks_thread_t *thread = (ks_thread_t *) args;
@@ -106,9 +177,13 @@ static void *KS_THREAD_CALLING_CONVENTION thread_launch(void *args)
 	ks_log(KS_LOG_DEBUG, "STOP call user thread callback with address: %p, tid: %8.8x\n", (void *)thread, thread->id);
 
 	if (thread->flags & KS_THREAD_FLAG_DETACHED) {
-		ks_thread_destroy(&thread);
+		thread->in_use = KS_FALSE;
+		__ks_thread_destroy_ex(&thread, KS_TRUE);
 	} else {
 		ks_thread_set_return_data(thread, ret);
+		ks_mutex_lock(thread->mutex);
+		thread->in_use = KS_FALSE;
+		ks_mutex_unlock(thread->mutex);
 	}
 
 	return ret;
@@ -223,51 +298,6 @@ KS_DECLARE(ks_bool_t) ks_thread_stop_requested(ks_thread_t *thread)
 	return thread->stop_requested;
 }
 
-/**
- * Destroys a thread context, may be called by the caller or the thread itself
- * (if the thread is marked as detached).
- */
-KS_DECLARE(void) ks_thread_destroy(ks_thread_t **threadp)
-{
-	ks_thread_t *thread = NULL;
-	ks_bool_t detached;
-
-	if (!threadp || !*threadp)
-		return;
-
-	thread = *threadp;
-
-	detached = (thread->flags & KS_THREAD_FLAG_DETACHED) ? KS_TRUE : KS_FALSE;
-
-	ks_log(KS_LOG_DEBUG, "Thread destroy complete, deleting os primitives for thread address %p, tid: %8.8x", (void *)thread, thread->id);
-
-#ifdef WIN32
-	CloseHandle(thread->handle);
-	thread->handle = NULL;
-#else
-	pthread_attr_destroy(&thread->attribute);
-#endif
-
-	ks_log(KS_LOG_DEBUG, "Current active and attached count: %u, current active and detatched count: %u\n",
-		g_active_attached_thread_count, g_active_detached_thread_count);
-
-	if (detached) {
-		ks_atomic_decrement_uint32(&g_active_detached_thread_count);
-	} else  {
-		ks_atomic_decrement_uint32(&g_active_attached_thread_count);
-	}
-
-	ks_pool_t *pool_to_destroy = (*threadp)->pool_to_destroy;
-	if (pool_to_destroy) {
-		/* This thread owns all the memory- free its pool */
-		ks_pool_close(&pool_to_destroy);
-		*threadp = NULL;
-	} else {
-		/* Free the memory from the pool given to the thread */
-		ks_pool_free(threadp);
-	}
-}
-
 #if KS_PLAT_WIN
 /* Windows thread startup */
 static ks_status_t __init_os_thread(ks_thread_t *thread)
@@ -355,25 +385,40 @@ static ks_status_t __init_os_thread(ks_thread_t *thread)
 	}
 #endif
 
+	ks_mutex_lock(thread->mutex);
+	thread->in_use = KS_TRUE;
+
 	if ((err = pthread_create(&thread->handle, &thread->attribute, thread_launch, thread)) != 0) {
+		thread->in_use = KS_FALSE;
 
 		if (err != EPERM) {
 			ks_log(KS_LOG_ERROR, "Thread cannot be created. Error details: %s\n", strerror(err));
+			ks_mutex_unlock(thread->mutex);
 			goto done;
-		} else {
-			ks_log(KS_LOG_WARNING, "Not sufficient permissions to set the scheduling policy and parameters specified in attribute. Giving a try to run thread with default settings\n");
+		}
 
-			if (pthread_attr_destroy(&thread->attribute) != 0)
-				return status;
+		ks_log(KS_LOG_WARNING, "Not sufficient permissions to set the scheduling policy and parameters specified in attribute. Giving a try to run thread with default settings\n");
 
-			if (pthread_attr_init(&thread->attribute) != 0)
-				return status;
+		if (pthread_attr_destroy(&thread->attribute) != 0) {
+			ks_mutex_unlock(thread->mutex);
+			return status;
+		}
 
-			if (pthread_create(&thread->handle, &thread->attribute, thread_launch, thread) != 0)
-				goto done;
+		if (pthread_attr_init(&thread->attribute) != 0) {
+			ks_mutex_unlock(thread->mutex);
+			return status;
+		}
+
+		thread->in_use = KS_TRUE;
+
+		if (pthread_create(&thread->handle, &thread->attribute, thread_launch, thread) != 0) {
+			thread->in_use = KS_FALSE;
+			ks_mutex_unlock(thread->mutex);
+			goto done;
 		}
 	}
 
+	ks_mutex_unlock(thread->mutex);
 	status = KS_STATUS_SUCCESS;
 
 done:
@@ -434,6 +479,8 @@ KS_DECLARE(ks_status_t) __ks_thread_create_ex(
 	ks_log(KS_LOG_DEBUG, "Allocating new thread, current active and attached count: %u, current active and detatched count: %u\n",
 		g_active_attached_thread_count, g_active_detached_thread_count);
 
+	ks_mutex_create(&thread->mutex, KS_MUTEX_FLAG_DEFAULT, pool);
+	thread->in_use = KS_FALSE;
 	thread->private_data = data;
 	thread->function = func;
 	thread->stack_size = stack_size;
@@ -453,7 +500,7 @@ KS_DECLARE(ks_status_t) __ks_thread_create_ex(
   done:
 	if (status != KS_STATUS_SUCCESS) {
 		ks_log(KS_LOG_CRIT, "Thread allocation failed for thread address: %p\n", (void *)thread);
-		ks_thread_destroy(&thread);
+		__ks_thread_destroy_ex(&thread, KS_TRUE);
 		*rthread = NULL;
 	}
 
