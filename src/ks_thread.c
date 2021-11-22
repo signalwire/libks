@@ -361,7 +361,7 @@ static ks_status_t __init_os_thread(ks_thread_t *thread)
 			ks_log(KS_LOG_ERROR, "Thread cannot be created. Error details: %s\n", strerror(err));
 			goto done;
 		} else {
-			ks_log(KS_LOG_ERROR, "Not sufficient permissions to set the scheduling policy and parameters specified in attribute. Giving a try to run thread with default settings\n");
+			ks_log(KS_LOG_WARNING, "Not sufficient permissions to set the scheduling policy and parameters specified in attribute. Giving a try to run thread with default settings\n");
 
 			if (pthread_attr_destroy(&thread->attribute) != 0)
 				return status;

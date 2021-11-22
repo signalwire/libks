@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2021 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -254,7 +254,7 @@ static void create_threads_detatched(void)
 
 	int i;
 	for(i = 0; i < cpu_count; i++) {
-		status = ks_thread_create_ex(&threads[i], thread_test_function_detatched, d, KS_THREAD_FLAG_DETACHED, KS_THREAD_DEFAULT_STACK, KS_PRI_NORMAL, pool);
+		status = ks_thread_create_ex(&threads[i], thread_test_function_detatched, d, KS_THREAD_FLAG_DETACHED, KS_THREAD_DEFAULT_STACK, KS_PRI_DEFAULT, pool);
 		ok( status == KS_STATUS_SUCCESS );
 	}
 }
