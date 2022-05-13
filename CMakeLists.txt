@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.7.2)
 
+option(BUILD_TESTING "Build tests" ON)
 option(KS_DEBUG_MUTEX "Debug mutexes, only works on linux for now" OFF)
 option(KS_DEBUG_SPINLOCK "Debug spinlocks" OFF)
 option(KS_DEBUG_POOL "Track pool allocations and provide hooks for rendering them" OFF)
@@ -609,8 +610,10 @@ endif()
 #cotire(ks)
 
 # Add tests
-enable_testing()
-add_subdirectory(tests)
+if (BUILD_TESTING)
+	enable_testing()
+	add_subdirectory(tests)
+endif()
 
 if (WITH_KS_TEST)
 	enable_testing()
