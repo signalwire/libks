@@ -40,6 +40,7 @@ static ks_mutex_t *g_log_mutex;
 static int ks_log_level = 7;
 static ks_log_prefix_t ks_log_prefix = KS_LOG_PREFIX_DEFAULT;
 static ks_bool_t ks_log_jsonified = KS_FALSE;
+static char const* ks_log_json_enclose_name = NULL;
 
 KS_DECLARE(void) ks_log_sanitize_string(char *str)
 {
@@ -295,6 +296,12 @@ static void default_logger(const char *file, const char *func, int line, int lev
 			ks_json_add_string_to_object(json, "func", func);
 			ks_json_add_number_to_object(json, "line", line);
 
+			if(ks_log_json_enclose_name) {
+				ks_json_t *enclosing = ks_json_create_object();
+				ks_json_add_object_to_object(enclosing, ks_log_json_enclose_name, json);
+				json = enclosing;
+			}
+
 			char *tmp = ks_json_print_unformatted(json);
 
 			ks_mutex_lock(g_log_mutex);
@@ -375,6 +382,11 @@ KS_DECLARE(void) ks_global_set_log_level(int level)
 KS_DECLARE(void) ks_log_jsonify(void)
 {
 	ks_log_jsonified = KS_TRUE;
+}
+
+KS_DECLARE(void) ks_log_json_set_enclosing_name(char const*name)
+{
+	ks_log_json_enclose_name = name;
 }
 
 KS_DECLARE(void) ks_log_init(void)
