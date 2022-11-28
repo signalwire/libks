@@ -260,7 +260,12 @@ static void default_logger(const char *file, const char *func, int line, int lev
 		len = strlen(data);
 		if (len > 0) {
 			char tbuf[256];
-			ks_json_t *json = ks_json_create_object();
+			ks_json_t *response = ks_json_create_object();
+			ks_json_t *json = response;
+
+			if(ks_log_json_enclose_name) {
+				json = ks_json_add_object_to_object(response, ks_log_json_enclose_name);
+			}
 		
 			ks_json_add_string_to_object(json, "message", data);
 
@@ -296,13 +301,7 @@ static void default_logger(const char *file, const char *func, int line, int lev
 			ks_json_add_string_to_object(json, "func", func);
 			ks_json_add_number_to_object(json, "line", line);
 
-			if(ks_log_json_enclose_name) {
-				ks_json_t *enclosing = ks_json_create_object();
-				ks_json_add_object_to_object(enclosing, ks_log_json_enclose_name, json);
-				json = enclosing;
-			}
-
-			char *tmp = ks_json_print_unformatted(json);
+			char *tmp = ks_json_print_unformatted(response);
 
 			ks_mutex_lock(g_log_mutex);
 			fprintf(stdout, "%s\n", tmp);
