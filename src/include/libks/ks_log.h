@@ -43,6 +43,6 @@ KS_DECLARE(void) ks_log_jsonify(void);
 /*! Sanitizes output strings */
 KS_DECLARE(void) ks_log_sanitize_string(char *str);
 /*! Enclose the JSON logs into an object with the given name */
-KS_DECLARE(void) ks_log_json_set_enclosing_name(char const*name)
+KS_DECLARE(void) ks_log_json_set_enclosing_name(char const*name);
 
 KS_END_EXTERN_C
