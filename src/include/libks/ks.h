@@ -29,6 +29,12 @@
 #define KS_END_EXTERN_C
 #endif
 
+/* libks version as a string */
+#define KS_VERSION "2.0"
+
+/* libks version as a number */
+#define KS_VERSION_NUM 20000
+
 #include "libks/ks_platform.h"
 #include "libks/ks_types.h"
 

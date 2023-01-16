@@ -84,6 +84,8 @@ struct kws_s {
 
 	kws_init_callback_t init_callback;
 	ks_json_t *params;
+
+	ks_ssize_t payload_size_max;
 };
 
 
@@ -859,6 +861,7 @@ KS_DECLARE(ks_status_t) kws_init_ex(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl
 	kws->unprocessed_buffer_len = 0;
 	kws->unprocessed_position = NULL;
 	kws->params = ks_json_duplicate(params, KS_TRUE);
+	kws->payload_size_max = ks_json_get_object_number_int(params, "payload_size_max", 0);
 
 	if ((flags & KWS_BLOCK)) {
 		kws->block = 1;
@@ -1324,6 +1327,13 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 				}
 
 				kws->bbuflen++;
+
+				if (kws->payload_size_max && kws->bbuflen > kws->payload_size_max) {
+					/* size limit */
+					ks_log(KS_LOG_ERROR, "Read frame error because: payload length is too big\n");
+					*oc = WSOC_CLOSE;
+					return kws_close(kws, WS_NONE);
+				}
 
 				// make room for entire payload plus null terminator
 				if ((tmp = ks_pool_resize(kws->bbuffer, (unsigned long)kws->bbuflen))) {
