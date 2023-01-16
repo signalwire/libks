@@ -110,6 +110,7 @@ KS_DECLARE(ks_status_t) kws_get_cipher_name(kws_t *kws, char *name, ks_size_t na
 KS_DECLARE(ks_bool_t) kws_certified_client(kws_t *kws);
 KS_DECLARE(ks_size_t) kws_sans_count(kws_t *kws);
 KS_DECLARE(const char *) kws_sans_get(kws_t *kws, ks_size_t index);
+KS_DECLARE(void) kws_set_global_payload_size_max(ks_ssize_t bytes);
 KS_DECLARE(int) kws_wait_sock(kws_t *kws, uint32_t ms, ks_poll_t flags);
 KS_DECLARE(int) kws_test_flag(kws_t *kws, kws_flag_t);
 KS_DECLARE(int) kws_set_flag(kws_t *kws, kws_flag_t);
