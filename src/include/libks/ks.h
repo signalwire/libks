@@ -30,10 +30,10 @@
 #endif
 
 /* libks version as a string */
-#define KS_VERSION "1.8.1"
+#define KS_VERSION "1.8.2"
 
 /* libks version as a number */
-#define KS_VERSION_NUM 10801
+#define KS_VERSION_NUM 10802
 
 #include "libks/ks_platform.h"
 #include "libks/ks_types.h"
