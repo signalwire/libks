@@ -36,6 +36,7 @@
 
 #define SHA1_HASH_SIZE 20
 
+ks_ssize_t kws_global_payload_size_max = 0;
 static const char c64[65] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 //static ks_ssize_t ws_send_buf(kws_t *kws, kws_opcode_t oc);
@@ -83,6 +84,8 @@ struct kws_s {
 	char *unprocessed_position;
 
 	kws_init_callback_t init_callback;
+
+	ks_ssize_t payload_size_max;
 };
 
 
@@ -814,6 +817,7 @@ KS_DECLARE(ks_status_t) kws_init(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl_ct
 	if (*kwsP) kws = *kwsP;
 	else kws = ks_pool_alloc(pool, sizeof(*kws));
 
+	kws->payload_size_max = kws_global_payload_size_max;
 	kws->flags = flags;
 	kws->unprocessed_buffer_len = 0;
 	kws->unprocessed_position = NULL;
@@ -1281,8 +1285,15 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 
 				kws->bbuflen++;
 
+				if (kws->payload_size_max && kws->bbuflen > kws->payload_size_max) {
+					/* size limit */
+					ks_log(KS_LOG_ERROR, "Read frame error because: payload length is too big\n");
+					*oc = WSOC_CLOSE;
+					return kws_close(kws, WS_NONE);
+				}
+
 				// make room for entire payload plus null terminator
-				if ((tmp = ks_pool_resize(kws->bbuffer, (unsigned long)kws->bbuflen))) {
+				if ((tmp = ks_pool_resize(kws->bbuffer, kws->bbuflen))) {
 					kws->bbuffer = tmp;
 				} else {
 					abort();
@@ -1481,6 +1492,11 @@ KS_DECLARE(const char *) kws_sans_get(kws_t *kws, ks_size_t index)
 	ks_assert(kws);
 	if (index >= kws->sans_count) return NULL;
 	return kws->sans[index];
+}
+
+KS_DECLARE(void) kws_set_global_payload_size_max(ks_ssize_t bytes)
+{
+	kws_global_payload_size_max = bytes;
 }
 
 KS_DECLARE(ks_status_t) kws_connect(kws_t **kwsP, ks_json_t *params, kws_flag_t flags, ks_pool_t *pool)
