@@ -5,6 +5,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros">
     <libksVersion>1.8.3</libksVersion>
+    <libksBuildNumber>0</libksBuildNumber>
     <libksLibDir>$(BaseDir)../</libksLibDir>
   </PropertyGroup>
   <PropertyGroup>
