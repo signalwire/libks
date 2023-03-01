@@ -86,6 +86,7 @@ struct kws_s {
 	ks_json_t *params;
 
 	ks_ssize_t payload_size_max;
+	uint8_t initial_oc; 
 };
 
 
@@ -1237,6 +1238,9 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 			int fin = (kws->buffer[0] >> 7) & 1;
 			int mask = (kws->buffer[1] >> 7) & 1;
 
+			if (*oc == WSOC_TEXT || *oc == WSOC_BINARY) {
+				kws->initial_oc = *oc; /* per fragmented frame */
+			}
 
 			if (!fin && *oc != WSOC_CONTINUATION) {
 				frag = 1;
@@ -1391,6 +1395,9 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 
 			//printf("READ[%ld][%d]-----------------------------:\n[%s]\n-------------------------------\n", kws->packetlen, *oc, (char *)*data);
 
+			if (fin && *oc == WSOC_CONTINUATION) { 
+				*oc = kws->initial_oc;
+			}
 
 			return kws->packetlen;
 		}
