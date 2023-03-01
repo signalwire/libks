@@ -1314,18 +1314,17 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 				return kws_close(kws, WS_NONE);
 			}
 
+			/* size already written to the body */
 			blen = (int)(kws->body - kws->bbuffer);
 
-			// The bbuffer for the body of the message should always be 1 larger than plen from the payload size for null term
-			if (need + blen > (ks_ssize_t)kws->bbuflen || kws->plen >= (ks_ssize_t)kws->bbuflen) {
+			/* The bbuffer for the body of the message should always be 1 larger than the total size (for null term) */
+			if (blen + kws->plen >= (ks_ssize_t)kws->bbuflen) {
 				void *tmp;
 
-				kws->bbuflen = need + blen + kws->rplen;
+				/* must be a sum of the size already written to the body (blen) plus the size to be written (kws->plen) */
+				kws->bbuflen = blen + kws->plen; /* total size */
 
-				if (kws->bbuflen < kws->plen) {
-					kws->bbuflen = kws->plen;
-				}
-
+				/* and 1 more for NULL term */
 				kws->bbuflen++;
 
 				if (kws->payload_size_max && kws->bbuflen > kws->payload_size_max) {
