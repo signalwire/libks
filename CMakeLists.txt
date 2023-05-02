@@ -67,7 +67,7 @@ include(CheckIncludeFile)
 include(TestBigEndian)
 
 # Set package name
-string(TOLOWER ${CMAKE_PROJECT_NAME} PACKAGE_NAME)
+string(TOLOWER "${CMAKE_PROJECT_NAME}2" PACKAGE_NAME)
 
 # Set package version
 set(PACKAGE_VERSION ${PROJECT_VERSION})
@@ -136,7 +136,7 @@ if("${CMAKE_OS_NAME}" STREQUAL "Centos")
 	set(CPACK_GENERATOR RPM)
 
 	# Set RPM package name
-	set(CPACK_RPM_RUNTIME_PACKAGE_NAME "libks")
+	set(CPACK_RPM_RUNTIME_PACKAGE_NAME "libks2")
 
 	# Set RPM package dependencies
 	set(CPACK_RPM_RUNTIME_PACKAGE_REQUIRES "libuuid-devel")
@@ -214,7 +214,7 @@ if("${CMAKE_OS_NAME}" STREQUAL "Debian")
 	set(CPACK_DEB_COMPONENT_INSTALL "ON")
 
 	# Set package name
-	set(CPACK_DEBIAN_PACKAGE_NAME "libks")
+	set(CPACK_DEBIAN_PACKAGE_NAME "libks2")
 
 	# Abuse Cmake runtime component name
 	set(CPACK_DEBIAN_RUNTIME_PACKAGE_NAME ${CPACK_DEBIAN_PACKAGE_NAME})
@@ -279,7 +279,7 @@ if("${CMAKE_OS_NAME}" STREQUAL "Debian")
 	set(CPACK_DEBIAN_FILE_NAME "${PACKAGE_NAME}_${PROJECT_VERSION}-${CPACK_DEBIAN_PACKAGE_RELEASE}_${DISTRO_CODENAME}_${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}.deb")
 
 	# Set a Debian compliant changelog header
-	set(CHANGELOG_HEADER "${PACKAGE_NAME} (${CPACK_DEBIAN_PACKAGE_VERSION}) ${DISTRO_CODENAME}\; urgency=${CPACK_DEBIAN_PACKAGE_PRIORITY}")
+	set(CHANGELOG_HEADER "libks (${CPACK_DEBIAN_PACKAGE_VERSION}) ${DISTRO_CODENAME}\; urgency=${CPACK_DEBIAN_PACKAGE_PRIORITY}")
 
 	# Generate a Debian compliant changelog
 	if(GIT_FOUND AND GZIP_CMD AND DATE_CMD)
@@ -319,7 +319,7 @@ if("${CMAKE_OS_NAME}" STREQUAL "Debian")
 		execute_process(COMMAND ${GZIP_CMD} -f -9 -n changelog.Debian)
 
 		# Install changelog
-		install(FILES "${CMAKE_BINARY_DIR}/changelog.Debian.gz" COMPONENT "runtime" DESTINATION "share/doc/${CPACK_DEBIAN_PACKAGE_NAME}")
+		install(FILES "${CMAKE_BINARY_DIR}/changelog.Debian.gz" COMPONENT "runtime" DESTINATION "share/doc/libks")
 
 		# Delete changelog related variables
 		unset(CHANGELOG_HEADER)
