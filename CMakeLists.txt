@@ -575,7 +575,7 @@ if (NOT KS_PLAT_WIN)
 	install(FILES cmake/ksutil.cmake COMPONENT "runtime" DESTINATION include/libks/cmake)
 	install(FILES cmake/FindPCRE.cmake COMPONENT "runtime" DESTINATION include/libks/cmake)
 	install(FILES cmake/AddLibBacktrace.cmake COMPONENT "runtime" DESTINATION include/libks/cmake)
-	install(FILES ${PROJECT_BINARY_DIR}/copyright COMPONENT "runtime" DESTINATION share/doc/libks)
+	install(FILES ${PROJECT_SOURCE_DIR}/copyright COMPONENT "runtime" DESTINATION share/doc/libks)
 	install(EXPORT LibKSConfig COMPONENT "runtime" DESTINATION include/libks/cmake)
 
 	# Set uninstall target
