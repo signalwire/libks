@@ -1589,7 +1589,7 @@ KS_DECLARE(ks_status_t) kws_connect_ex(kws_t **kwsP, ks_json_t *params, kws_flag
 
 		ks_addr_set(&addr, ip, port, family);
 	} else {
-		ks_addr_set_raw(&addr, he->h_addr, port, ((struct sockaddr_in *)he->h_addr)->sin_family);
+		ks_addr_set_raw(&addr, he->h_addr, port, he->h_addrtype);
 		// ip = ks_addr_get_host(&addr1);
 	}
 
