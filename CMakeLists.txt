@@ -67,7 +67,7 @@ include(CheckIncludeFile)
 include(TestBigEndian)
 
 # Set package name
-string(TOLOWER "${CMAKE_PROJECT_NAME}2" PACKAGE_NAME)
+string(TOLOWER "${CMAKE_PROJECT_NAME}" PACKAGE_NAME)
 
 # Set package version
 set(PACKAGE_VERSION ${PROJECT_VERSION})
@@ -536,8 +536,8 @@ endif()
 # Include key paths
 target_include_directories(
 	ks2 PUBLIC
-	$<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include/libks2/libks>		# Include both include paths in the install config
-	$<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>				# so we don't break any includes in installed areas
+	$<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include/libks>		# Include both include paths in the install config
+	$<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include/>				# so we don't break any includes in installed areas
 
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/src/include>	# Within the build tree however, encforce the root
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>				# include path only
@@ -559,7 +559,7 @@ if (NOT KS_PLAT_WIN)
 
 	# Set install targets
 	install(TARGETS ks2 COMPONENT "runtime" EXPORT LibKS2Config DESTINATION lib)
-	install(DIRECTORY src/include/libks COMPONENT "runtime" DESTINATION include PATTERN src/include/libks/internal EXCLUDE)
+	install(DIRECTORY src/include/libks COMPONENT "runtime" DESTINATION include/libks2 PATTERN src/include/libks/internal EXCLUDE)
 
 	# Set path for pkg-config based on ARCH and distro type
 	if("${CMAKE_OS_NAME}" STREQUAL "Centos") # pkg-config --variable pc_path pkg-config
@@ -572,11 +572,11 @@ if (NOT KS_PLAT_WIN)
 		install(FILES ${PROJECT_BINARY_DIR}/libks2.pc COMPONENT "runtime" DESTINATION lib/pkgconfig)
 	endif()
 
-	install(FILES cmake/ksutil.cmake COMPONENT "runtime" DESTINATION include/libks/libks2/cmake)
-	install(FILES cmake/FindPCRE.cmake COMPONENT "runtime" DESTINATION include/libks/libks2/cmake)
-	install(FILES cmake/AddLibBacktrace.cmake COMPONENT "runtime" DESTINATION include/libks/libks2/cmake)
+	install(FILES cmake/ksutil.cmake COMPONENT "runtime" DESTINATION include/libks2/libks/cmake)
+	install(FILES cmake/FindPCRE.cmake COMPONENT "runtime" DESTINATION include/libks2/libks/cmake)
+	install(FILES cmake/AddLibBacktrace.cmake COMPONENT "runtime" DESTINATION include/libks2/libks/cmake)
 	install(FILES ${PROJECT_SOURCE_DIR}/copyright COMPONENT "runtime" DESTINATION share/doc/libks2)
-	install(EXPORT LibKS2Config COMPONENT "runtime" DESTINATION include/libks/libks2/cmake)
+	install(EXPORT LibKS2Config COMPONENT "runtime" DESTINATION include/libks2/libks/cmake)
 
 	# Set uninstall target
 	if(NOT TARGET uninstall)
