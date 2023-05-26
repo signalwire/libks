@@ -10,7 +10,8 @@ make -j`nproc --all` |& tee ./unit-tests-build-result.txt
 exitstatus=${PIPESTATUS[0]}
 echo $exitstatus > ./build-status.txt
 echo 0 > tests/unit/run-tests-status.txt
-env CTEST_OUTPUT_ON_FAILURE=1 make test |& tee >(ansi2html > ./tests/unit/logs/artifacts.html)
+export TEST_ARTIFACT_FILE=/__w/libks/libks/tests/unit/logs/artifacts.html
+env CTEST_OUTPUT_ON_FAILURE=1 make test |& tee >(ansi2html > $TEST_ARTIFACT_FILE)
 exitstatus=${PIPESTATUS[0]}
 ls -al
 ls -al tests/unit/logs
@@ -18,7 +19,7 @@ ls -al tests/unit/logs
 echo "Exist status is $exitstatus"
 
 if [ "$exitstatus" != "0" ]]; then
-  echo "TEST_ARTIFACT_FILE=/__sw/libks/libks/tests/unitlogs/artifacts.html" >> $GITHUB_OUTPUT
+  echo "TEST_ARTIFACT_FILE=$TEST_ARTIFACT_FILE" >> $GITHUB_OUTPUT
 fi
 
 exit $exitstatus

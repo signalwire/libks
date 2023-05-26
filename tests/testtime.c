@@ -60,9 +60,7 @@ int main(int argc, char **argv)
 	/* the clock on osx seems to be particularly bad at being accurate, we need a bit more room for error*/
 	ok( diff > 1900 && diff < 2500 );
 #else
-	// ok( diff > 1950 && diff < 2050 );
-	// NOTE: uncomment the line above and delete the line below, only did this to test failure.
-	ok(diff == 0);
+	ok( diff > 1950 && diff < 2050 );
 #endif
 	ks_shutdown();
 	done_testing();
