@@ -15,7 +15,7 @@ exitstatus=${PIPESTATUS[0]}
 echo $exitstatus
 ls -al
 ls -al tests/unit/logs
-cat -al tests/unit/logs/artifacts.html
+cat tests/unit/logs/artifacts.html
 exit $exitstatus
 # ./test.sh && exit 0 || echo 'Some tests failed'
 # echo 1 > tests/unit/run-tests-status.txt
