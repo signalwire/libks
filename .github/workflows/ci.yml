@@ -55,3 +55,13 @@ jobs:
           MESSAGE: Scan-build ${{ github.repository }} > <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|${{ github.run_id }}>.\n ${{ steps.scan_build.outputs.MESSAGE }}}.\nPlease check the results.
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL  }}
+  run_tests:
+    runs-on: ubuntu-latest-16-cores
+    container:
+      image: debian:buster
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: run tests
+        run: |
+          
