@@ -63,5 +63,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: run tests
+        id: tests
         run: /__w/libks/libks/run_tests.sh
+      - name: Upload artifacts
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-artifacts-${{ github.sha }}-${{ github.run_id }}.html
+          path: ${{ steps.tests.outputs.TEST_ARTIFACT_FILE }}
+          retention-days: 5
+      - name: notify slack
+        if: failure()
+        uses: signalwire/actions-template/.github/actions/slack@main
+        with:
+          CHANNEL: CCS2AV2H2
+          MESSAGE: Test-Failure ${{ github.repository }} > <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|${{ github.run_id }}>.\nPlease check the results.
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL  }}
           

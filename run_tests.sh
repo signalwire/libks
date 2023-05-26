@@ -12,10 +12,13 @@ echo $exitstatus > ./build-status.txt
 echo 0 > tests/unit/run-tests-status.txt
 env CTEST_OUTPUT_ON_FAILURE=1 make test |& tee >(ansi2html > ./tests/unit/logs/artifacts.html)
 exitstatus=${PIPESTATUS[0]}
-echo $exitstatus
 ls -al
 ls -al tests/unit/logs
-cat tests/unit/logs/artifacts.html
+
+echo "Exist status is $exitstatus"
+
+if [ "$exitstatus" != "0" ]]; then
+  echo "TEST_ARTIFACT_FILE=/__sw/libks/libks/tests/unitlogs/artifacts.html" >> $GITHUB_OUTPUT
+fi
+
 exit $exitstatus
-# ./test.sh && exit 0 || echo 'Some tests failed'
-# echo 1 > tests/unit/run-tests-status.txt

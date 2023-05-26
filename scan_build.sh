@@ -22,7 +22,7 @@ if ! grep -sq "$SubString" $RESULTFILE; then
 fi
 echo "COMPILATION_FAILED=$COMPILATION_FAILED" >> $GITHUB_OUTPUT;
 echo "BUGS_FOUND=$BUGS_FOUND" >> $GITHUB_OUTPUT;
-if [ "0" -ne $exitstatus ] || ! grep -sq "$SubString" $RESULTFILE; then
+if [ "0" != $exitstatus ] || ! grep -sq "$SubString" $RESULTFILE; then
   exit 1;
 fi
 exit 0;
