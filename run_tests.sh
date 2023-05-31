@@ -1,5 +1,4 @@
 #!/bin/bash
-cd /__w/libks/libks
 apt-get update && apt-get install -yq build-essential autotools-dev lsb-release pkg-config automake autoconf libtool-bin clang-tools-7
 apt-get install -yq cmake uuid-dev libssl-dev colorized-logs
 sed -i '/cotire/d' ./CMakeLists.txt

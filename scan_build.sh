@@ -1,5 +1,4 @@
 #!/bin/bash
-cd /__w/libks/libks
 sed -i '/cotire/d' ./CMakeLists.txt
 mkdir -p scan-build
 scan-build-7 -o ./scan-build/ cmake .

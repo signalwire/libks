@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v3
       - run: pwd
       - id: scan_build
-        run: /__w/libks/libks/scan_build.sh
+        run: ./scan_build.sh
       - name: Tar logs
         id: tar
         if: failure()
@@ -27,15 +27,14 @@ jobs:
           COMPILATION_FAILED: ${{ steps.scan_build.outputs.COMPILATION_FAILED }}
           BUGS_FOUND: ${{ steps.scan_build.outputs.BUGS_FOUND }}
         run: |
-          cd /__w/libks/libks
           ls -l
           if [ "true" -eq $COMPILATION_FAILED ]; then
-            tar czvf /__w/libks/libks/scan-build-result.tar.gz ./scan-build-result.txt;
+            tar czvf scan-build-result.tar.gz ./scan-build-result.txt;
             echo "ARTIFACT_PATH=/__w/libks/libks/scan-build-result.tar.gz" >> $GITHUB_OUTPUT;
             echo "ARTIFACT=scan-build-result" >> $GITHUB_OUTPUT;
           fi
           if [ "true" -eq $BUGS_FOUND ]; then
-            tar czvf /__w/libks/reports.tar.gz $REPORT;
+            tar czvf reports.tar.gz $REPORT;
             echo "ARTIFACT_PATH=/__w/libks/libks/reports.tar.gz" >> $GITHUB_OUTPUT;
             echo "ARTIFACT=reports" >> $GITHUB_OUTPUT;
           fi
@@ -64,7 +63,7 @@ jobs:
         uses: actions/checkout@v3
       - name: run tests
         id: tests
-        run: /__w/libks/libks/run_tests.sh
+        run: ./run_tests.sh
       - name: Upload artifacts
         if: failure()
         uses: actions/upload-artifact@v3
