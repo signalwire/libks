@@ -38,8 +38,8 @@ typedef enum {
 	KS_JSON_TYPE_RAW     = KS_BIT_FLAG(7)
 } KS_JSON_TYPES;
 
-KS_DECLARE(void) ks_json_deinit();
-KS_DECLARE(void) ks_json_init();
+KS_DECLARE(void) ks_json_deinit(void);
+KS_DECLARE(void) ks_json_init(void);
 
 KS_DECLARE(void) ks_json_free_ex(void **data);
 #define ks_json_free(jsonP) do { if (jsonP) ks_json_free_ex((void **)jsonP); } while (KS_FALSE)
