@@ -160,8 +160,8 @@ KS_DECLARE(ks_status_t) ks_handle_refcount(ks_handle_t handle, uint32_t *refcoun
 KS_DECLARE(uint32_t) ks_handle_count(ks_handle_type_t type);
 KS_DECLARE(ks_pool_t *) ks_handle_pool(ks_handle_t handle);
 
-KS_DECLARE(ks_status_t) ks_handle_init();
-KS_DECLARE(void) ks_handle_shutdown();
+KS_DECLARE(ks_status_t) ks_handle_init(void);
+KS_DECLARE(void) ks_handle_shutdown(void);
 
 /* Create some helpers for accessing the handles and writing
  * boiler for for each method that abstracts a type with a handle.

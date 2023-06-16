@@ -141,7 +141,7 @@ static void ks_dso_cleanup(void *ptr, void *arg, ks_pool_cleanup_action_t action
 	}
 }
 
-KS_DECLARE(void) ks_dso_shutdown()
+KS_DECLARE(void) ks_dso_shutdown(void)
 {
 	if (g_loaded) {
 		ks_pool_t *pool = ks_pool_get(g_loaded);

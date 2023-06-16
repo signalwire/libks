@@ -987,7 +987,7 @@ KS_DECLARE(ks_status_t) ks_handle_refcount(ks_handle_t handle, uint32_t *refcoun
 	return KS_STATUS_SUCCESS;
 }
 
-KS_DECLARE(ks_status_t) ks_handle_init()
+KS_DECLARE(ks_status_t) ks_handle_init(void)
 {
 	/* Seed all our groups with a random start */
 	for (int gidx = 0; gidx < KS_HANDLE_MAX_GROUPS; gidx++) {
@@ -1002,7 +1002,7 @@ KS_DECLARE(ks_status_t) ks_handle_init()
 	return KS_STATUS_SUCCESS;
 }
 
-KS_DECLARE(void) ks_handle_shutdown()
+KS_DECLARE(void) ks_handle_shutdown(void)
 {
 	ks_handle_t next = 0;
 

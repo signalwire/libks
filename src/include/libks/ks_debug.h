@@ -58,9 +58,9 @@ KS_BEGIN_EXTERN_C
 	#define ks_assert(expr) ks_assertd(expr)
 #endif
 
-KS_DECLARE(void) ks_debug_dump_backtrace();
+KS_DECLARE(void) ks_debug_dump_backtrace(void);
 
-KS_DECLARE(void) ks_debug_break();
+KS_DECLARE(void) ks_debug_break(void);
 
 KS_END_EXTERN_C
 

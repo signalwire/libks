@@ -60,7 +60,7 @@ KS_DECLARE_DATA ks_dso_callbacks_t name##_dso_callbacks = {	\
 	unload													\
 }
 
-KS_DECLARE(void) ks_dso_shutdown();
+KS_DECLARE(void) ks_dso_shutdown(void);
 
 KS_DECLARE(ks_status_t) ks_dso_destroy(ks_dso_lib_t *lib);
 KS_DECLARE(ks_dso_lib_t) ks_dso_open(const char *path, char **err);
