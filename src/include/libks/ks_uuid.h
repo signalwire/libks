@@ -34,8 +34,8 @@ KS_DECLARE(const char *) __ks_uuid_null_str(ks_pool_t *pool, const char *file, i
 
 KS_DECLARE(ks_uuid_t) ks_uuid_from_str(const char * const string);
 KS_DECLARE(ks_bool_t) ks_uuid_is_null(const ks_uuid_t *uuid);
-KS_DECLARE(const char *) ks_uuid_null_thr_str();
-KS_DECLARE(ks_uuid_t) ks_uuid_null();
+KS_DECLARE(const char *) ks_uuid_null_thr_str(void);
+KS_DECLARE(ks_uuid_t) ks_uuid_null(void);
 KS_DECLARE(ks_uuid_t *) ks_uuid_dup(ks_pool_t *pool, ks_uuid_t *uuid);
 KS_DECLARE(const char *) ks_uuid_thr_str(const ks_uuid_t *uuid);
 
