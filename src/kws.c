@@ -677,7 +677,7 @@ static int establish_client_logical_layer(kws_t *kws)
 		}
 
 		/* Provide the server name, allowing SNI to work. */
-		SSL_set_tlsext_host_name(kws->ssl,kws->req_host);
+		SSL_set_tlsext_host_name(kws->ssl, kws->req_host);
 
 		do {
 			ERR_clear_error();
