@@ -676,6 +676,9 @@ static int establish_client_logical_layer(kws_t *kws)
 			if (kws->init_callback) kws->init_callback(kws, kws->ssl);
 		}
 
+		/* Provide the server name, allowing SNI to work. */
+		SSL_set_tlsext_host_name(kws->ssl, kws->req_host);
+
 		do {
 			ERR_clear_error();
 			code = SSL_connect(kws->ssl);
