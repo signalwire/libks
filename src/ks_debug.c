@@ -47,21 +47,21 @@ static void __error_callback(void *data, const char *msg, int errnum)
  * ks_debug_dump_backtrace - Dumps the current callstack to a critical log
  * with ks_log.
  */
-KS_DECLARE(void) ks_debug_dump_backtrace()
+KS_DECLARE(void) ks_debug_dump_backtrace(void)
 {
 	struct backtrace_state *lbstate;
 	lbstate = backtrace_create_state(NULL, 1, __error_callback, NULL);
 	backtrace_full(lbstate, 0, __full_callback, __error_callback, 0);
 }
 #else
-KS_DECLARE(void) ks_debug_dump_backtrace() { }
+KS_DECLARE(void) ks_debug_dump_backtrace(void) { }
 #endif
 
 /**
  * This function will cause an attached debugger to break. In the case of
  * windows, it may cause a JIT debug session.
  */
-KS_DECLARE(void) ks_debug_break()
+KS_DECLARE(void) ks_debug_break(void)
 {
 #if KS_PLAT_WIN
 	DebugBreak();

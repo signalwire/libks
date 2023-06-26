@@ -437,7 +437,7 @@ KS_DECLARE(ks_bool_t) ks_global_set_file_log_path(const char *path)
 	return KS_TRUE;
 }
 
-KS_DECLARE(void) ks_global_close_file_log()
+KS_DECLARE(void) ks_global_close_file_log(void)
 {
 	if (ks_file_log_fp) fclose(ks_file_log_fp);
 }

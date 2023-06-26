@@ -52,12 +52,12 @@ static void * __json_realloc(void *data, size_t size)
 }
 
 // Init
-KS_DECLARE(void) ks_json_deinit()
+KS_DECLARE(void) ks_json_deinit(void)
 {
 	cJSON_InitHooks(NULL);
 }
 
-KS_DECLARE(void) ks_json_init()
+KS_DECLARE(void) ks_json_init(void)
 {
 	cJSON_Hooks hooks = {__json_alloc, __json_free, __json_realloc};
 	cJSON_InitHooks(&hooks);

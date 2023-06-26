@@ -40,7 +40,7 @@ if (KS_PLAT_WIN OR WITH_KS_TEST)
 endif()
 
 # Declare our project, libks
-project(LibKS VERSION 1.8.2 LANGUAGES C CXX)
+project(LibKS VERSION 1.8.3 LANGUAGES C CXX)
 message("LibKS Version ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}")
 
 # Set package version
@@ -577,7 +577,7 @@ if (NOT KS_PLAT_WIN)
 	install(FILES cmake/FindConfig.cmake COMPONENT "runtime" DESTINATION include/libks/cmake)
 	install(FILES cmake/FindConfigCpp.cmake COMPONENT "runtime" DESTINATION include/libks/cmake)
 	install(FILES cmake/AddLibBacktrace.cmake COMPONENT "runtime" DESTINATION include/libks/cmake)
-	install(FILES ${PROJECT_BINARY_DIR}/copyright COMPONENT "runtime" DESTINATION share/doc/libks)
+	install(FILES ${PROJECT_SOURCE_DIR}/copyright COMPONENT "runtime" DESTINATION share/doc/libks)
 	install(EXPORT LibKSConfig COMPONENT "runtime" DESTINATION include/libks/cmake)
 
 	# Set uninstall target
