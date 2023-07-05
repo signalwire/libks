@@ -1,0 +1,12 @@
+FROM debian:buster
+
+RUN apt-get update && apt-get install -yq build-essential autotools-dev lsb-release pkg-config automake autoconf libtool-bin clang-tools-7
+RUN apt-get install -yq cmake uuid-dev libssl-dev
+
+RUN mkdir -p /sw/libks
+
+WORKDIR /sw/libks
+
+COPY . .
+
+RUN make -j`nproc -all` && make install

@@ -1,0 +1,30 @@
+name: Build
+
+on:
+  pull_request:
+    branches:
+    - v2.0
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - dockerfile: ./Dockerfile.debian10
+            tag: libks-libs10-
+          - dockerfile: ./Dockerfile.debian10
+            tag: libks-libs10-
+    name: "build libks"
+    uses: signalwire/actions-template/.github/workflows/ci-build.yml@main
+    with:
+      CONTAINER_SCAN: true
+      CONTAINER_TEST: false
+      PROJECT_NAME: "freeswitch-libs"
+      FILE: ${{ matrix.dockerfile }}
+      PUSH: true
+      RUNNER: ubuntu-latest-16-cores
+      SUBMODULES_RECURSIVE: true
+      SUBMODULES_PRIVATE: true
+      TAG: |
+        type=sha,prefix=${{ matrix.tag }}
+    secrets: inherit
