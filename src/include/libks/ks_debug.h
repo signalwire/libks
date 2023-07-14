@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,7 +28,7 @@ KS_BEGIN_EXTERN_C
 #define ks_abort_fmt(fmt, ...)					\
 		do {									\
 			const char *msg = ks_thr_sprintf(fmt, __VA_ARGS__);	\
-			ks_log(KS_LOG_CRIT, "\n\nABORT: (%s)\nLOCATION:%s %s:%d\nTHREAD ID: %8.8lx\n\n", msg, __PRETTY_FUNCTION__, __FILE__, __LINE__, ks_thread_self_id()); \
+			ks_log(KS_LOG_CRIT, "\n\nABORT: (%s)\nLOCATION:%s %s:%d\nTHREAD ID: %8.8lx\n\n", msg, __KS_FUNC__, __FILE__, __LINE__, ks_thread_self_id()); \
 			ks_log(KS_LOG_CRIT, "BACKTRACE:");	\
 			ks_debug_dump_backtrace();			\
 			abort();							\
@@ -36,7 +36,7 @@ KS_BEGIN_EXTERN_C
 
 #define ks_abort(msg)							\
 		do {									\
-			ks_log(KS_LOG_CRIT, "\n\nABORT: (%s)\nLOCATION:%s %s:%d\nTHREAD ID: %8.8lx\n\n", msg, __PRETTY_FUNCTION__, __FILE__, __LINE__, ks_thread_self_id()); \
+			ks_log(KS_LOG_CRIT, "\n\nABORT: (%s)\nLOCATION:%s %s:%d\nTHREAD ID: %8.8lx\n\n", msg, __KS_FUNC__, __FILE__, __LINE__, ks_thread_self_id()); \
 			ks_log(KS_LOG_CRIT, "BACKTRACE:");	\
 			ks_debug_dump_backtrace();			\
 			abort();							\

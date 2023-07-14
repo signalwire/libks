@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -180,7 +180,7 @@ done:
 	return ret;
 }
 
-KS_DECLARE(ks_status_t) ks_sb_json(ks_sb_t *sb, const ks_json_t *json)
+KS_DECLARE(ks_status_t) ks_sb_json(ks_sb_t *sb, ks_json_t *json)
 {
 	ks_status_t ret = KS_STATUS_SUCCESS;
 	char *str = NULL;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -183,7 +183,7 @@ int main(int argc, char **argv)
 {
 
 	ks_init();
-	ks_global_set_default_logger(KS_LOG_LEVEL_DEBUG);
+	ks_global_set_log_level(KS_LOG_LEVEL_DEBUG);
 
 	plan(3);
 

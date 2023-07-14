@@ -28,7 +28,52 @@ steps:
           from_secret: notify_env
       commands:
       - /root/scan-build-notify.sh
-      
+     
+trigger:
+  branch:
+  - master
+  - v2.0
+
+trigger:
+  event:
+  - pull_request
+  - push
+---
+
+kind: pipeline
+name: tests
+
+steps:
+    - name: tests
+      image: debian:buster
+      pull: always
+      commands:
+      - apt-get update && apt-get install -yq build-essential autotools-dev lsb-release pkg-config automake autoconf libtool-bin clang-tools-7
+      - apt-get install -yq cmake uuid-dev libssl-dev colorized-logs
+      - sed -i '/cotire/d' ./CMakeLists.txt
+      - mkdir -p scan-build
+      - scan-build-7 -o ./scan-build/ cmake .
+      - mkdir -p tests/unit/logs
+      - echo '#!/bin/bash\nmake -j`nproc --all` |& tee ./unit-tests-build-result.txt\nexitstatus=$${PIPESTATUS[0]}\necho $$exitstatus > ./build-status.txt\n' > build.sh
+      - chmod +x build.sh
+      - ./build.sh
+      - echo 0 > tests/unit/run-tests-status.txt
+      - echo '#!/bin/bash\nenv CTEST_OUTPUT_ON_FAILURE=1 make test |& tee >(ansi2html > ./tests/unit/logs/artifacts.html)\nexitstatus=$${PIPESTATUS[0]}\nexit $$exitstatus\n' > test.sh
+      - chmod +x test.sh
+      - ./test.sh && exit 0 || echo 'Some tests failed'
+      - echo 1 > tests/unit/run-tests-status.txt
+
+    - name: notify
+      image: signalwire/drone-notify
+      pull: always
+      environment:
+        SLACK_WEBHOOK_URL:
+          from_secret: slack_webhook_url
+        ENV_FILE:
+          from_secret: notify_env
+      commands:
+      - /root/unit-tests-notify.sh
+
 trigger:
   branch:
   - master
@@ -40,6 +85,6 @@ trigger:
   - push
 ---
 kind: signature
-hmac: b5f3149fdddd80d6162b2c1bda737d5c1d19ce7b0b1769798607dc670a90e85c
+hmac: fe1e87b032687d1bbddba7dffa029891e4a4076f194eaf43139b1c5ceaa83a5d
 
 ...

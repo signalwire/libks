@@ -27,7 +27,7 @@ if (NOT TARGET Catch2::Catch)
 endif()
 
 # Link to ks/catch/LibPal
-target_link_libraries(KSTest ks LibPal Catch2::Catch)
+target_link_libraries(KSTest ks2 LibPal Catch2::Catch)
 
 # Register our tests with cmake
 add_test(KSTest KSTest)

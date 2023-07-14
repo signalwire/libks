@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2021 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,8 +21,6 @@
  */
 
 #pragma once
-
-#include <openssl/err.h>
 
 #define WEBSOCKET_GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 #define B64BUFFLEN 1024
@@ -97,8 +95,9 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 KS_DECLARE(ks_ssize_t) kws_write_frame(kws_t *kws, kws_opcode_t oc, const void *data, ks_size_t bytes);
 KS_DECLARE(ks_ssize_t) kws_raw_read(kws_t *kws, void *data, ks_size_t bytes, int block);
 KS_DECLARE(ks_ssize_t) kws_raw_write(kws_t *kws, void *data, ks_size_t bytes);
+KS_DECLARE(ks_status_t) kws_init_ex(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl_ctx, const char *client_data, kws_flag_t flags, ks_pool_t *pool, ks_json_t *params);
+#define kws_init(kwsP, sock, ssl_ctx, client_data, flags, pool) kws_init_ex(kwsP, sock, ssl_ctx, client_data, flags, pool, NULL)
 KS_DECLARE(ks_ssize_t) kws_string_read(kws_t *kws, char *str_buffer, ks_size_t buffer_size, int block);
-KS_DECLARE(ks_status_t) kws_init(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl_ctx, const char *client_data, kws_flag_t flags, ks_pool_t *pool);
 KS_DECLARE(ks_ssize_t) kws_close(kws_t *kws, int16_t reason);
 KS_DECLARE(ks_status_t) kws_create(kws_t **kwsP, ks_pool_t *pool);
 KS_DECLARE(void) kws_destroy(kws_t **kwsP);
@@ -110,7 +109,6 @@ KS_DECLARE(ks_status_t) kws_get_cipher_name(kws_t *kws, char *name, ks_size_t na
 KS_DECLARE(ks_bool_t) kws_certified_client(kws_t *kws);
 KS_DECLARE(ks_size_t) kws_sans_count(kws_t *kws);
 KS_DECLARE(const char *) kws_sans_get(kws_t *kws, ks_size_t index);
-KS_DECLARE(void) kws_set_global_payload_size_max(ks_ssize_t bytes);
 KS_DECLARE(int) kws_wait_sock(kws_t *kws, uint32_t ms, ks_poll_t flags);
 KS_DECLARE(int) kws_test_flag(kws_t *kws, kws_flag_t);
 KS_DECLARE(int) kws_set_flag(kws_t *kws, kws_flag_t);

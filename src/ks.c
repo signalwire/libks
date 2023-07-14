@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -51,6 +51,7 @@ KS_DECLARE(ks_status_t) ks_init(void)
 #endif
 
 	ks_time_init();
+	ks_log_init();
 
 #ifdef __WINDOWS__
 	pid = _getpid();
@@ -58,9 +59,7 @@ KS_DECLARE(ks_status_t) ks_init(void)
 	pid = getpid();
 #endif
 	srand(pid * (unsigned int)(intptr_t)&g_pool + (unsigned int)time(NULL));
-	ks_handle_init();
 	ks_global_pool();
-	ks_json_init();
 	ks_ssl_init_ssl_locks();
 
 #ifdef __WINDOWS__
@@ -95,20 +94,15 @@ KS_DECLARE(ks_status_t) ks_shutdown(void)
 
 	ks_ssl_destroy_ssl_locks();
 
-	ks_handle_shutdown();
-
 	if (g_pool) {
 		status = ks_pool_close(&g_pool);
 	}
 
-	/* Deinit json after pool/handle so cleanup still works */
-	ks_json_deinit();
+	ks_log_shutdown();
 
 done:
 
 	ks_spinlock_release(&g_init_lock);
-
-	ks_global_close_file_log();
 
 	return status;
 }

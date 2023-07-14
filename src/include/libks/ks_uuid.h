@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,10 +27,10 @@ KS_BEGIN_EXTERN_C
 KS_DECLARE(ks_uuid_t *) ks_uuid(ks_uuid_t *uuid);
 
 KS_DECLARE(char *) __ks_uuid_str(ks_pool_t *pool, ks_uuid_t *uuid, const char *file, int line, const char *tag);
-#define ks_uuid_str(pool, uuid) __ks_uuid_str(pool, uuid, __FILE__, __LINE__, __PRETTY_FUNCTION__)
+#define ks_uuid_str(pool, uuid) __ks_uuid_str(pool, uuid, __FILE__, __LINE__, __KS_FUNC__)
 
 KS_DECLARE(const char *) __ks_uuid_null_str(ks_pool_t *pool, const char *file, int line, const char *tag);
-#define ks_uuid_null_str(pool) __ks_uuid_null_str(pool, __FILE__, __LINE__, __PRETTY_FUNCTION__)
+#define ks_uuid_null_str(pool) __ks_uuid_null_str(pool, __FILE__, __LINE__, __KS_FUNC__)
 
 KS_DECLARE(ks_uuid_t) ks_uuid_from_str(const char * const string);
 KS_DECLARE(ks_bool_t) ks_uuid_is_null(const ks_uuid_t *uuid);

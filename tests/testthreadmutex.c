@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -213,6 +213,8 @@ static void *thread_test_function_attached(ks_thread_t *thread, void *data)
 		mem = calloc(1, 1024);
 		last_mem = mem;
 	}
+	if (last_mem)
+		free(last_mem);
 
 	for (i = 0; i < LOOP_COUNT; i++) {
 		ks_mutex_lock(mutex);
@@ -231,6 +233,9 @@ static void create_threads_cleanup(void)
 	int i;
 	for(i = 0; i < cpu_count; i++) {
 		ok( (ks_thread_create(&threads[i], thread_test_function_cleanup, d, pool) == KS_STATUS_SUCCESS) );
+	}
+	for(i = 0; i < cpu_count; i++) {
+		ks_thread_join(threads[i]);
 	}
 	for(i = 0; i < cpu_count; i++) {
 		ks_thread_destroy(&threads[i]);
@@ -254,7 +259,7 @@ static void create_threads_detatched(void)
 
 	int i;
 	for(i = 0; i < cpu_count; i++) {
-		status = ks_thread_create_ex(&threads[i], thread_test_function_detatched, d, KS_THREAD_FLAG_DETACHED, KS_THREAD_DEFAULT_STACK, KS_PRI_NORMAL, pool);
+		status = ks_thread_create_ex(&threads[i], thread_test_function_detatched, d, KS_THREAD_FLAG_DETACHED, KS_THREAD_DEFAULT_STACK, KS_PRI_DEFAULT, pool);
 		ok( status == KS_STATUS_SUCCESS );
 	}
 }
@@ -266,9 +271,11 @@ static void check_thread_priority(void)
 
 	status = ks_thread_create_ex(&thread_p, thread_priority, d, 0, KS_THREAD_DEFAULT_STACK, KS_PRI_IMPORTANT, pool);
 	ok( status == KS_STATUS_SUCCESS );
-	ks_sleep(100000);
-	todo("Add check to see if has permission to set thread priority\n");
+	todo("Run docker container with an argument --cap-add=sys_nice to satisfy permission to set the scheduling policy\n");
 	ok( ks_thread_priority(thread_p) == KS_PRI_IMPORTANT );
+	ks_thread_destroy(&thread_p); // To visualize race issue around creating/destroying threads
+	ks_thread_request_stop(thread_p);
+	ks_thread_join(thread_p);
 	ks_thread_destroy(&thread_p);
 	end_todo;
 }
