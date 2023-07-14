@@ -88,8 +88,10 @@ KS_DECLARE(ks_status_t) ks_socket_option(ks_socket_t socket, int option_name, ks
 	case TCP_NODELAY:
 	case SO_KEEPALIVE:
 	case SO_LINGER:
+#ifndef __APPLE__
 	case TCP_KEEPIDLE:
 	case TCP_KEEPINTVL:
+#endif
 #ifdef WIN32
 		result = setsockopt(socket, SOL_SOCKET, option_name, (char *) &opt, sizeof(opt));
 #else
