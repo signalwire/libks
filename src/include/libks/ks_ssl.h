@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,8 +25,6 @@
 #include <openssl/ssl.h>
 #include <openssl/engine.h>
 #include <openssl/x509v3.h>
-#include <openssl/bn.h>
-#include <openssl/rsa.h>
 
 KS_BEGIN_EXTERN_C
 

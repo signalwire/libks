@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,106 +23,27 @@
 #include "libks/ks.h"
 #include "cJSON/cJSON.h"
 
-static KS_THREAD_LOCAL ks_pool_t *g_tag_pool;
-static KS_THREAD_LOCAL const char *g_tag_file;
-static KS_THREAD_LOCAL int g_tag_line;
-static KS_THREAD_LOCAL const char *g_tag_tag;
-
-static void *__json_alloc(size_t size)
-{
-	void *data = __ks_pool_alloc(g_tag_pool, size, g_tag_file, g_tag_line, g_tag_tag);
-	ks_assert(data);
-	return data;
-}
-
-static void __json_free(void *data)
-{
-	ks_free(data);
-}
-
-static void * __json_realloc(void *data, size_t size)
-{
-#if defined(KS_DEBUG_JSON)
-	void *new_data = __ks_realloc(data, size, g_tag_file, g_tag_line, g_tag_tag);
-#else
-	void *new_data = ks_realloc(data, size);
-#endif
-	ks_assert(new_data);
-	return new_data;
-}
-
-// Init
-KS_DECLARE(void) ks_json_deinit(void)
-{
-	cJSON_InitHooks(NULL);
-}
-
-KS_DECLARE(void) ks_json_init(void)
-{
-	cJSON_Hooks hooks = {__json_alloc, __json_free, __json_realloc};
-	cJSON_InitHooks(&hooks);
-}
-
-KS_DECLARE(void) ks_json_free_ex(void **data)
-{
-	if (data && *data) {
-		ks_free(*data);
-		*data = NULL;
-	}
-}
-
 // Create apis
-KS_DECLARE(ks_json_t *) __ks_json_create_array(ks_pool_t *pool, const char *file, int line, const char *tag)
+KS_DECLARE(ks_json_t *) ks_json_create_array(void)
 {
-	KS_JSON_DEBUG_TAG_SET
-	return cJSON_CreateArray();
+	return kJSON_CreateArray();
 }
 
-KS_DECLARE(ks_json_t *) __ks_json_create_array_inline(ks_pool_t *pool, const char *file, int line, const char *tag, uint32_t count, ...)
+KS_DECLARE(ks_json_t *) ks_json_create_object(void)
 {
-	va_list ap;
-	ks_json_t *array;
-
-	KS_JSON_DEBUG_TAG_SET
-
-	if (!(array = __ks_json_create_array(pool, file, line, tag)))
-		return NULL;
-
-	va_start(ap, count);
-
-	for (uint32_t index = 0; index < count; index++) {
-		if (!ks_json_add_item_to_array(array, va_arg(ap, ks_json_t *))) {
-			va_end(ap);
-			ks_json_delete(&array);
-			return NULL;
-		}
-	}
-
-	va_end(ap);
-	return array;
+	return kJSON_CreateObject();
 }
 
-KS_DECLARE(ks_json_t *) __ks_json_create_object(ks_pool_t *pool, const char *file, int line, const char *tag)
+KS_DECLARE(ks_json_t *) ks_json_create_number(double number)
 {
-	KS_JSON_DEBUG_TAG_SET
-
-	return cJSON_CreateObject();
+	return kJSON_CreateNumber(number);
 }
 
-KS_DECLARE(ks_json_t *) __ks_json_create_number(ks_pool_t *pool, const char *file, int line, const char *tag, double number)
-{
-	KS_JSON_DEBUG_TAG_SET
-
-	return cJSON_CreateNumber(number);
-}
-
-KS_DECLARE(ks_json_t *) __ks_json_create_string_fmt(ks_pool_t *pool, const char *file, int line, const char *tag, const char *fmt, ...)
+KS_DECLARE(ks_json_t *) ks_json_create_string_fmt(const char *fmt, ...)
 {
 	va_list ap;
 	char *str;
-	cJSON *item;
-
-	KS_JSON_DEBUG_TAG_SET
+	ks_json_t *item;
 
 	va_start(ap, fmt);
 	str = ks_vmprintf(fmt, ap);
@@ -130,683 +51,403 @@ KS_DECLARE(ks_json_t *) __ks_json_create_string_fmt(ks_pool_t *pool, const char 
 
 	if (!str) return NULL;
 
-	item = cJSON_CreateString(str);
+	item = kJSON_CreateString(str);
 
 	free(str);	/* Managed by glibc for the formatting allocation */
 
 	return item;
 }
 
-KS_DECLARE(ks_json_t *) __ks_json_create_string(ks_pool_t *pool, const char *file, int line, const char *tag, const char *string)
+KS_DECLARE(ks_json_t *) ks_json_create_string(const char *string)
 {
-	KS_JSON_DEBUG_TAG_SET
-	return cJSON_CreateString(string);
+	return kJSON_CreateString(string);
 }
 
-KS_DECLARE(ks_json_t *) __ks_json_create_false(ks_pool_t *pool, const char *file, int line, const char *tag)
+KS_DECLARE(ks_json_t *) ks_json_create_false(void)
 {
-	KS_JSON_DEBUG_TAG_SET
-	return cJSON_CreateFalse();
+	return kJSON_CreateFalse();
 }
 
-KS_DECLARE(ks_json_t *) __ks_json_create_true(ks_pool_t *pool, const char *file, int line, const char *tag)
+KS_DECLARE(ks_json_t *) ks_json_create_true(void)
 {
-	KS_JSON_DEBUG_TAG_SET
-	return cJSON_CreateTrue();
+	return kJSON_CreateTrue();
 }
 
-KS_DECLARE(ks_json_t *) __ks_json_create_null(ks_pool_t *pool, const char *file, int line, const char *tag)
+KS_DECLARE(ks_json_t *) ks_json_create_null(void)
 {
-	KS_JSON_DEBUG_TAG_SET
-	return cJSON_CreateNull();
+	return kJSON_CreateNull();
 }
 
-KS_DECLARE(ks_json_t *) __ks_json_create_bool(ks_pool_t *pool, const char *file, int line, const char *tag, ks_bool_t value)
+KS_DECLARE(ks_json_t *) ks_json_create_bool(ks_bool_t value)
 {
-	KS_JSON_DEBUG_TAG_SET
-	ks_assert(value == KS_TRUE || value == KS_FALSE);
-	return cJSON_CreateBool(value);
-}
-
-KS_DECLARE(ks_json_t *) __ks_json_create_uuid(ks_pool_t *pool, const char *file, int line, const char *tag, ks_uuid_t uuid)
-{
-	KS_JSON_DEBUG_TAG_SET
-	char *uuid_str = ks_uuid_str(NULL, &uuid);
-	ks_json_t *item;
-	if (!uuid_str)
-		return NULL;
-
-	item = __ks_json_create_string(pool, file, line, tag, uuid_str);
-	ks_pool_free(&uuid_str);
-	return item;
-
+	return kJSON_CreateBool(value == KS_TRUE);
 }
 
 // Parse apis
-KS_DECLARE(ks_json_t *) __ks_json_parse(ks_pool_t *pool, const char *file, int line, const char *tag, const char *value)
+KS_DECLARE(ks_json_t *) ks_json_parse(const char *value)
 {
-	KS_JSON_DEBUG_TAG_SET
-	ks_assert(value);
-	return cJSON_Parse(value);
+	return kJSON_Parse(value);
 }
 
 // Add apis
-KS_DECLARE(ks_json_t *) ks_json_add_item_to_array(ks_json_t *array, ks_json_t *item)
+KS_DECLARE(void) ks_json_add_item_to_array(ks_json_t *array, ks_json_t *item)
 {
-	ks_assert(array);
-	ks_assert(ks_json_type_is_array(array));
-	cJSON_AddItemToArray(array, item);
-	return item;
+	kJSON_AddItemToArray(array, item);
 }
 
-KS_DECLARE(ks_json_t *) __ks_json_add_uuid_to_array(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t *object, ks_uuid_t uuid)
+KS_DECLARE(ks_json_t *) ks_json_add_array_to_array(ks_json_t *array)
 {
-	ks_json_t *item = __ks_json_create_uuid(pool, file, line, tag, uuid);
-	KS_JSON_DEBUG_TAG_SET
-
-	if (!item)
-		return NULL;
-	return ks_json_add_item_to_array(object, item);
+	ks_json_t *new_array = ks_json_create_array();
+	ks_json_add_item_to_array(array, new_array);
+	return new_array;
 }
 
-KS_DECLARE(ks_json_t*) __ks_json_add_string_to_array(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t * const array, const char * const string)
+KS_DECLARE(ks_json_t *) ks_json_add_object_to_array(ks_json_t *array)
 {
-	ks_json_t *item;
-	KS_JSON_DEBUG_TAG_SET
-
-	ks_assert(array);
-	ks_assert(ks_json_type_is_array(array));
-	item = cJSON_CreateString(string);
-	ks_assert(item);
-	cJSON_AddItemToArray(array, item);
-	return item;
+	ks_json_t *new_object = ks_json_create_object();
+	ks_json_add_item_to_array(array, new_object);
+	return new_object;
 }
 
-KS_DECLARE(ks_json_t*) __ks_json_add_number_to_array(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t * const array, const double number)
+KS_DECLARE(void) ks_json_add_string_to_array(ks_json_t *array, const char *string)
 {
-	ks_json_t *item;
-	KS_JSON_DEBUG_TAG_SET
-
-	ks_assert(array);
-	ks_assert(ks_json_type_is_array(array));
-	item = cJSON_CreateNumber(number);
-	ks_assert(item);
-	cJSON_AddItemToArray(array, item);
-	return item;
+	ks_json_add_item_to_array(array, ks_json_create_string(string));
 }
 
-KS_DECLARE(ks_json_t *) __ks_json_add_true_to_array(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t *const array)
+KS_DECLARE(void) ks_json_add_number_to_array(ks_json_t *array, double number)
 {
-	ks_json_t *item;
-	KS_JSON_DEBUG_TAG_SET
-
-	ks_assert(array);
-	ks_assert(ks_json_type_is_array(array));
-
-	item = cJSON_CreateTrue();
-
-	cJSON_AddItemToArray(array, item);
-
-	return item;
+	ks_json_add_item_to_array(array, ks_json_create_number(number));
 }
 
-KS_DECLARE(ks_json_t *) __ks_json_add_false_to_array(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t * const array)
+KS_DECLARE(void) ks_json_add_true_to_array(ks_json_t *array)
 {
-	ks_json_t *item;
-	KS_JSON_DEBUG_TAG_SET
-
-	ks_assert(array);
-	ks_assert(ks_json_type_is_array(array));
-
-	item = cJSON_CreateFalse();
-
-	cJSON_AddItemToArray(array, item);
-
-	return item;
+	ks_json_add_item_to_array(array, ks_json_create_true());
 }
 
-KS_DECLARE(ks_json_t *) __ks_json_add_bool_to_array(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t * const object, ks_bool_t value)
+KS_DECLARE(void) ks_json_add_false_to_array(ks_json_t *array)
 {
-	if (value)
-		return __ks_json_add_true_to_array(pool, file, line, tag, object);
-	else
-		return __ks_json_add_false_to_array(pool, file, line, tag, object);
+	ks_json_add_item_to_array(array, ks_json_create_false());
 }
 
-KS_DECLARE(ks_json_t *) ks_json_add_item_to_object(ks_json_t *object, const char * const string, ks_json_t *item)
+KS_DECLARE(void) ks_json_add_bool_to_array(ks_json_t *array, ks_bool_t value)
 {
-	ks_assert(object);
-	ks_assert(ks_json_type_is_object(object));
-	cJSON_AddItemToObject(object, string, item);
-	return item;
+	if (value == KS_TRUE) {
+		ks_json_add_true_to_array(array);
+	} else {
+		ks_json_add_false_to_array(array);
+	}
 }
 
-KS_DECLARE(ks_json_t *) __ks_json_add_uuid_to_object(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t *object, const char * const string, ks_uuid_t uuid)
+KS_DECLARE(void) ks_json_add_item_to_object(ks_json_t *object, const char *string, ks_json_t *item)
 {
-	ks_json_t *item = __ks_json_create_uuid(pool, file, line, tag, uuid);
-	KS_JSON_DEBUG_TAG_SET
-
-	if (!item)
-		return NULL;
-
-	return ks_json_add_item_to_object(object, string, item);
+	// TODO check if item parent is NULL
+	kJSON_AddItemToObject(object, string, item);
 }
 
-KS_DECLARE(ks_json_t *) __ks_json_add_true_to_object(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t * const object, const char * const string)
+KS_DECLARE(ks_json_t *) ks_json_add_array_to_object(ks_json_t *object, const char *string)
 {
-	ks_json_t *item;
-	KS_JSON_DEBUG_TAG_SET
-
-	ks_assert(object);
-	ks_assert(ks_json_type_is_object(object));
-
-	item = cJSON_CreateTrue();
-
-	cJSON_AddItemToObject(object, string, item);
-
-	return item;
+	ks_json_t *new_array = ks_json_create_array();
+	ks_json_add_item_to_object(object, string, new_array);
+	return new_array;
 }
 
-KS_DECLARE(ks_json_t *) __ks_json_add_false_to_object(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t * const object, const char * const string)
+KS_DECLARE(ks_json_t *) ks_json_add_object_to_object(ks_json_t *object, const char *string)
 {
-	ks_json_t *item;
-	KS_JSON_DEBUG_TAG_SET
-
-	ks_assert(object);
-	ks_assert(ks_json_type_is_object(object));
-
-	item = cJSON_CreateFalse();
-
-	cJSON_AddItemToObject(object, string, item);
-
-	return item;
+	ks_json_t *new_object = ks_json_create_object();
+	ks_json_add_item_to_object(object, string, new_object);
+	return new_object;
 }
 
-KS_DECLARE(ks_json_t *) __ks_json_add_bool_to_object(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t * const object, const char * const string, ks_bool_t value)
+KS_DECLARE(void) ks_json_add_true_to_object(ks_json_t *object, const char *string)
 {
-	KS_JSON_DEBUG_TAG_SET
-	if (value)
-		return __ks_json_add_true_to_object(pool, file, line, tag, object, string);
-	else
-		return __ks_json_add_false_to_object(pool, file, line, tag, object, string);
+	ks_json_add_item_to_object(object, string, ks_json_create_true());
 }
 
-KS_DECLARE(ks_json_t*) __ks_json_add_number_to_object(ks_pool_t *pool, const char *file, int line,
-	const char *tag, ks_json_t * const object, const char * const name, const double number)
+KS_DECLARE(void) ks_json_add_false_to_object(ks_json_t *object, const char *string)
 {
-	KS_JSON_DEBUG_TAG_SET
-	ks_assert(object);
-	ks_assert(ks_json_type_is_object(object));
-	return cJSON_AddNumberToObject(object, name, number);
+	ks_json_add_item_to_object(object, string, ks_json_create_false());
 }
 
-KS_DECLARE(ks_json_t*) __ks_json_add_string_to_object(ks_pool_t *pool, const char *file, int line, const char *tag, ks_json_t * const object, const char * const name, const char * const string)
+KS_DECLARE(void) ks_json_add_bool_to_object(ks_json_t *object, const char *string, ks_bool_t value)
 {
-	KS_JSON_DEBUG_TAG_SET
-	ks_assert(object);
-	ks_assert(ks_json_type_is_object(object));
-	return cJSON_AddStringToObject(object, name, string);
+	if (value == KS_TRUE) {
+		ks_json_add_true_to_object(object, string);
+	} else {
+		ks_json_add_false_to_object(object, string);
+	}
 }
 
-
-// Dupe apis
-KS_DECLARE(ks_json_t *) __ks_json_duplicate(ks_pool_t *pool, const char *file, int line, const char *tag, const ks_json_t * c, ks_bool_t recurse)
+KS_DECLARE(void) ks_json_add_number_to_object(ks_json_t *object, const char *name, double number)
 {
-	KS_JSON_DEBUG_TAG_SET
-	ks_assert(c);
-	return cJSON_Duplicate(c, recurse);
+	ks_json_add_item_to_object(object, name, ks_json_create_number(number));
 }
 
-// Delete apis
+KS_DECLARE(void) ks_json_add_string_to_object(ks_json_t *object, const char *name, const char *string)
+{
+	ks_json_add_item_to_object(object, name, ks_json_create_string(string));
+}
+
+KS_DECLARE(ks_json_t *) ks_json_duplicate(ks_json_t *c, ks_bool_t recurse)
+{
+	return kJSON_Duplicate(c, recurse);
+}
+
 KS_DECLARE(void) ks_json_delete(ks_json_t **c)
 {
 	if (!c || !*c)
 		return;
 
-	cJSON_Delete(*c);
+	kJSON_Delete(*c);
 	*c = NULL;
 }
 
 KS_DECLARE(void) ks_json_delete_item_from_array(ks_json_t *array, int index)
 {
-	cJSON_DeleteItemFromArray(array, index);
+	kJSON_DeleteItemFromArray(array, index);
 }
 
-KS_DECLARE(void) ks_json_delete_item_from_object(ks_json_t *obj, const char * const key)
+KS_DECLARE(void) ks_json_delete_item_from_object(ks_json_t *obj, const char *key)
 {
-	cJSON_DeleteItemFromObject(obj, key);
+	kJSON_DeleteItemFromObject(obj, key);
 }
 
 // Get apis
-KS_DECLARE(ks_json_t *) ks_json_get_array_item(const ks_json_t * const array, int index)
+KS_DECLARE(ks_json_t *) ks_json_get_array_item(ks_json_t *array, int index)
 {
-	ks_json_t *item;
-
-	ks_assert(array);
-	item = cJSON_GetArrayItem(array, index);
-	ks_assert(item);
-
-	return item;
+	return kJSON_GetArrayItem(array, index);
 }
 
-KS_DECLARE(ks_json_t *) ks_json_get_array_item_safe(const ks_json_t * const array, int index)
+KS_DECLARE(ks_bool_t) ks_json_get_array_bool(ks_json_t *array, int index, ks_bool_t def)
 {
-	return cJSON_GetArrayItem(array, index);
+	ks_bool_t retval = def;
+	ks_json_t *item = ks_json_get_array_item(array, index);
+	ks_json_value_bool(item, &retval);
+	return retval;
 }
 
-KS_DECLARE(ks_bool_t) ks_json_get_array_bool(const ks_json_t * const array, int index)
+KS_DECLARE(const char *) ks_json_get_array_string(ks_json_t *array, int index, const char* def)
 {
-	const ks_json_t *item;
-
-	ks_assert(ks_json_type_is_array(array));
-
-	item = cJSON_GetArrayItem(array, index);
-
-	ks_assert(item);
-
-	return item->type == cJSON_True ? KS_TRUE : KS_FALSE;
+	const char *retval = def;
+	ks_json_t *item = ks_json_get_array_item(array, index);
+	ks_json_value_string(item, &retval);
+	return retval;
 }
 
-KS_DECLARE(const char * const) ks_json_get_array_cstr(const ks_json_t * const array, int index)
+KS_DECLARE(int) ks_json_get_array_number_int(ks_json_t *array, int index, int def)
 {
-	const ks_json_t *item = ks_json_get_array_item(array, index);
-	ks_assert(ks_json_type_is_string(item));
-	return item->valuestring;
+	int retval = def;
+	ks_json_t *item = ks_json_get_array_item(array, index);
+	ks_json_value_number_int(item, &retval);
+	return retval;
 }
 
-KS_DECLARE(int) ks_json_get_array_number_int(const ks_json_t * const array, int index)
+KS_DECLARE(double) ks_json_get_array_number_double(ks_json_t *array, int index, double def)
 {
-	const ks_json_t *item = ks_json_get_array_item(array, index);
-	ks_assert(ks_json_type_is_number(item));
-	return item->valueint;
+	double retval = def;
+	ks_json_t *item = ks_json_get_array_item(array, index);
+	ks_json_value_number_double(item, &retval);
+	return retval;
 }
 
-KS_DECLARE(ks_uuid_t) ks_json_get_array_uuid(const ks_json_t * const array, int index)
+KS_DECLARE(int) ks_json_get_array_size(ks_json_t *array)
 {
-	const ks_json_t *item = ks_json_get_array_item(array, index);
-	ks_assert(ks_json_type_is_string(item));
-	return ks_uuid_from_str(item->valuestring);
+	return kJSON_GetArraySize(array);
 }
 
-KS_DECLARE(double) ks_json_get_array_number_double(const ks_json_t * const array, int index)
+KS_DECLARE(ks_json_t *) ks_json_get_object_item(ks_json_t *object, const char *string)
 {
-	const ks_json_t *item = ks_json_get_array_item(array, index);
-	ks_assert(ks_json_type_is_number(item));
-	return item->valuedouble;
+	return kJSON_GetObjectItemCaseSensitive(object, string);
 }
 
-KS_DECLARE(int) ks_json_get_array_size(const ks_json_t * const array)
+KS_DECLARE(ks_bool_t) ks_json_get_object_bool(ks_json_t *object, const char *string, ks_bool_t def)
 {
-	ks_assert(array);
-	return cJSON_GetArraySize(array);
+	ks_bool_t retval = def;
+	ks_json_value_bool(ks_json_get_object_item(object, string), &retval);
+	return retval;
 }
 
-KS_DECLARE(ks_json_t *) ks_json_get_object_item(const ks_json_t * const object, const char * const string)
+KS_DECLARE(const char *) ks_json_get_object_string(ks_json_t *object, const char *key, const char *def)
 {
-	ks_assert(object && string);
-	return cJSON_GetObjectItemCaseSensitive(object, string);
+	const char *retval = def;
+	ks_json_value_string(ks_json_get_object_item(object, key), &retval);
+	return retval;
 }
 
-KS_DECLARE(ks_json_t *) ks_json_get_object_item_safe(const ks_json_t * const object, const char * const string)
+KS_DECLARE(int) ks_json_get_object_number_int(ks_json_t *object, const char *key, int def)
 {
-	return cJSON_GetObjectItemCaseSensitive(object, string);
+	int retval = def;
+	ks_json_value_number_int(ks_json_get_object_item(object, key), &retval);
+	return retval;
 }
 
-KS_DECLARE(ks_uuid_t) ks_json_get_object_uuid(const ks_json_t *const object, const char * const string)
+KS_DECLARE(double) ks_json_get_object_number_double(ks_json_t *object, const char *key, double def)
 {
-	const ks_json_t *item = ks_json_get_object_item(object, string);
-	if (!ks_json_type_is_string(item)) return ks_uuid_null();
-	return ks_uuid_from_str(item->valuestring);
+	double retval = def;
+	ks_json_value_number_double(ks_json_get_object_item(object, key), &retval);
+	return retval;
 }
 
-KS_DECLARE(ks_bool_t) ks_json_get_object_bool(const ks_json_t * const object, const char * const string)
+KS_DECLARE(const char *) ks_json_get_name(ks_json_t *item)
 {
-	const ks_json_t *item = ks_json_get_object_item(object, string);
-	ks_assert(ks_json_type_is_bool(item));
-	if (item->type == cJSON_True) {
-		return KS_TRUE;
-	} else {
-		return KS_FALSE;
-	}
-}
-KS_DECLARE(ks_bool_t) ks_json_get_object_bool_def(const ks_json_t * const object, const char * const string, ks_bool_t def)
-{
-	const ks_json_t *item = ks_json_get_object_item_safe(object, string);
-	if (item && item->type == cJSON_True) {
-		return KS_TRUE;
-	} else if (item && item->type == cJSON_False) {
-		return KS_FALSE;
-	}
-	return def;
-}
-
-KS_DECLARE(const char * const) ks_json_get_object_cstr(const ks_json_t * const object, const char * const key)
-{
-	const ks_json_t *item = ks_json_get_object_item(object, key);
 	if (item) {
-		ks_assert(ks_json_type_is_string(item));
-		return item->valuestring;
+		return item->string;
 	}
 	return NULL;
 }
 
-KS_DECLARE(const char * const) ks_json_get_object_cstr_def(const ks_json_t * const object, const char * const key, const char * def)
+KS_DECLARE(const char *) ks_json_get_string(ks_json_t *item, const char *def)
 {
-	const ks_json_t *item = ks_json_get_object_item_safe(object, key);
-	if (!item || !ks_json_type_is_string(item) || !item->valuestring) {
-		return def;
-	}
-	return item->valuestring;
+	const char *val = def;
+	ks_json_value_string(item, &val);
+	return val;
 }
 
-KS_DECLARE(int) ks_json_get_object_number_int(const ks_json_t * const object, const char * const key)
+KS_DECLARE(int) ks_json_get_number_int(ks_json_t *item, int def)
 {
-	const ks_json_t *item = ks_json_get_object_item(object, key);
-	ks_assert(ks_json_type_is_number(item));
-	return item->valueint;
+	int val = def;
+	ks_json_value_number_int(item, &val);
+	return val;
 }
 
-KS_DECLARE(int) ks_json_get_object_number_int_def(const ks_json_t * const object, const char * const key, int def)
+KS_DECLARE(double) ks_json_get_number_double(ks_json_t *item, double def)
 {
-	const ks_json_t *item = ks_json_get_object_item_safe(object, key);
-	if (item && ks_json_type_is_number(item)) return item->valueint;
-	return def;
+	double val = def;
+	ks_json_value_number_double(item, &val);
+	return val;
 }
 
-KS_DECLARE(double) ks_json_get_object_number_double(const ks_json_t * const object, const char * const key)
+KS_DECLARE(ks_bool_t) ks_json_get_bool(ks_json_t *item, ks_bool_t def)
 {
-	const ks_json_t *item = ks_json_get_object_item(object, key);
-	ks_assert(ks_json_type_is_number(item));
-	return item->valuedouble;
+	ks_bool_t val = def;
+	ks_json_value_bool(item, &val);
+	return val;
 }
 
-KS_DECLARE(double) ks_json_get_object_number_double_def(const ks_json_t * const object, const char * const key, double def)
+KS_DECLARE(char *) ks_json_print(ks_json_t *item)
 {
-	const ks_json_t *item = ks_json_get_object_item_safe(object, key);
-	if (item && ks_json_type_is_number(item)) return item->valuedouble;
-	return def;
+	return kJSON_Print(item);
 }
 
-// Lookup apis
-
-/**
- * ks_json_lookup_item - Looks up an item by multiple objects key lookups all in one
- * function call. Each variable argument at the end of this functions signature causes a lookup
- * in the previously fetched object.
- */
-KS_DECLARE(ks_json_t *) ks_json_valookup(const ks_json_t * const object, int components, va_list args)
+KS_DECLARE(char *) ks_json_print_unformatted(ks_json_t *item)
 {
-	const ks_json_t *next_item = object;
-	uint32_t index = 0;
-
-	for (int index = 0; index < components && next_item; index++) {
-		next_item = ks_json_get_object_item_safe(next_item, va_arg(args, const char *));
-	}
-
-	return (ks_json_t *)next_item;
+	return kJSON_PrintUnformatted(item);
 }
 
-KS_DECLARE(ks_json_t *) ks_json_lookup(const ks_json_t * const object, int components, ...)
-{
-	const ks_json_t *next_item;
-	uint32_t index = 0;
-	va_list argptr;
-
-	va_start(argptr, components);
-
-	next_item = ks_json_valookup(object, components, argptr);
-
-	va_end(argptr);
-
-	return (ks_json_t *)next_item;
-}
-
-KS_DECLARE(const char * const) ks_json_lookup_cstr(const ks_json_t * const object, int components, ...)
-{
-	ks_json_t *item;
-	va_list argptr;
-
-	va_start(argptr, components);
-
-	item = ks_json_valookup(object, components, argptr);
-
-	va_end(argptr);
-
-	if (item)
-		return ks_json_value_string(item);
-
-	return NULL;
-}
-
-KS_DECLARE(double *) ks_json_lookup_number_doubleptr(const ks_json_t * const object, int components, ...)
-{
-	ks_json_t *item;
-	va_list argptr;
-
-	va_start(argptr, components);
-
-	item = ks_json_valookup(object, components, argptr);
-
-	va_end(argptr);
-
-	if (item)
-		return ks_json_value_number_doubleptr(item);
-
-	return NULL;
-}
-
-KS_DECLARE(int *) ks_json_lookup_number_intptr(const ks_json_t * const object, int components, ...)
-{
-	ks_json_t *item;
-	va_list argptr;
-
-	va_start(argptr, components);
-
-	item = ks_json_valookup(object, components, argptr);
-
-	va_end(argptr);
-
-	if (item)
-		return ks_json_value_number_intptr(item);
-
-	return NULL;
-}
-
-KS_DECLARE(ks_uuid_t) ks_json_lookup_uuid(const ks_json_t * const object, int components, ...)
-{
-	ks_json_t *item;
-	va_list argptr;
-
-	va_start(argptr, components);
-
-	item = ks_json_valookup(object, components, argptr);
-
-	va_end(argptr);
-
-	if (item)
-		return ks_json_value_uuid(item);
-
-	return ks_uuid_null(); /* null indicates failure */
-}
-
-KS_DECLARE(ks_json_t *) ks_json_lookup_array_item(const ks_json_t * const object, int array_index, int components, ...)
-{
-	ks_json_t *item;
-	va_list argptr;
-
-	va_start(argptr, components);
-
-	item = ks_json_valookup(object, components, argptr);
-
-	va_end(argptr);
-
-	if (item)
-		return ks_json_get_array_item_safe(item, array_index);
-
-	return NULL;
-}
-
-KS_DECLARE(char *) __ks_json_lookup_print(ks_pool_t *pool, const char *file, int line, const char *tag,
-		const ks_json_t * const object, int components, ...)
-{
-	ks_json_t *item;
-	va_list argptr;
-
-	va_start(argptr, components);
-
-	item = ks_json_valookup(object, components, argptr);
-
-	va_end(argptr);
-
-	if (item)
-		return __ks_json_print(pool, file, line, tag, item);
-
-	return NULL;
-}
-
-KS_DECLARE(char *) __ks_json_lookup_print_unformatted(ks_pool_t *pool, const char *file, int line, const char *tag,
-	const ks_json_t * const object, int components, ...)
-{
-	ks_json_t *item;
-	va_list argptr;
-
-	va_start(argptr, components);
-
-	item = ks_json_valookup(object, components, argptr);
-
-	va_end(argptr);
-
-	if (item)
-		return __ks_json_print_unformatted(pool, file, line, tag, item);
-
-	return NULL;
-}
-
-// Print apis
-KS_DECLARE(char *) __ks_json_print(ks_pool_t *pool, const char *file, int line, const char *tag, const ks_json_t * const item)
-{
-	KS_JSON_DEBUG_TAG_SET
-	ks_assert(item);
-	return cJSON_Print(item);
-}
-
-KS_DECLARE(char *) __ks_json_print_unformatted(ks_pool_t *pool, const char *file, int line, const char *tag, const ks_json_t * const item)
-{
-	KS_JSON_DEBUG_TAG_SET
-	ks_assert(item);
-	return cJSON_PrintUnformatted(item);
-}
-
-// Type apis
-KS_DECLARE(KS_JSON_TYPES) ks_json_type_get(const ks_json_t * const item)
+KS_DECLARE(ks_json_type_t) ks_json_type_get(ks_json_t *item)
 {
 	if (!item)
 		return KS_JSON_TYPE_INVALID;
 	return item->type;
 }
 
-KS_DECLARE(ks_bool_t) ks_json_type_is(const ks_json_t * const item, KS_JSON_TYPES type)
+KS_DECLARE(ks_bool_t) ks_json_type_is(ks_json_t *item, ks_json_type_t type)
 {
 	return ks_json_type_get(item) == type;
 }
 
-KS_DECLARE(ks_bool_t) ks_json_type_is_array(const ks_json_t * const item)
+KS_DECLARE(ks_bool_t) ks_json_type_is_array(ks_json_t *item)
 {
 	return ks_json_type_is(item, KS_JSON_TYPE_ARRAY);
 }
 
-KS_DECLARE(ks_bool_t) ks_json_type_is_string(const ks_json_t * const item)
+KS_DECLARE(ks_bool_t) ks_json_type_is_string(ks_json_t *item)
 {
 	return ks_json_type_is(item, KS_JSON_TYPE_STRING);
 }
 
-KS_DECLARE(ks_bool_t) ks_json_type_is_number(const ks_json_t * const item)
+KS_DECLARE(ks_bool_t) ks_json_type_is_number(ks_json_t *item)
 {
 	return ks_json_type_is(item, KS_JSON_TYPE_NUMBER);
 }
 
-KS_DECLARE(ks_bool_t) ks_json_type_is_null(const ks_json_t * const item)
+KS_DECLARE(ks_bool_t) ks_json_type_is_null(ks_json_t *item)
 {
 	return ks_json_type_is(item, KS_JSON_TYPE_NULL);
 }
 
-KS_DECLARE(ks_bool_t) ks_json_type_is_object(const ks_json_t * const item)
+KS_DECLARE(ks_bool_t) ks_json_type_is_object(ks_json_t *item)
 {
 	return ks_json_type_is(item, KS_JSON_TYPE_OBJECT);
 }
 
-KS_DECLARE(ks_bool_t) ks_json_type_is_false(const ks_json_t * const item)
+KS_DECLARE(ks_bool_t) ks_json_type_is_false(ks_json_t *item)
 {
 	return ks_json_type_is(item, KS_JSON_TYPE_FALSE);
 }
 
-KS_DECLARE(ks_bool_t) ks_json_type_is_true(const ks_json_t * const item)
+KS_DECLARE(ks_bool_t) ks_json_type_is_true(ks_json_t *item)
 {
 	return ks_json_type_is(item, KS_JSON_TYPE_TRUE);
 }
 
-KS_DECLARE(ks_bool_t) ks_json_type_is_bool(const ks_json_t * const item)
+KS_DECLARE(ks_bool_t) ks_json_type_is_bool(ks_json_t *item)
 {
 	return ks_json_type_is(item, KS_JSON_TYPE_FALSE) || ks_json_type_is(item, KS_JSON_TYPE_TRUE);
 }
 
-// Value apis
-KS_DECLARE(const char * const) ks_json_value_string(const ks_json_t * const item)
+KS_DECLARE(ks_status_t) ks_json_name(ks_json_t *item, const char **name)
 {
-	ks_assert(ks_json_type_is_string(item));
-	return item->valuestring;
-}
-
-KS_DECLARE(int) ks_json_value_number_int(const ks_json_t * const item)
-{
-	ks_assert(ks_json_type_is_number(item));
-	return item->valueint;
-}
-
-KS_DECLARE(double) ks_json_value_number_double(const ks_json_t * const item)
-{
-	ks_assert(ks_json_type_is_number(item));
-	return item->valuedouble;
-}
-
-KS_DECLARE(int*) ks_json_value_number_intptr(ks_json_t *item)
-{
-	ks_assert(ks_json_type_is_number(item));
-	return &item->valueint;
-}
-
-KS_DECLARE(double*) ks_json_value_number_doubleptr(ks_json_t *item)
-{
-	ks_assert(ks_json_type_is_number(item));
-	return &item->valuedouble;
-}
-
-KS_DECLARE(ks_uuid_t) ks_json_value_uuid(const ks_json_t * const item)
-{
-	ks_assert(ks_json_type_is_string(item));
-	return ks_uuid_from_str(item->valuestring);
-}
-
-KS_DECLARE(ks_bool_t) ks_json_value_bool(const ks_json_t * const item)
-{
-	ks_assert(ks_json_type_is_bool(item));
-	if (item->type == KS_JSON_TYPE_FALSE) {
-		return KS_FALSE;
-	} else {
-		return KS_TRUE;
+	if (!item->string || !*item->string) {
+		return KS_STATUS_FAIL;
 	}
+	*name = item->string;
+	return KS_STATUS_SUCCESS;
 }
 
-// Enum helpers
+// Value apis
+KS_DECLARE(ks_status_t) ks_json_value_string(ks_json_t *item, const char **value)
+{
+	if (!ks_json_type_is_string(item)) {
+		return KS_STATUS_FAIL;
+	}
+	*value = item->valuestring;
+	return KS_STATUS_SUCCESS;
+}
+
+KS_DECLARE(ks_status_t) ks_json_value_number_int(ks_json_t *item, int *value)
+{
+	if (!ks_json_type_is_number(item)) {
+		return KS_STATUS_FAIL;
+	}
+	*value = item->valueint;
+	return KS_STATUS_SUCCESS;
+}
+
+KS_DECLARE(ks_status_t) ks_json_value_number_double(ks_json_t *item, double *value)
+{
+	if (!ks_json_type_is_number(item)) {
+		return KS_STATUS_FAIL;
+	}
+	*value = item->valuedouble;
+	return KS_STATUS_SUCCESS;
+}
+
+KS_DECLARE(ks_status_t) ks_json_value_bool(ks_json_t *item, ks_bool_t *value)
+{
+	if (!ks_json_type_is_bool(item)) {
+		return KS_STATUS_FAIL;
+	}
+	if (item->type == KS_JSON_TYPE_TRUE) {
+		*value = KS_TRUE;
+	} else {
+		*value = KS_FALSE;
+	}
+	return KS_STATUS_SUCCESS;
+}
+
 KS_DECLARE(ks_json_t *) ks_json_enum_child(ks_json_t *item)
 {
-	ks_assert(item);
+	if (!item) {
+		return NULL;
+	}
 	return item->child;
 }
 
 KS_DECLARE(ks_json_t *) ks_json_enum_next(ks_json_t *item)
 {
-	ks_assert(item);
+	if (!item) {
+		return NULL;
+	}
 	return item->next;
 }
 

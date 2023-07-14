@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,10 +30,10 @@
 #endif
 
 /* libks version as a string */
-#define KS_VERSION "1.8.3"
+#define KS_VERSION "2.0"
 
 /* libks version as a number */
-#define KS_VERSION_NUM 10803
+#define KS_VERSION_NUM 20000
 
 #include "libks/ks_platform.h"
 #include "libks/ks_types.h"
@@ -57,7 +57,6 @@ KS_END_EXTERN_C
 
 #include "libks/ks_log.h"
 #include "libks/ks_env.h"
-#include "libks/ks_handle.h"
 #include "libks/ks_string.h"
 #include "libks/ks_printf.h"
 #include "libks/ks_json.h"
@@ -75,7 +74,6 @@ KS_END_EXTERN_C
 #include "libks/ks_socket.h"
 #include "libks/ks_dso.h"
 #include "libks/simclist.h"
-#include "libks/ks_throughput.h"
 #include "libks/ks_ssl.h"
 #include "libks/kws.h"
 #include "libks/ks_uuid.h"

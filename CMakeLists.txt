@@ -39,9 +39,9 @@ if (KS_PLAT_WIN OR WITH_KS_TEST)
 	endif()
 endif()
 
-# Declare our project, libks
-project(LibKS VERSION 1.8.3 LANGUAGES C CXX)
-message("LibKS Version ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}")
+# Declare our project, libks2
+project(LibKS2 VERSION 2.0.0 LANGUAGES C CXX)
+message("LibKS2 Version ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}")
 
 # Set package version
 set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
@@ -67,7 +67,7 @@ include(CheckIncludeFile)
 include(TestBigEndian)
 
 # Set package name
-string(TOLOWER ${CMAKE_PROJECT_NAME} PACKAGE_NAME)
+string(TOLOWER "${CMAKE_PROJECT_NAME}" PACKAGE_NAME)
 
 # Set package version
 set(PACKAGE_VERSION ${PROJECT_VERSION})
@@ -136,7 +136,7 @@ if("${CMAKE_OS_NAME}" STREQUAL "Centos")
 	set(CPACK_GENERATOR RPM)
 
 	# Set RPM package name
-	set(CPACK_RPM_RUNTIME_PACKAGE_NAME "libks")
+	set(CPACK_RPM_RUNTIME_PACKAGE_NAME "libks2")
 
 	# Set RPM package dependencies
 	set(CPACK_RPM_RUNTIME_PACKAGE_REQUIRES "libuuid-devel")
@@ -214,7 +214,7 @@ if("${CMAKE_OS_NAME}" STREQUAL "Debian")
 	set(CPACK_DEB_COMPONENT_INSTALL "ON")
 
 	# Set package name
-	set(CPACK_DEBIAN_PACKAGE_NAME "libks")
+	set(CPACK_DEBIAN_PACKAGE_NAME "libks2")
 
 	# Abuse Cmake runtime component name
 	set(CPACK_DEBIAN_RUNTIME_PACKAGE_NAME ${CPACK_DEBIAN_PACKAGE_NAME})
@@ -279,7 +279,7 @@ if("${CMAKE_OS_NAME}" STREQUAL "Debian")
 	set(CPACK_DEBIAN_FILE_NAME "${PACKAGE_NAME}_${PROJECT_VERSION}-${CPACK_DEBIAN_PACKAGE_RELEASE}_${DISTRO_CODENAME}_${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}.deb")
 
 	# Set a Debian compliant changelog header
-	set(CHANGELOG_HEADER "${PACKAGE_NAME} (${CPACK_DEBIAN_PACKAGE_VERSION}) ${DISTRO_CODENAME}\; urgency=${CPACK_DEBIAN_PACKAGE_PRIORITY}")
+	set(CHANGELOG_HEADER "libks (${CPACK_DEBIAN_PACKAGE_VERSION}) ${DISTRO_CODENAME}\; urgency=${CPACK_DEBIAN_PACKAGE_PRIORITY}")
 
 	# Generate a Debian compliant changelog
 	if(GIT_FOUND AND GZIP_CMD AND DATE_CMD)
@@ -319,7 +319,7 @@ if("${CMAKE_OS_NAME}" STREQUAL "Debian")
 		execute_process(COMMAND ${GZIP_CMD} -f -9 -n changelog.Debian)
 
 		# Install changelog
-		install(FILES "${CMAKE_BINARY_DIR}/changelog.Debian.gz" COMPONENT "runtime" DESTINATION "share/doc/${CPACK_DEBIAN_PACKAGE_NAME}")
+		install(FILES "${CMAKE_BINARY_DIR}/changelog.Debian.gz" COMPONENT "runtime" DESTINATION "share/doc/libks2")
 
 		# Delete changelog related variables
 		unset(CHANGELOG_HEADER)
@@ -349,50 +349,50 @@ if (KS_PLAT_WIN)
 endif()
 
 if (KS_STATIC)
-	add_library(ks STATIC ${KsDeps})
-	target_compile_definitions(ks PUBLIC -DKS_DECLARE_STATIC=1)
-	set_target_properties(ks PROPERTIES VERSION ${PROJECT_VERSION})
+	add_library(ks2 STATIC ${KsDeps})
+	target_compile_definitions(ks2 PUBLIC -DKS_DECLARE_STATIC=1)
+	set_target_properties(ks2 PROPERTIES VERSION ${PROJECT_VERSION})
 else()
-	add_library(ks SHARED ${KsDeps})
-	set_target_properties(ks PROPERTIES SOVERSION ${PROJECT_VERSION_MAJOR})
+	add_library(ks2 SHARED ${KsDeps})
+	set_target_properties(ks2 PROPERTIES SOVERSION ${PROJECT_VERSION_MAJOR})
 endif()
-set_target_properties(ks PROPERTIES DEBUG_POSTFIX "")
+set_target_properties(ks2 PROPERTIES DEBUG_POSTFIX "")
 
 if (KS_PLAT_LIN AND "${CMAKE_BUILD_TYPE}" STREQUAL "Sanitize")
-	target_link_libraries(ks PUBLIC asan ubsan)
+	target_link_libraries(ks2 PUBLIC asan ubsan)
 endif()
 
 # Use libbacktrace if requested
 if (NOT KS_PLAT_WIN AND WITH_LIBBACKTRACE)
 	include(cmake/AddLibBacktrace.cmake)
-	target_link_libraries(ks PRIVATE LibBacktrace)
-	target_compile_definitions(ks PUBLIC -DHAVE_LIBBACKTRACE=1)
+	target_link_libraries(ks2 PRIVATE LibBacktrace)
+	target_compile_definitions(ks2 PUBLIC -DHAVE_LIBBACKTRACE=1)
 endif()
 
 if (NOT KS_PLAT_WIN)
 	# Now auto detect our dependencies
-	ksutil_target_check_library_exists_hdr(ks PUBLIC rt clock_gettime time.h HAVE_CLOCK_GETTIME)
-	ksutil_target_check_library_exists_hdr(ks PUBLIC rt clock_getres time.h HAVE_CLOCK_GETRES)
-	ksutil_target_check_library_exists_hdr(ks PUBLIC rt clock_nanosleep time.h HAVE_CLOCK_NANOSLEEP)
-	ksutil_target_check_library_exists_hdr(ks PUBLIC rt strftime time.h HAVE_STRFTIME)
-	ksutil_target_check_library_exists(ks PUBLIC c sched_setscheduler HAVE_SCHED_SETSCHEDULER)
-	ksutil_target_check_library_exists(ks PUBLIC c malloc HAVE_MALLOC)
-	ksutil_target_check_library_exists(ks PUBLIC c usleep HAVE_USLEEP)
-	ksutil_target_check_function_exists(ks PUBLIC pthread_setschedparam HAVE_PTHREAD_SETSCHEDPARAM)
-	ksutil_target_check_function_exists(ks PUBLIC memmem HAVE_MEMMEM)
-	ksutil_target_check_include_file(ks PUBLIC stdlib.h HAVE_STDLIB_H)
-	ksutil_target_check_include_file(ks PUBLIC sys/types.h HAVE_SYS_TYPES_H)
-	ksutil_target_check_include_file(ks PUBLIC sys/stat.h HAVE_SYS_STAT_H)
-	ksutil_target_check_include_file(ks PUBLIC string.h HAVE_STRING_H)
-	ksutil_target_check_include_file(ks PUBLIC unistd.h HAVE_UNISTD_H)
-	ksutil_target_check_include_file(ks PUBLIC memory.h HAVE_MEMORY_H)
-	ksutil_target_check_include_file(ks PUBLIC strings.h HAVE_STRINGS_H)
-	ksutil_target_check_include_file(ks PUBLIC inttypes.h HAVE_INTTYPES_H)
-	ksutil_target_check_include_file(ks PUBLIC stdint.h HAVE_STDINT_H)
-	ksutil_target_check_include_file(ks PUBLIC dlfcn.h HAVE_DLFCN_H)
-	ksutil_target_check_include_file(ks PUBLIC sched.h HAVE_SCHED_H)
-	ksutil_target_check_include_file(ks PUBLIC byteswap.h HAVE_BYTESWAP_H)
-	ksutil_target_check_include_file(ks PUBLIC dirent.h HAVE_DIRENT_H)
+	ksutil_target_check_library_exists_hdr(ks2 PUBLIC rt clock_gettime time.h HAVE_CLOCK_GETTIME)
+	ksutil_target_check_library_exists_hdr(ks2 PUBLIC rt clock_getres time.h HAVE_CLOCK_GETRES)
+	ksutil_target_check_library_exists_hdr(ks2 PUBLIC rt clock_nanosleep time.h HAVE_CLOCK_NANOSLEEP)
+	ksutil_target_check_library_exists_hdr(ks2 PUBLIC rt strftime time.h HAVE_STRFTIME)
+	ksutil_target_check_library_exists(ks2 PUBLIC c sched_setscheduler HAVE_SCHED_SETSCHEDULER)
+	ksutil_target_check_library_exists(ks2 PUBLIC c malloc HAVE_MALLOC)
+	ksutil_target_check_library_exists(ks2 PUBLIC c usleep HAVE_USLEEP)
+	ksutil_target_check_function_exists(ks2 PUBLIC pthread_attr_setschedparam HAVE_PTHREAD_ATTR_SETSCHEDPARAM)
+	ksutil_target_check_function_exists(ks2 PUBLIC memmem HAVE_MEMMEM)
+	ksutil_target_check_include_file(ks2 PUBLIC stdlib.h HAVE_STDLIB_H)
+	ksutil_target_check_include_file(ks2 PUBLIC sys/types.h HAVE_SYS_TYPES_H)
+	ksutil_target_check_include_file(ks2 PUBLIC sys/stat.h HAVE_SYS_STAT_H)
+	ksutil_target_check_include_file(ks2 PUBLIC string.h HAVE_STRING_H)
+	ksutil_target_check_include_file(ks2 PUBLIC unistd.h HAVE_UNISTD_H)
+	ksutil_target_check_include_file(ks2 PUBLIC memory.h HAVE_MEMORY_H)
+	ksutil_target_check_include_file(ks2 PUBLIC strings.h HAVE_STRINGS_H)
+	ksutil_target_check_include_file(ks2 PUBLIC inttypes.h HAVE_INTTYPES_H)
+	ksutil_target_check_include_file(ks2 PUBLIC stdint.h HAVE_STDINT_H)
+	ksutil_target_check_include_file(ks2 PUBLIC dlfcn.h HAVE_DLFCN_H)
+	ksutil_target_check_include_file(ks2 PUBLIC sched.h HAVE_SCHED_H)
+	ksutil_target_check_include_file(ks2 PUBLIC byteswap.h HAVE_BYTESWAP_H)
+	ksutil_target_check_include_file(ks2 PUBLIC dirent.h HAVE_DIRENT_H)
 endif()
 
 # Check endianess for our swap macros
@@ -405,7 +405,7 @@ endif()
 
 if (KS_PLAT_WIN)
 	# We use RpcString on windows
-	target_link_libraries(ks PUBLIC Rpcrt4.lib)
+	target_link_libraries(ks2 PUBLIC Rpcrt4.lib)
 else()
 	# Locate libuuid on non-win platforms
 	include(cmake/FindUUID.cmake)
@@ -425,15 +425,15 @@ if (NOT KS_PLAT_WIN)
 	find_package(Threads REQUIRED)
 endif()
 
-set_target_properties(ks PROPERTIES DEFINE_SYMBOL KS_EXPORTS)
+set_target_properties(ks2 PROPERTIES DEFINE_SYMBOL KS_EXPORTS)
 
 # Setup ks core definitions, these are private defintions
 # meaning they won't be exported to public linkers
-target_compile_definitions(ks PRIVATE
-	-DPACKAGE_NAME="libks"
-	-DPACKAGE_TARNAME="libks"
+target_compile_definitions(ks2 PRIVATE
+	-DPACKAGE_NAME="libks2"
+	-DPACKAGE_TARNAME="libks2"
 	-DPACKAGE_VERSION="${PROJECT_VERSION}"
-	-DPACKAGE_STRING="libks ${PROJECT_VERSION}"
+	-DPACKAGE_STRING="libks2 ${PROJECT_VERSION}"
 	-DPACKAGE_BUGREPORT="bugs@freeswitch.org"
 	-DPACKAGE_URL=""
 	-DVERSION="${PROJECT_VERSION}"
@@ -442,7 +442,7 @@ target_compile_definitions(ks PRIVATE
 )
 
 # Setup our public facing definitions
-target_compile_definitions(ks PUBLIC
+target_compile_definitions(ks2 PUBLIC
 	-DSTDC_HEADERS=1
 	-DTIME_WITH_SYS_TIME=1
 	-DRETSIGTYPE=void
@@ -454,35 +454,35 @@ target_compile_definitions(ks PUBLIC
 
 # Handle debug mode
 if (KS_DEBUG_HANDLE)
-	target_compile_definitions(ks PUBLIC
+	target_compile_definitions(ks2 PUBLIC
 		-DKS_DEBUG_HANDLE=1
 	)
 endif()
 
 # JSON debug mode
 if (KS_DEBUG_JSON)
-	target_compile_definitions(ks PUBLIC
+	target_compile_definitions(ks2 PUBLIC
 		-DKS_DEBUG_JSON=1
 	)
 endif()
 
 # Pool debug mode
 if (KS_DEBUG_POOL)
-	target_compile_definitions(ks PUBLIC
+	target_compile_definitions(ks2 PUBLIC
 		-DKS_DEBUG_POOL=1
 	)
 endif()
 
 # Spinlock debug mode
 if (KS_DEBUG_SPINLOCK)
-	target_compile_definitions(ks PUBLIC
+	target_compile_definitions(ks2 PUBLIC
 		-DKS_DEBUG_SPINLOCK=1
 	)
 endif()
 
 # Mutex debug mode
 if (KS_DEBUG_MUTEX)
-	target_compile_definitions(ks PUBLIC
+	target_compile_definitions(ks2 PUBLIC
 		-DKS_DEBUG_MUTEX=1
 	)
 endif()
@@ -493,9 +493,9 @@ if (NOT KS_PLAT_WIN)
 	check_cxx_compiler_flag(-fvisibility=hidden COMPILER_HAS_HIDDEN_VISIBILITY)
 	if (COMPILER_HAS_HIDDEN_VISIBILITY)
 		message("Compiler supports visibility")
-		set_target_properties(ks PROPERTIES CXX_VISIBILITY_PRESET hidden)
-		set_target_properties(ks PROPERTIES C_VISIBILITY_PRESET hidden)
-		target_compile_definitions(ks PRIVATE
+		set_target_properties(ks2 PROPERTIES CXX_VISIBILITY_PRESET hidden)
+		set_target_properties(ks2 PROPERTIES C_VISIBILITY_PRESET hidden)
+		target_compile_definitions(ks2 PRIVATE
 			-DKS_API_VISIBILITY=1
 		)
 	else()
@@ -504,39 +504,39 @@ if (NOT KS_PLAT_WIN)
 endif()
 
 if (IS_BIG_ENDIAN)
-	target_compile_definitions(ks PUBLIC
+	target_compile_definitions(ks2 PUBLIC
 		-D__BYTE_ORDER=__BIG_ENDIAN
 	)
 else()
-	target_compile_definitions(ks PUBLIC
+	target_compile_definitions(ks2 PUBLIC
 		-D__BYTE_ORDER=__LITTLE_ENDIAN
 	)
 endif()
 
 # Setup ks core dependent linkages
 target_link_libraries(
-	ks PUBLIC
+	ks2 PUBLIC
    	OpenSSL::SSL
 	OpenSSL::Crypto
 )
 
 if (NOT KS_PLAT_WIN)
 	target_link_libraries(
-		ks PRIVATE
+		ks2 PRIVATE
 		LIBUUID::LIBUUID
 		Threads::Threads
 	)
 endif()
 
 if (KS_PLAT_LIN)
-	target_link_libraries(ks PRIVATE LIBM::LIBM)
-	target_link_libraries(ks PUBLIC rt atomic)
+	target_link_libraries(ks2 PRIVATE LIBM::LIBM)
+	target_link_libraries(ks2 PUBLIC rt atomic)
 endif()
 
 # Include key paths
 target_include_directories(
-	ks PUBLIC
-	$<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include/libks>		# Include both include paths in the install config
+	ks2 PUBLIC
+	$<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include/libks2>		# Include both include paths in the install config
 	$<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>				# so we don't break any includes in installed areas
 
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/src/include>	# Within the build tree however, encforce the root
@@ -544,41 +544,39 @@ target_include_directories(
 )
 
 target_include_directories(
-	ks PRIVATE
+	ks2 PRIVATE
 	${OPENSSL_INCLUDE_DIR}
 )
 
 # Setup a useful export file for inclusion in other projects
-export(TARGETS ks
+export(TARGETS ks2
 	NAMESPACE ${PROJECT_NAME}
-	FILE LibKSConfig.cmake
+	FILE LibKS2Config.cmake
 	EXPORT_LINK_INTERFACE_LIBRARIES
 )
 
 if (NOT KS_PLAT_WIN)
 
 	# Set install targets
-	install(TARGETS ks COMPONENT "runtime" EXPORT LibKSConfig DESTINATION lib)
-	install(DIRECTORY src/include/libks COMPONENT "runtime" DESTINATION include PATTERN src/include/libks/internal EXCLUDE)
+	install(TARGETS ks2 COMPONENT "runtime" EXPORT LibKS2Config DESTINATION lib)
+	install(DIRECTORY src/include/libks COMPONENT "runtime" DESTINATION include/libks2 PATTERN src/include/libks/internal EXCLUDE)
 
 	# Set path for pkg-config based on ARCH and distro type
 	if("${CMAKE_OS_NAME}" STREQUAL "Centos") # pkg-config --variable pc_path pkg-config
 		if(${CPACK_SYSTEM_NAME} MATCHES "x86_64")
-			install(FILES ${PROJECT_BINARY_DIR}/libks.pc COMPONENT "runtime" DESTINATION lib64/pkgconfig)
+			install(FILES ${PROJECT_BINARY_DIR}/libks2.pc COMPONENT "runtime" DESTINATION lib64/pkgconfig)
 		else()
-			install(FILES ${PROJECT_BINARY_DIR}/libks.pc COMPONENT "runtime" DESTINATION lib/pkgconfig)
+			install(FILES ${PROJECT_BINARY_DIR}/libks2.pc COMPONENT "runtime" DESTINATION lib/pkgconfig)
 		endif()
 	else()
-		install(FILES ${PROJECT_BINARY_DIR}/libks.pc COMPONENT "runtime" DESTINATION lib/pkgconfig)
+		install(FILES ${PROJECT_BINARY_DIR}/libks2.pc COMPONENT "runtime" DESTINATION lib/pkgconfig)
 	endif()
 
-	install(FILES cmake/ksutil.cmake COMPONENT "runtime" DESTINATION include/libks/cmake)
-	install(FILES cmake/FindPCRE.cmake COMPONENT "runtime" DESTINATION include/libks/cmake)
-	install(FILES cmake/FindConfig.cmake COMPONENT "runtime" DESTINATION include/libks/cmake)
-	install(FILES cmake/FindConfigCpp.cmake COMPONENT "runtime" DESTINATION include/libks/cmake)
-	install(FILES cmake/AddLibBacktrace.cmake COMPONENT "runtime" DESTINATION include/libks/cmake)
-	install(FILES ${PROJECT_SOURCE_DIR}/copyright COMPONENT "runtime" DESTINATION share/doc/libks)
-	install(EXPORT LibKSConfig COMPONENT "runtime" DESTINATION include/libks/cmake)
+	install(FILES cmake/ksutil.cmake COMPONENT "runtime" DESTINATION include/libks2/libks/cmake)
+	install(FILES cmake/FindPCRE.cmake COMPONENT "runtime" DESTINATION include/libks2/libks/cmake)
+	install(FILES cmake/AddLibBacktrace.cmake COMPONENT "runtime" DESTINATION include/libks2/libks/cmake)
+	install(FILES ${PROJECT_SOURCE_DIR}/copyright COMPONENT "runtime" DESTINATION share/doc/libks2)
+	install(EXPORT LibKS2Config COMPONENT "runtime" DESTINATION include/libks2/libks/cmake)
 
 	# Set uninstall target
 	if(NOT TARGET uninstall)
@@ -602,8 +600,8 @@ if (NOT KS_PLAT_WIN)
 	# Version: @PACKAGE_VERSION@
 	set(PC_PREFIX ${CMAKE_INSTALL_PREFIX})
 	set(PACKAGE_VERSION ${PROJECT_VERSION})
-	get_property(PC_DEFINITIONS TARGET ks PROPERTY INTERFACE_COMPILE_DEFINITIONS)
-	configure_file("${CMAKE_CURRENT_LIST_DIR}/libks.pc.in" "${PROJECT_BINARY_DIR}/libks.pc" @ONLY)
+	get_property(PC_DEFINITIONS TARGET ks2 PROPERTY INTERFACE_COMPILE_DEFINITIONS)
+	configure_file("${CMAKE_CURRENT_LIST_DIR}/libks.pc.in" "${PROJECT_BINARY_DIR}/libks2.pc" @ONLY)
 endif()
 
 #cotire(ks)

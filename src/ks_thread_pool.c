@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,7 +40,10 @@ struct ks_thread_pool_s {
 	uint32_t busy_thread_count;
 	uint32_t running_thread_count;
 	uint32_t dying_thread_count;
+	ks_hash_t *thread_hash;
+	ks_hash_t *thread_die_hash;
 	ks_thread_pool_state_t state;
+	ks_mutex_t *state_mutex;
 	ks_mutex_t *mutex;
 };
 
@@ -51,6 +54,29 @@ typedef struct ks_thread_job_s {
 
 
 static void *worker_thread(ks_thread_t *thread, void *data);
+
+static void cleanup_threads(ks_thread_pool_t *tp)
+{
+	ks_hash_iterator_t *itt;
+
+	ks_hash_write_lock(tp->thread_die_hash);
+	for (itt = ks_hash_first(tp->thread_die_hash, KS_UNLOCKED); itt; ) {
+		void *key;
+
+		ks_hash_this(itt, (const void **)&key, NULL, NULL);
+		ks_thread_join((ks_thread_t*)key);
+
+		itt = ks_hash_next(&itt);
+		ks_hash_remove(tp->thread_die_hash, key);
+
+		ks_hash_write_lock(tp->thread_hash);
+		ks_hash_remove(tp->thread_hash, key);
+		ks_hash_write_unlock(tp->thread_hash);
+
+		ks_thread_destroy((ks_thread_t**)&key);
+	}
+	ks_hash_write_unlock(tp->thread_die_hash);
+}
 
 static int check_queue(ks_thread_pool_t *tp, ks_bool_t adding)
 {
@@ -64,6 +90,7 @@ static int check_queue(ks_thread_pool_t *tp, ks_bool_t adding)
 		return 1;
 	}
 
+	cleanup_threads(tp);
 
 	if (tp->thread_count < tp->min) {
 		need = tp->min - tp->thread_count;
@@ -81,12 +108,26 @@ static int check_queue(ks_thread_pool_t *tp, ks_bool_t adding)
 	ks_mutex_unlock(tp->mutex);
 
 	while(need > 0) {
-		if (ks_thread_create_ex(&thread, worker_thread, tp, KS_THREAD_FLAG_DETACHED, tp->stack_size, tp->priority, ks_pool_get(tp)) != KS_STATUS_SUCCESS) {
+		/* To avoid a deadlock we protect thread_hash from being locked when state is changed to DOWN */
+		ks_mutex_lock(tp->state_mutex);
+		if (tp->state != TP_STATE_RUNNING) {
+			/* Not going to spin-up the rest of the threads */
+			ks_mutex_lock(tp->mutex);
+			tp->thread_count -= need;
+			ks_mutex_unlock(tp->mutex);
+			ks_mutex_unlock(tp->state_mutex);
+			return 0;
+		}
+
+		if (ks_thread_create_ex(&thread, worker_thread, tp, KS_THREAD_FLAG_DEFAULT, tp->stack_size, tp->priority, NULL) != KS_STATUS_SUCCESS) {
 			ks_mutex_lock(tp->mutex);
 			tp->thread_count--;
 			ks_mutex_unlock(tp->mutex);
+		} else {
+			ks_hash_insert(tp->thread_hash, thread, NULL);
 		}
 
+		ks_mutex_unlock(tp->state_mutex);
 		need--;
 	}
 	/*
@@ -179,6 +220,7 @@ static void *worker_thread(ks_thread_t *thread, void *data)
 	if (die) {
 		tp->dying_thread_count--;
 	}
+	ks_hash_insert(tp->thread_die_hash, thread, NULL);
 	ks_mutex_unlock(tp->mutex);
 
 	return NULL;
@@ -201,7 +243,10 @@ KS_DECLARE(ks_status_t) ks_thread_pool_create(ks_thread_pool_t **tp, uint32_t mi
 	(*tp)->idle_sec = idle_sec;
 
 	ks_mutex_create(&(*tp)->mutex, KS_MUTEX_FLAG_DEFAULT, pool);
+	ks_mutex_create(&(*tp)->state_mutex, KS_MUTEX_FLAG_DEFAULT, pool);
 	ks_q_create(&(*tp)->q, pool, TP_MAX_QLEN);
+	ks_hash_create(&(*tp)->thread_hash, KS_HASH_MODE_PTR, KS_HASH_FLAG_NONE, pool);
+	ks_hash_create(&(*tp)->thread_die_hash, KS_HASH_MODE_PTR, KS_HASH_FLAG_NONE, pool);
 
 	check_queue(*tp, KS_FALSE);
 
@@ -213,14 +258,29 @@ KS_DECLARE(ks_status_t) ks_thread_pool_create(ks_thread_pool_t **tp, uint32_t mi
 KS_DECLARE(ks_status_t) ks_thread_pool_destroy(ks_thread_pool_t **tp)
 {
 	ks_pool_t *pool = NULL;
+	ks_hash_iterator_t *itt;
 
 	ks_assert(tp);
 
+	/* To avoid a deadlock we do not allow check_queue() to lock thread_hash while state is changed to DOWN */
+	ks_mutex_lock((*tp)->state_mutex);
 	(*tp)->state = TP_STATE_DOWN;
+	ks_mutex_unlock((*tp)->state_mutex);
 
-	while((*tp)->thread_count) {
-		ks_sleep(100000);
+	ks_hash_write_lock((*tp)->thread_hash);
+	for (itt = ks_hash_first((*tp)->thread_hash, KS_UNLOCKED); itt; ) {
+		void *key;
+
+		ks_hash_this(itt, (const void **)&key, NULL, NULL);
+		ks_thread_join((ks_thread_t*)key);
+		itt = ks_hash_next(&itt);
+		ks_hash_remove((*tp)->thread_hash, key);
+		ks_thread_destroy((ks_thread_t**)&key);
 	}
+
+	ks_hash_write_unlock((*tp)->thread_hash);
+	ks_hash_destroy(&(*tp)->thread_hash);
+	ks_hash_destroy(&(*tp)->thread_die_hash);
 
 	pool = ks_pool_get(*tp);
 	ks_pool_close(&pool);

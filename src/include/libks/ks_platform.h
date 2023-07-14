@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,7 +35,7 @@ KS_BEGIN_EXTERN_C
 
 #if !defined(__WINDOWS__) && (defined(WIN32) || defined(WIN64) || defined(_MSC_VER) || defined(_WIN32))
 #define __WINDOWS__
-#define __PRETTY_FUNCTION__ __FUNCTION__
+#define __KS_FUNC__ __FUNCTION__
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -43,6 +43,8 @@ KS_BEGIN_EXTERN_C
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #endif
 #define _CRTDBG_MAP_ALLOC
+#else
+#define __KS_FUNC__ (const char *)__func__
 #endif
 
 #ifndef _GNU_SOURCE

@@ -128,7 +128,7 @@ typedef void (*ks_pool_log_func_t) (const void *pool,
 
 KS_DECLARE(ks_status_t) ks_pool_tagged_open(ks_pool_t **poolP, const char *fileP, int line, const char *tagP);
 
-#define ks_pool_open(poolP) ks_pool_tagged_open((poolP), __FILE__, __LINE__, __PRETTY_FUNCTION__)
+#define ks_pool_open(poolP) ks_pool_tagged_open((poolP), __FILE__, __LINE__, __KS_FUNC__)
 #define ks_pool_open_ex(poolP, tag) ks_pool_tagged_open((poolP), __FILE__, __LINE__, NULL, tag)
 
 #ifdef KS_DEBUG_POOL
@@ -235,7 +235,7 @@ KS_DECLARE(void) ks_pool_log_on_close(ks_pool_t *pool);
  */
 KS_DECLARE(void *) __ks_pool_alloc(ks_pool_t *pool, const ks_size_t size, const char *file, int line, const char *tag);
 
-#define ks_pool_alloc(pool, size) __ks_pool_alloc(pool, size, __FILE__, __LINE__, __PRETTY_FUNCTION__)
+#define ks_pool_alloc(pool, size) __ks_pool_alloc(pool, size, __FILE__, __LINE__, __KS_FUNC__)
 
 /*
  * void *__ks_pool_alloc_ex
@@ -264,7 +264,7 @@ KS_DECLARE(void *) __ks_pool_alloc(ks_pool_t *pool, const ks_size_t size, const 
  */
 KS_DECLARE(void *) __ks_pool_alloc_ex(ks_pool_t *pool, const ks_size_t size, const char *file, int line, const char *tag, ks_status_t *error_p);
 
-#define ks_pool_alloc_ex(pool, size, error_p) __ks_pool_alloc_ex(pool, size, __FILE__, __LINE__, __PRETTY_FUNCTION__, error_p)
+#define ks_pool_alloc_ex(pool, size, error_p) __ks_pool_alloc_ex(pool, size, __FILE__, __LINE__, __KS_FUNC__, error_p)
 
 /*
  * void *__ks_pool_calloc
@@ -294,7 +294,7 @@ KS_DECLARE(void *) __ks_pool_alloc_ex(ks_pool_t *pool, const ks_size_t size, con
  */
 KS_DECLARE(void *) __ks_pool_calloc(ks_pool_t *pool, const ks_size_t ele_n, const ks_size_t ele_size, const char *file, int line, const char *tag);
 
-#define ks_pool_calloc(pool, ele_n, ele_size) __ks_pool_calloc(pool, ele_n, ele_size, __FILE__, __LINE__, __PRETTY_FUNCTION__)
+#define ks_pool_calloc(pool, ele_n, ele_size) __ks_pool_calloc(pool, ele_n, ele_size, __FILE__, __LINE__, __KS_FUNC__)
 
 /*
  * void *__ks_pool_calloc_ex
@@ -326,7 +326,7 @@ KS_DECLARE(void *) __ks_pool_calloc(ks_pool_t *pool, const ks_size_t ele_n, cons
  */
 KS_DECLARE(void *) __ks_pool_calloc_ex(ks_pool_t *pool, const ks_size_t ele_n, const ks_size_t ele_size, const char *file, int line, const char *tag, ks_status_t *error_p);
 
-#define ks_pool_calloc_ex(pool, ele_n, ele_size, error_p) __ks_pool_calloc_ex(pool, ele_n, ele_size, __FILE__, __LINE__, __PRETTY_FUNCTION__, error_p)
+#define ks_pool_calloc_ex(pool, ele_n, ele_size, error_p) __ks_pool_calloc_ex(pool, ele_n, ele_size, __FILE__, __LINE__, __KS_FUNC__, error_p)
 
 /*
  * int ks_pool_free
@@ -375,10 +375,6 @@ KS_DECLARE(void *) ks_pool_ref_ex(void *addr, ks_status_t *error_p);
 
 #define ks_pool_ref(_x) ks_pool_ref_ex(_x, NULL)
 
-KS_DECLARE(void) ks_pool_allocation_lock_release(void *addr);
-KS_DECLARE(void) ks_pool_allocation_lock_acquire(void *addr);
-KS_DECLARE(ks_bool_t) ks_pool_allocation_lock_try_acquire(void *addr);
-
 /*
  * void *__ks_pool_resize
  *
@@ -402,7 +398,7 @@ KS_DECLARE(ks_bool_t) ks_pool_allocation_lock_try_acquire(void *addr);
  *
  */
 KS_DECLARE(void *) __ks_pool_resize(void *old_addr, const ks_size_t new_size, const char *file, int line, const char *tag);
-#define ks_pool_resize(old_addr, new_size) __ks_pool_resize(old_addr, new_size, __FILE__, __LINE__, __PRETTY_FUNCTION__)
+#define ks_pool_resize(old_addr, new_size) __ks_pool_resize(old_addr, new_size, __FILE__, __LINE__, __KS_FUNC__)
 
 /*
  * void *__ks_pool_resize_ex
@@ -429,7 +425,7 @@ KS_DECLARE(void *) __ks_pool_resize(void *old_addr, const ks_size_t new_size, co
  * file/line/tag -> Contextual information for use with KS_DEBUG_POOL
  */
 KS_DECLARE(void *) __ks_pool_resize_ex(void *old_addr, const ks_size_t new_size, ks_status_t *error_p, const char *file, int line, const char *tag);
-#define ks_pool_resize_ex(old_addr, new_size, error_p)	__ks_pool_resize_ex(old_addr, new_size, error_p, __FILE__, __LINE__, __PRETTY_FUNCTION__)
+#define ks_pool_resize_ex(old_addr, new_size, error_p)	__ks_pool_resize_ex(old_addr, new_size, error_p, __FILE__, __LINE__, __KS_FUNC__)
 
 /*
  * int ks_pool_stats
@@ -521,22 +517,22 @@ KS_DECLARE(void *) __ks_pmemdup(ks_pool_t *pool, const void *buf, ks_size_t len,
 KS_DECLARE(char *) __ks_pstrcat(const char *file, int line, const char *tag, ks_pool_t *pool, ...);
 KS_DECLARE(char *) __ks_psprintf(const char *file, int line, const char *tag, ks_pool_t *pool, const char *fmt, ...);
 
-#define ks_pstrdup(pool, str)  __ks_pstrdup(pool, str, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define ks_pstrndup(pool, str, len) __ks_pstrndup(pool, str, len, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define ks_pstrmemdup(pool, str, len) __ks_pstrmemdup(pool, str, len, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define ks_pmemdup(pool, buf, len) __ks_pmemdup(pool, buf, len, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define ks_pstrcat(pool, ...) __ks_pstrcat(__FILE__, __LINE__, __PRETTY_FUNCTION__, pool, __VA_ARGS__)
-#define ks_psprintf(pool, fmt, ...) __ks_psprintf(__FILE__, __LINE__, __PRETTY_FUNCTION__, pool, fmt, __VA_ARGS__)
-#define ks_pexplode(pool, string, delimiter) __ks_pexplode(pool, string, delimiter, __FILE__, __LINE__, __PRETTY_FUNCTION__)
+#define ks_pstrdup(pool, str)  __ks_pstrdup(pool, str, __FILE__, __LINE__, __KS_FUNC__)
+#define ks_pstrndup(pool, str, len) __ks_pstrndup(pool, str, len, __FILE__, __LINE__, __KS_FUNC__)
+#define ks_pstrmemdup(pool, str, len) __ks_pstrmemdup(pool, str, len, __FILE__, __LINE__, __KS_FUNC__)
+#define ks_pmemdup(pool, buf, len) __ks_pmemdup(pool, buf, len, __FILE__, __LINE__, __KS_FUNC__)
+#define ks_pstrcat(pool, ...) __ks_pstrcat(__FILE__, __LINE__, __KS_FUNC__, pool, __VA_ARGS__)
+#define ks_psprintf(pool, fmt, ...) __ks_psprintf(__FILE__, __LINE__, __KS_FUNC__, pool, fmt, __VA_ARGS__)
+#define ks_pexplode(pool, string, delimiter) __ks_pexplode(pool, string, delimiter, __FILE__, __LINE__, __KS_FUNC__)
 
 /* For non pool allocations we still create wrappers so that when needed we can track the allocations should there be a leak */
 KS_DECLARE(void*) __ks_malloc(ks_size_t size, const char *file, int line, const char *tag);
 KS_DECLARE(void*) __ks_realloc(void *mem, ks_size_t new_size, const char *file, int line, const char *tag);
 KS_DECLARE(void*) __ks_calloc(size_t count, ks_size_t elem_size, const char *file, int line, const char *tag);
 
-#define ks_calloc(count, elem_size)	__ks_calloc(count, elem_size, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define ks_realloc(mem, new_size) __ks_realloc(mem, new_size, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define ks_malloc(size)	__ks_malloc(size, __FILE__, __LINE__, __PRETTY_FUNCTION__)
+#define ks_calloc(count, elem_size)	__ks_calloc(count, elem_size, __FILE__, __LINE__, __KS_FUNC__)
+#define ks_realloc(mem, new_size) __ks_realloc(mem, new_size, __FILE__, __LINE__, __KS_FUNC__)
+#define ks_malloc(size)	__ks_malloc(size, __FILE__, __LINE__, __KS_FUNC__)
 
 #define ks_safe_free(_x) do { if (_x) { free(_x); _x = NULL; } } while (KS_FALSE)
 

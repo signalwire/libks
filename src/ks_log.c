@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,14 +23,6 @@
 #include "libks/ks.h"
 #include "libks/ks_atomic.h"
 
-static void null_logger(const char *file, const char *func, int line, int level, const char *fmt, ...)
-{
-	if (file && func && line && level && fmt) {
-		return;
-	}
-	return;
-}
-
 static const char *LEVEL_NAMES[] = {
 	"EMERG",
 	"ALERT",
@@ -43,45 +35,12 @@ static const char *LEVEL_NAMES[] = {
 	NULL
 };
 
-/* A simple spin flag for gating console writes */
-static ks_spinlock_t g_log_spin_lock;
-
-#ifdef _WIN32
-	#define KNRM  ""
-	#define KRED  ""
-	#define KGRN  ""
-	#define KYEL  ""
-	#define KBLU  ""
-	#define KMAG  ""
-	#define KCYN  ""
-	#define KWHT  ""
-#else
-	#define KNRM  "\x1B[0m"
-	#define KRED  "\x1B[31m"
-	#define KGRN  "\x1B[32m"
-	#define KYEL  "\x1B[33m"
-	#define KBLU  "\x1B[34m"
-	#define KMAG  "\x1B[35m"
-	#define KCYN  "\x1B[36m"
-	#define KWHT  "\x1B[37m"
-#endif
-
-static const char *LEVEL_COLORS[] = {
-	KRED, // EMERG
-	KRED, // ALERT
-	KRED, // CRIT
-	KRED, // ERROR
-	KYEL, // WARN
-	KWHT, // NOTICE
-	KWHT, // INFO
-	KCYN, // DEBUG
-	NULL
-};
+static ks_mutex_t *g_log_mutex;
 
 static int ks_log_level = 7;
-static int ks_file_log_level = 7;
-static FILE *ks_file_log_fp = NULL;
 static ks_log_prefix_t ks_log_prefix = KS_LOG_PREFIX_DEFAULT;
+static ks_bool_t ks_log_jsonified = KS_FALSE;
+static char const* ks_log_json_enclose_name = NULL;
 
 KS_DECLARE(void) ks_log_sanitize_string(char *str)
 {
@@ -183,12 +142,6 @@ static ks_bool_t wakeup_stdout()
 	return KS_TRUE;
 }
 #endif
-
-KS_DECLARE(const char *) ks_log_console_color(int level)
-{
-	if (level < KS_LOG_LEVEL_EMERG || level > KS_LOG_LEVEL_DEBUG) return KNRM;
-	return LEVEL_COLORS[level];
-}
 
 KS_DECLARE(ks_size_t) ks_log_format_output(char *buf, ks_size_t bufSize, const char *file, const char *func, int line, int level, const char *fmt, va_list ap)
 {
@@ -292,34 +245,78 @@ static void default_logger(const char *file, const char *func, int line, int lev
 {
 	va_list ap;
 	char buf[32768];
-	ks_size_t prefixlen;
-	ks_size_t suffixlen;
 	ks_size_t len;
-	ks_bool_t toconsole = KS_FALSE;
-	ks_bool_t tofile = KS_FALSE;
 
 	if (level < 0 || level > 7) {
 		level = 7;
 	}
-    toconsole = level <= ks_log_level;
-	tofile = ks_file_log_fp && level <= ks_file_log_level;
-	if (!toconsole && !tofile) return;
+	if (level > ks_log_level) return;
 	
 	va_start(ap, fmt);
 
-	// Prefix the buffer with the color
-	strcpy(buf, LEVEL_COLORS[level]);
-	prefixlen = strlen(buf);
-	suffixlen = strlen(KNRM);
+	if (ks_log_jsonified) {
+		char *data = NULL;
+		ks_vasprintf(&data, fmt, ap);
+		len = strlen(data);
+		if (len > 0) {
+			char tbuf[256];
+			ks_json_t *response = ks_json_create_object();
+			ks_json_t *json = response;
 
-	// Add to the buffer after the color, save space for color reset
-	len = ks_log_format_output(buf + prefixlen, sizeof(buf) - prefixlen - suffixlen, file, func, line, level, fmt, ap);
+			if(ks_log_json_enclose_name) {
+				json = ks_json_add_object_to_object(response, ks_log_json_enclose_name);
+			}
+		
+			ks_json_add_string_to_object(json, "message", data);
 
-	if (len > 0) {
-		ks_spinlock_acquire(&g_log_spin_lock);
-		if (toconsole) {
-			ks_size_t total = prefixlen + len + suffixlen;
-			strcpy(buf + prefixlen + len, KNRM);
+			// TODO: Add prefix data as fields
+			ks_json_add_string_to_object(json, "level", LEVEL_NAMES[level]);
+
+			{
+				time_t now = time(0);
+				struct tm nowtm;
+
+#ifdef WIN32
+				localtime_s(&nowtm, &now);
+#else
+				localtime_r(&now, &nowtm);
+#endif
+
+				strftime(tbuf, sizeof(tbuf), "%Y-%m-%d %H:%M:%S", &nowtm);
+
+				ks_json_add_string_to_object(json, "timestamp", tbuf);
+			}
+
+			{
+				uint32_t id = (uint32_t)ks_thread_self_id();
+#ifdef __GNU__
+				id = (uint32_t)syscall(SYS_gettid);
+#endif
+				snprintf(tbuf, sizeof(tbuf), "#%8.8X", id);
+
+				ks_json_add_string_to_object(json, "thread", tbuf);
+			}
+
+			ks_json_add_string_to_object(json, "file", file);
+			ks_json_add_string_to_object(json, "func", func);
+			ks_json_add_number_to_object(json, "line", line);
+
+			char *tmp = ks_json_print_unformatted(response);
+
+			ks_mutex_lock(g_log_mutex);
+			fprintf(stdout, "%s\n", tmp);
+			ks_mutex_unlock(g_log_mutex);
+			
+			free(tmp); // cleanup
+			ks_json_delete(&json);
+		}
+		if (data) free(data);
+	} else {
+		len = ks_log_format_output(buf, sizeof(buf), file, func, line, level, fmt, ap);
+
+		if (len > 0) {
+			ks_mutex_lock(g_log_mutex);
+			ks_size_t total = len;
 		
 			//fprintf(stdout, "[%s] %s:%d %s() %s", LEVEL_NAMES[level], fp, line, func, data);
 #if KS_PLAT_WIN
@@ -357,52 +354,18 @@ static void default_logger(const char *file, const char *func, int line, int lev
 				__set_blocking(fileno(stdout), KS_TRUE);
 			}
 #endif
+			ks_mutex_unlock(g_log_mutex);
 		}
-		if (tofile) {
-			ks_bool_t done = KS_FALSE;
-			ks_size_t written = 0;
-
-			while (!done) {
-				ks_size_t thisWrite = fwrite(buf + prefixlen + written, 1, len - written, ks_file_log_fp);
-				if (thisWrite > 0) {
-					written += thisWrite;
-					if (written == len) done = KS_TRUE;
-					if (fflush(ks_file_log_fp)) {
-						// file log cannot be flushed, stream is no longer valid?
-						fclose(ks_file_log_fp);
-						ks_file_log_fp = NULL;
-					}
-				} else {
-					// file log cannot be written to, skip logging... yuck
-					break;
-				}
-			}
-		}
-		ks_spinlock_release(&g_log_spin_lock);
 	}
 
 	va_end(ap);
 }
 
-ks_logger_t ks_logger = null_logger;
+static ks_logger_t ks_logger = default_logger;
 
 KS_DECLARE(void) ks_global_set_logger(ks_logger_t logger)
 {
-	if (logger) {
-		ks_logger = logger;
-	} else {
-		ks_logger = null_logger;
-	}
-}
-
-KS_DECLARE(void) ks_global_set_default_logger(int level)
-{
-	if (level < 0 || level > 7) {
-		level = 7;
-	}
-
-	ks_logger = default_logger;
-	ks_log_level = level;
+	ks_logger = logger;
 }
 
 KS_DECLARE(void) ks_global_set_default_logger_prefix(ks_log_prefix_t prefix)
@@ -413,33 +376,26 @@ KS_DECLARE(void) ks_global_set_default_logger_prefix(ks_log_prefix_t prefix)
 KS_DECLARE(void) ks_global_set_log_level(int level)
 {
   ks_log_level = level;
-  if (ks_logger == null_logger) {
-	  ks_logger = default_logger;
-  }
 }
 
-KS_DECLARE(void) ks_global_set_file_log_level(int level)
+KS_DECLARE(void) ks_log_jsonify(void)
 {
-	ks_file_log_level = level;
-	if (ks_logger == null_logger) {
-		ks_logger = default_logger;
-	}
+	ks_log_jsonified = KS_TRUE;
 }
 
-KS_DECLARE(ks_bool_t) ks_global_set_file_log_path(const char *path)
+KS_DECLARE(void) ks_log_json_set_enclosing_name(char const*name)
 {
-	if (ks_file_log_fp) fclose(ks_file_log_fp);
-	ks_file_log_fp = fopen(path, "w");
-	if (!ks_file_log_fp) return KS_FALSE;
-	if (ks_logger == null_logger) {
-		ks_logger = default_logger;
-	}
-	return KS_TRUE;
+	ks_log_json_enclose_name = name;
 }
 
-KS_DECLARE(void) ks_global_close_file_log(void)
+KS_DECLARE(void) ks_log_init(void)
 {
-	if (ks_file_log_fp) fclose(ks_file_log_fp);
+	ks_mutex_create(&g_log_mutex, KS_MUTEX_FLAG_DEFAULT | KS_MUTEX_FLAG_RAW_ALLOC, NULL);
+}
+
+KS_DECLARE(void) ks_log_shutdown(void)
+{
+	ks_mutex_destroy(&g_log_mutex);
 }
 
 KS_DECLARE(void) ks_log(const char *file, const char *func, int line, int level, const char *fmt, ...)
