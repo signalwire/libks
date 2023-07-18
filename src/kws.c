@@ -636,10 +636,12 @@ static void setup_socket(ks_socket_t sock)
 	ks_socket_option(sock, KS_SO_NONBLOCK, KS_TRUE);
 	ks_socket_option(sock, TCP_NODELAY, KS_TRUE);
 	ks_socket_option(sock, SO_KEEPALIVE, KS_TRUE);
+#ifdef KS_KEEP_IDLE_INTVL
 #ifndef __APPLE__
 	ks_socket_option(sock, TCP_KEEPIDLE, 30);
 	ks_socket_option(sock, TCP_KEEPINTVL, 30);
 #endif
+#endif /* KS_KEEP_IDLE_INTVL */
 }
 
 static void restore_socket(ks_socket_t sock)
