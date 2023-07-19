@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,6 +41,7 @@ KS_DECLARE(ks_status_t) ks_q_push(ks_q_t *q, void *ptr);
 KS_DECLARE(ks_status_t) ks_q_trypush(ks_q_t *q, void *ptr);
 KS_DECLARE(ks_status_t) ks_q_pop(ks_q_t *q, void **ptr);
 KS_DECLARE(ks_status_t) ks_q_trypop(ks_q_t *q, void **ptr);
+KS_DECLARE(ks_status_t) ks_q_trypeek(ks_q_t *q, void **ptr);
 
 KS_END_EXTERN_C
 

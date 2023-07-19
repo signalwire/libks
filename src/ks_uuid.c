@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -69,7 +69,7 @@ KS_DECLARE(const char *) __ks_uuid_null_str(ks_pool_t *pool, const char *file, i
 	return __ks_uuid_str(pool, &null_uuid, file, line, tag);
 }
 
-KS_DECLARE(const char *) ks_uuid_null_thr_str()
+KS_DECLARE(const char *) ks_uuid_null_thr_str(void)
 {
 	static ks_uuid_t null_uuid = {0};
 	return ks_uuid_thr_str(&null_uuid);
@@ -107,7 +107,7 @@ KS_DECLARE(ks_uuid_t) ks_uuid_from_str(const char * const string)
 	return uuid;
 }
 
-KS_DECLARE(ks_uuid_t) ks_uuid_null()
+KS_DECLARE(ks_uuid_t) ks_uuid_null(void)
 {
 	ks_uuid_t uuid = {0};
 	return uuid;

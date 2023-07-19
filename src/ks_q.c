@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -342,6 +342,28 @@ static ks_status_t do_pop(ks_q_t *q, void **ptr)
 	return KS_STATUS_SUCCESS;
 }
 
+static ks_status_t do_peek(ks_q_t *q, void **ptr)
+{
+	ks_qnode_t *np;
+
+	ks_mutex_lock(q->list_mutex);
+
+	if (!q->active) {
+		ks_mutex_unlock(q->list_mutex);
+		return KS_STATUS_INACTIVE;
+	}
+
+	if (!q->head) {
+		*ptr = NULL;
+	} else {
+		np = q->head;
+		*ptr = np->ptr;
+	}
+	ks_mutex_unlock(q->list_mutex);
+
+	return KS_STATUS_SUCCESS;
+}
+
 KS_DECLARE(ks_status_t) ks_q_pop_timeout(ks_q_t *q, void **ptr, uint32_t timeout)
 {
 	ks_status_t r;
@@ -418,6 +440,32 @@ KS_DECLARE(ks_status_t) ks_q_trypop(ks_q_t *q, void **ptr)
 	if (q->pushers) {
 		ks_cond_signal(q->push_cond);
 	}
+
+ end:
+
+	ks_mutex_unlock(q->list_mutex);
+
+	return r;
+
+}
+
+KS_DECLARE(ks_status_t) ks_q_trypeek(ks_q_t *q, void **ptr)
+{
+	ks_status_t r;
+
+	ks_mutex_lock(q->list_mutex);
+
+	if (!q->active) {
+		r = KS_STATUS_INACTIVE;
+		goto end;
+	}
+
+	if (q->len == 0) {
+		r = KS_STATUS_BREAK;
+		goto end;
+	}
+
+	r = do_peek(q, ptr);
 
  end:
 

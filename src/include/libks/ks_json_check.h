@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,7 +29,7 @@ typedef int (*ks_json_simple_check_function)(ks_json_t *);
 typedef int (*ks_json_check_function)(ks_json_t *, const char **);
 
 #define JSON_CHECK_DECL(name) KS_DECLARE(int) CHECK_##name(ks_json_t *item, const char **error_msg);
-#define JSON_CHECK(name, rule) KS_DECLARE(int) CHECK_##name(ks_json_t *item, const char **error_msg) { ks_json_t *cur = NULL; if (!ks_json_check_object(item, rule)) { *error_msg = #name " error"; return 0; }
+#define JSON_CHECK(name, rule) KS_DECLARE(int) CHECK_##name(ks_json_t *item, const char **error_msg) { ks_json_t *cur = NULL; (void)(cur); if (!ks_json_check_object(item, rule)) { *error_msg = #name " error"; return 0; }
 #define JSON_CHECK_ARRAY(name, rule) KS_DECLARE(int) CHECK_##name(ks_json_t *item, const char **error_msg) { if (!ks_json_check_array_items(item, CHECK_##rule, error_msg)) { return 0; }
 
 #define JSON_CHECK_CUSTOM(name, chk_fn, param) { cur = ks_json_get_object_item(item, #name); if (!chk_fn(cur, param, error_msg)) return 0; }
@@ -38,6 +38,7 @@ typedef int (*ks_json_check_function)(ks_json_t *, const char **);
 #define JSON_CHECK_OBJECT_OPTIONAL(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !CHECK_##rule(cur, error_msg)) { return 0; }
 #define JSON_CHECK_OBJECT_IF_STRING_MATCHES(value, name, rule) if (ks_json_check_string_matches(cur, value) && !CHECK_##rule(ks_json_get_object_item(item, #name), error_msg)) { return 0; }
 #define JSON_CHECK_ARRAY_ITEMS(name, rule) if (!(cur = ks_json_get_object_item(item, #name)) || !ks_json_check_array_items(cur, CHECK_##rule, error_msg)) { return 0; }
+#define JSON_CHECK_ARRAY_ITEMS_OPTIONAL(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_check_array_items(cur, CHECK_##rule, error_msg)) { return 0; }
 
 #define JSON_CHECK_NUMBER(name, rule) if (!(cur = ks_json_get_object_item(item, #name)) || !ks_json_check_number_##rule(cur)) { *error_msg = #name " error"; return 0; }
 #define JSON_CHECK_NUMBER_OPTIONAL(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_check_number_##rule(cur)) { *error_msg = #name " error"; return 0; }
@@ -45,7 +46,7 @@ typedef int (*ks_json_check_function)(ks_json_t *, const char **);
 #define JSON_CHECK_STRING_ARRAY(name, rule) if (!(cur = ks_json_get_object_item(item, #name)) || !ks_json_check_string_array(cur, ks_json_check_string_##rule)) { *error_msg = #name " error"; return 0; }
 #define JSON_CHECK_STRING_ARRAY_OPTIONAL(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_check_string_array(cur, ks_json_check_string_##rule)) { *error_msg = #name " error"; return 0; }
 #define JSON_CHECK_STRING_OPTIONAL(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_check_string_##rule(cur)) { *error_msg = #name " error"; return 0; }
-#define JSON_CHECK_STRING_OR_EMPTY(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && ks_json_type_is_string(cur) && ks_json_value_string(cur) && *ks_json_value_string(cur) && !ks_json_check_string_##rule(cur)) { *error_msg = #name " error"; return 0; }
+#define JSON_CHECK_STRING_OR_EMPTY(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && ks_json_type_is_string(cur) && ks_json_get_string(cur, NULL) && *ks_json_get_string(cur, NULL) && !ks_json_check_string_##rule(cur)) { *error_msg = #name " error"; return 0; }
 #define JSON_CHECK_STRING_MATCHES(name, rule) if (!(cur = ks_json_get_object_item(item, #name)) || !ks_json_check_string_matches(cur, rule)) { *error_msg = #name " error"; return 0; }
 #define JSON_CHECK_STRING_MATCHES_OPTIONAL(name, rule) if ((cur = ks_json_get_object_item(item, #name)) && !ks_json_check_string_matches(cur, rule)) { *error_msg = #name " error"; return 0; }
 
@@ -70,7 +71,7 @@ KS_DECLARE(int) ks_json_check_number_is_decimal_between_zero_and_one(ks_json_t* 
 KS_DECLARE(int) ks_json_check_number_is_ip_port(ks_json_t *item);
 
 KS_DECLARE(int) ks_json_check_string_matches(ks_json_t *item, const char *rule);
-KS_DECLARE(int) ks_json_check_string_array_items(ks_json_t *item, ks_json_simple_check_function check);
+KS_DECLARE(int) ks_json_check_string_array(ks_json_t *item, ks_json_simple_check_function check);
 KS_DECLARE(int) ks_json_check_string_is_not_negative(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_string_is_positive(ks_json_t* item);
 KS_DECLARE(int) ks_json_check_string_is_positive_or_neg_one(ks_json_t* item);

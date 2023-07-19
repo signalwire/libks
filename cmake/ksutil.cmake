@@ -39,7 +39,7 @@ endfunction()
 # name must also exist as a source file e.t. testcon will have testcon.c and tap.c.
 macro(ksutil_add_test name)
 	add_executable("test${name}" "test${name}.c" tap.c)
-	target_link_libraries("test${name}" ks)
+	target_link_libraries("test${name}" ks2)
 	target_include_directories("test${name}" PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 	add_test("test${name}" "test${name}")
 
@@ -49,7 +49,7 @@ endmacro()
 
 macro(ksutil_add_test_extra name extra_deps extra_libs)
 	add_executable("test${name}" "test${name}.c" tap.c ${extra_deps})
-	target_link_libraries("test${name}" ks ${extra_libs})
+	target_link_libraries("test${name}" ks2 ${extra_libs})
 	target_include_directories("test${name}" PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 	add_test("test${name}" "test${name}")
 

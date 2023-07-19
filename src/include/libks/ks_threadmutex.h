@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -48,25 +48,8 @@ typedef void *(*ks_thread_function_t) (ks_thread_t *, void *);
 	typedef pthread_t ks_thread_os_handle_t;
 #endif
 
-/* We have two states for our thread context, so that we can atomically
- * guarantee a clear order of operation between a caller (e.g. someone controlling
- * the thread), and the thread (what state the thread itself
- * is in charge of reporting.
- */
 typedef enum {
-	KS_THREAD_CALLER_STATE_INIT,				/* Initial state, unallocated, invalid */
-	KS_THREAD_CALLER_STATE_ALLOC_FAILURE,		/* Allocation of thread has failed */
-	KS_THREAD_CALLER_STATE_START_REQUESTED,		/* The caller has requested the thread start */
-	KS_THREAD_CALLER_STATE_STOP_REQUESTED,		/* The caller has requested the thread stop */
-	KS_THREAD_CALLER_STATE_JOIN_REQUESTED,		/* The caller has initiated a thread join */
-	KS_THREAD_INIT,			/* Initial state, un-allocated, invalid */
-	KS_THREAD_STARTING,		/* The thread is just starting and we're waiting for it to set itself to running */
-	KS_THREAD_RUNNING,		/* The thread has officially been started by the system */
-	KS_THREAD_STOPPED,		/* The thread has stopped, and will no longer touch the heap allocation if attached,
-							 * otherwise it will be deleting the buffer on self delete*/
-} ks_thread_state_t;
-
-typedef enum {
+	KS_PRI_DEFAULT = 0,
 	KS_PRI_LOW = 1,
 	KS_PRI_NORMAL = 10,
 	KS_PRI_IMPORTANT = 50,
@@ -82,9 +65,8 @@ KS_DECLARE(int) ks_thread_set_priority(int nice_val);
 KS_DECLARE(ks_thread_os_handle_t) ks_thread_self(void);
 KS_DECLARE(ks_pid_t) ks_thread_self_id(void);
 KS_DECLARE(ks_thread_os_handle_t) ks_thread_os_handle(ks_thread_t *thread);
-KS_DECLARE(void) ks_thread_destroy(ks_thread_t **threadp);
+KS_DECLARE(ks_status_t) ks_thread_destroy(ks_thread_t **threadp);
 
-KS_DECLARE(ks_bool_t) ks_thread_is_running(ks_thread_t *thread);
 KS_DECLARE(ks_bool_t) ks_thread_stop_requested(ks_thread_t *thread);
 KS_DECLARE(ks_status_t) ks_thread_request_stop(ks_thread_t *thread);
 
@@ -94,13 +76,13 @@ KS_DECLARE(ks_status_t) __ks_thread_create_ex(ks_thread_t **thread, ks_thread_fu
 										 uint32_t flags, size_t stack_size, ks_thread_priority_t priority, ks_pool_t *pool, const char *file, int line, const char *tag);
 
 #define ks_thread_create_ex(thread, func, data, flags, stack_size, priority, pool) \
-	__ks_thread_create_ex(thread, func, data, flags, stack_size, priority, pool, __FILE__, __LINE__, __PRETTY_FUNCTION__)
+	__ks_thread_create_ex(thread, func, data, flags, stack_size, priority, pool, __FILE__, __LINE__, __KS_FUNC__)
 
 #define ks_thread_create_tag(thread, func, data, pool, tag)	\
-	__ks_thread_create_ex(thread, func, data, KS_THREAD_FLAG_DEFAULT, KS_THREAD_DEFAULT_STACK, KS_PRI_NORMAL, pool, __FILE__, __LINE__, tag)
+	__ks_thread_create_ex(thread, func, data, KS_THREAD_FLAG_DEFAULT, KS_THREAD_DEFAULT_STACK, KS_PRI_DEFAULT, pool, __FILE__, __LINE__, tag)
 
 #define ks_thread_create(thread, func, data, pool)						\
-	__ks_thread_create_ex(thread, func, data, KS_THREAD_FLAG_DEFAULT, KS_THREAD_DEFAULT_STACK, KS_PRI_NORMAL, pool, __FILE__, __LINE__,  __PRETTY_FUNCTION__)
+	__ks_thread_create_ex(thread, func, data, KS_THREAD_FLAG_DEFAULT, KS_THREAD_DEFAULT_STACK, KS_PRI_DEFAULT, pool, __FILE__, __LINE__,  __KS_FUNC__)
 
 KS_DECLARE(ks_status_t) ks_thread_join(ks_thread_t *thread);
 KS_DECLARE(uint8_t) ks_thread_priority(ks_thread_t *thread);
@@ -114,7 +96,7 @@ typedef enum {
 typedef struct ks_mutex ks_mutex_t;
 
 KS_DECLARE(ks_status_t) __ks_mutex_create(ks_mutex_t **mutex, unsigned int flags, ks_pool_t *pool, const char *file, int line, const char *tag);
-#define ks_mutex_create(mutex, flags, pool) __ks_mutex_create(mutex, flags, pool, __FILE__, __LINE__, __PRETTY_FUNCTION__)
+#define ks_mutex_create(mutex, flags, pool) __ks_mutex_create(mutex, flags, pool, __FILE__, __LINE__, __KS_FUNC__)
 
 KS_DECLARE(ks_status_t) ks_mutex_destroy(ks_mutex_t **mutex);
 
@@ -123,17 +105,17 @@ KS_DECLARE(ks_status_t) __ks_mutex_lock(ks_mutex_t *mutex, const char *file, int
 KS_DECLARE(ks_status_t) __ks_mutex_trylock(ks_mutex_t *mute, const char *file, int line, const char *tagx);
 KS_DECLARE(ks_status_t) __ks_mutex_unlock(ks_mutex_t *mute, const char *file, int line, const char *tagx);
 
-#define ks_mutex_lock(mutex)		__ks_mutex_lock(mutex, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define ks_mutex_trylock(mutex) 	__ks_mutex_trylock(mutex, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define ks_mutex_unlock(mutex)  	__ks_mutex_unlock(mutex, __FILE__, __LINE__, __PRETTY_FUNCTION__)
+#define ks_mutex_lock(mutex)		__ks_mutex_lock(mutex, __FILE__, __LINE__, __KS_FUNC__)
+#define ks_mutex_trylock(mutex) 	__ks_mutex_trylock(mutex, __FILE__, __LINE__, __KS_FUNC__)
+#define ks_mutex_unlock(mutex)  	__ks_mutex_unlock(mutex, __FILE__, __LINE__, __KS_FUNC__)
 
 typedef struct ks_cond ks_cond_t;
 
 KS_DECLARE(ks_status_t) __ks_cond_create(ks_cond_t **cond, ks_pool_t *pool, const char *file, int line, const char *tag);
 KS_DECLARE(ks_status_t) __ks_cond_create_ex(ks_cond_t **cond, ks_pool_t *pool, ks_mutex_t *mutex, const char *file, int line, const char *tag);
 
-#define ks_cond_create(cond, pool)	__ks_cond_create(cond, pool, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define ks_cond_create_ex(cond, pool, mutex)	__ks_cond_create_ex(cond, pool, mutex, __FILE__, __LINE__, __PRETTY_FUNCTION__)
+#define ks_cond_create(cond, pool)	__ks_cond_create(cond, pool, __FILE__, __LINE__, __KS_FUNC__)
+#define ks_cond_create_ex(cond, pool, mutex)	__ks_cond_create_ex(cond, pool, mutex, __FILE__, __LINE__, __KS_FUNC__)
 
 KS_DECLARE(ks_status_t) ks_cond_wait(ks_cond_t *cond);
 KS_DECLARE(ks_status_t) ks_cond_timedwait(ks_cond_t *cond, ks_time_t ms);
@@ -152,18 +134,18 @@ KS_DECLARE(ks_status_t) __ks_cond_broadcast(ks_cond_t *cond, const char *file, i
 KS_DECLARE(ks_status_t) __ks_cond_try_signal(ks_cond_t *cond, const char *file, int line, const char *tag);
 KS_DECLARE(ks_status_t) __ks_cond_try_broadcast(ks_cond_t *cond, const char *file, int line, const char *tag);
 
-#define ks_cond_lock(cond) 			__ks_cond_lock(cond, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define ks_cond_trylock(cond) 		__ks_cond_trylock(cond, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define ks_cond_unlock(cond) 		__ks_cond_unlock(cond, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define ks_cond_signal(cond) 		__ks_cond_signal(cond, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define	ks_cond_broadcast(cond) 	__ks_cond_broadcast(cond, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define ks_cond_try_signal(cond) 	__ks_cond_try_signal(cond, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define ks_cond_try_broadcast(cond) __ks_cond_try_broadcast(cond, __FILE__, __LINE__, __PRETTY_FUNCTION__)
+#define ks_cond_lock(cond) 			__ks_cond_lock(cond, __FILE__, __LINE__, __KS_FUNC__)
+#define ks_cond_trylock(cond) 		__ks_cond_trylock(cond, __FILE__, __LINE__, __KS_FUNC__)
+#define ks_cond_unlock(cond) 		__ks_cond_unlock(cond, __FILE__, __LINE__, __KS_FUNC__)
+#define ks_cond_signal(cond) 		__ks_cond_signal(cond, __FILE__, __LINE__, __KS_FUNC__)
+#define	ks_cond_broadcast(cond) 	__ks_cond_broadcast(cond, __FILE__, __LINE__, __KS_FUNC__)
+#define ks_cond_try_signal(cond) 	__ks_cond_try_signal(cond, __FILE__, __LINE__, __KS_FUNC__)
+#define ks_cond_try_broadcast(cond) __ks_cond_try_broadcast(cond, __FILE__, __LINE__, __KS_FUNC__)
 
 typedef struct ks_rwl ks_rwl_t;
 
 KS_DECLARE(ks_status_t) __ks_rwl_create(ks_rwl_t **rwlock, ks_pool_t *pool, const char *file, int line, const char *tag);
-#define ks_rwl_create(rwlock, pool)	__ks_rwl_create(rwlock, pool, __FILE__, __LINE__, __PRETTY_FUNCTION__)
+#define ks_rwl_create(rwlock, pool)	__ks_rwl_create(rwlock, pool, __FILE__, __LINE__, __KS_FUNC__)
 
 KS_DECLARE(ks_status_t) ks_rwl_destroy(ks_rwl_t **rwlock);
 
@@ -175,12 +157,12 @@ KS_DECLARE(ks_status_t) __ks_rwl_try_write_lock(ks_rwl_t *rwlock, const char *fi
 KS_DECLARE(ks_status_t) __ks_rwl_read_unlock(ks_rwl_t *rwlock, const char *file, int line, const char *tag);
 KS_DECLARE(ks_status_t) __ks_rwl_write_unlock(ks_rwl_t *rwlock, const char *file, int line, const char *tag);
 
-#define ks_rwl_read_lock(rwlock)  		__ks_rwl_read_lock(rwlock, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define	ks_rwl_write_lock(rwlock) 		__ks_rwl_write_lock(rwlock, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define ks_rwl_try_read_lock(rwlock) 	__ks_rwl_try_read_lock(rwlock, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define ks_rwl_try_write_lock(rwlock) 	__ks_rwl_try_write_lock(rwlock, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define ks_rwl_read_unlock(rwlock) 		__ks_rwl_read_unlock(rwlock, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define ks_rwl_write_unlock(rwlock) 	__ks_rwl_write_unlock(rwlock, __FILE__, __LINE__, __PRETTY_FUNCTION__)
+#define ks_rwl_read_lock(rwlock)  		__ks_rwl_read_lock(rwlock, __FILE__, __LINE__, __KS_FUNC__)
+#define	ks_rwl_write_lock(rwlock) 		__ks_rwl_write_lock(rwlock, __FILE__, __LINE__, __KS_FUNC__)
+#define ks_rwl_try_read_lock(rwlock) 	__ks_rwl_try_read_lock(rwlock, __FILE__, __LINE__, __KS_FUNC__)
+#define ks_rwl_try_write_lock(rwlock) 	__ks_rwl_try_write_lock(rwlock, __FILE__, __LINE__, __KS_FUNC__)
+#define ks_rwl_read_unlock(rwlock) 		__ks_rwl_read_unlock(rwlock, __FILE__, __LINE__, __KS_FUNC__)
+#define ks_rwl_write_unlock(rwlock) 	__ks_rwl_write_unlock(rwlock, __FILE__, __LINE__, __KS_FUNC__)
 
 #define IS64BIT (SIZE_MAX == UINT64_MAX)
 

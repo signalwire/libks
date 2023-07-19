@@ -21,7 +21,6 @@
  * $Id: ks_mpool.c,v 1.5 2006/05/31 20:28:31 gray Exp $
  */
 
-#include "libks/ks_atomic.h"
 
 #define KS_POOL_MAGIC		 0xDEADBEEF	/* magic for struct */
 
@@ -42,7 +41,6 @@ struct ks_pool_prefix_s {
 	ks_pool_prefix_t *prev;
 	ks_pool_prefix_t *next;
 	ks_size_t magic3;
-	ks_spinlock_t allocation_lock;
 #ifdef KS_DEBUG_POOL
 	int line;
 	const char *file;
@@ -66,9 +64,6 @@ struct ks_pool_prefix_s {
 	} while(0)
 
 struct ks_pool_s {
-#if defined(KS_DEBUG_POOL)
-	ks_handle_base_t handle_base;
-#endif
 	ks_size_t magic1; /* magic number for struct */
 	ks_size_t flags; /* flags for the struct */
 	ks_size_t alloc_c; /* number of allocations */

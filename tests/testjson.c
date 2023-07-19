@@ -35,10 +35,10 @@ int main(int argc, char **argv)
 
 	plan(2);
 
-	value = ks_json_get_object_cstr_def(json, "key", NULL);
+	value = ks_json_get_object_string(json, "key", NULL);
 	ok(value == NULL);
 
-	value = ks_json_get_object_cstr_def(json, "key", "value");
+	value = ks_json_get_object_string(json, "key", "value");
 	ok(strcmp(value, "value") == 0);
 
 	ks_shutdown();

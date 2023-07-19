@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -52,8 +52,7 @@ static int test1()
 
 	ks_pool_open(&pool);
 
-	ks_thread_pool_create(&tp, 2, 10, KS_THREAD_DEFAULT_STACK, KS_PRI_NORMAL, 5);
-
+	ks_thread_pool_create(&tp, 2, 10, KS_THREAD_DEFAULT_STACK, KS_PRI_DEFAULT, 5);
 
 	for (i = 0; i < 500; i++) {
 		struct x *data = ks_pool_alloc(pool, sizeof(*data));

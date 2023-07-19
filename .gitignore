@@ -3,11 +3,13 @@ CMakeCache.txt
 CMakeFiles
 CMakeCache.txt
 CMakeFiles/
+_CPack_Packages/
 CTestTestfile.cmake
 LibKSConfig.cmake
+LibKS2Config.cmake
 cmake_install.cmake
-libks.so
-libks.so.*
+libks2.so
+libks2.so.*
 tests/CMakeFiles/
 tests/CTestTestfile.cmake
 tests/cmake_install.cmake

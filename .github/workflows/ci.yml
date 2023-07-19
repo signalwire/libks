@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+    - master
+
+jobs:
+  scan_build:
+    runs-on: ubuntu-latest
+    container:
+      image: debian:buster
+    steps:
+      - name: install deps
+        run: |
+          apt-get update && apt-get install -yq build-essential autotools-dev lsb-release pkg-config automake autoconf libtool-bin clang-tools-7
+          apt-get install -yq cmake uuid-dev libssl-dev
+      - name: Checkout
+        uses: actions/checkout@v3
+      - run: pwd
+      - id: scan_build
+        run: ./scan_build.sh
+      - name: Tar logs
+        id: tar
+        if: failure()
+        env:
+          COMPILATION_FAILED: ${{ steps.scan_build.outputs.COMPILATION_FAILED }}
+          BUGS_FOUND: ${{ steps.scan_build.outputs.BUGS_FOUND }}
+        run: |
+          ls -l
+          if [ "true" -eq $COMPILATION_FAILED ]; then
+            tar czvf scan-build-result.tar.gz ./scan-build-result.txt;
+            echo "ARTIFACT_PATH=/__w/libks/libks/scan-build-result.tar.gz" >> $GITHUB_OUTPUT;
+            echo "ARTIFACT=scan-build-result" >> $GITHUB_OUTPUT;
+          fi
+          if [ "true" -eq $BUGS_FOUND ]; then
+            tar czvf reports.tar.gz $REPORT;
+            echo "ARTIFACT_PATH=/__w/libks/libks/reports.tar.gz" >> $GITHUB_OUTPUT;
+            echo "ARTIFACT=reports" >> $GITHUB_OUTPUT;
+          fi
+
+      - name: Upload artifacts
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ steps.tar.outputs.ARTIFACT }}-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ steps.tar.outputs.ARTIFACT_PATH }}
+          retention-days: 5
+      - name: notify slack
+        if: failure()
+        uses: signalwire/actions-template/.github/actions/slack@main
+        with:
+          CHANNEL: CCS2AV2H2
+          MESSAGE: Scan-build ${{ github.repository }} > <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|${{ github.run_id }}>.\n ${{ steps.scan_build.outputs.MESSAGE }}}.\nPlease check the results.
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL  }}
+  run_tests:
+    runs-on: ubuntu-latest
+    container:
+      image: debian:buster
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: run tests
+        id: tests
+        run: ./run_tests.sh
+      - name: Upload artifacts
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-artifacts-${{ github.sha }}-${{ github.run_id }}.html
+          path: ${{ steps.tests.outputs.TEST_ARTIFACT_FILE }}
+          retention-days: 5
+      - name: notify slack
+        if: failure()
+        uses: signalwire/actions-template/.github/actions/slack@main
+        with:
+          CHANNEL: CCS2AV2H2
+          MESSAGE: Test-Failure ${{ github.repository }} > <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|${{ github.run_id }}>.\nPlease check the results.
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL  }}
+          

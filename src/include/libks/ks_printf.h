@@ -68,8 +68,8 @@ KS_DECLARE(char *) ks_vsnprintf(char *zbuf, int n, const char *zFormat, va_list 
 KS_DECLARE(char *) __ks_vpprintf(ks_pool_t *pool, const char *zFormat, va_list ap, const char *file, int line, const char *tag);
 KS_DECLARE(char *) __ks_pprintf(const char *file, int line, const char *tag, ks_pool_t *pool, const char *zFormat, ...);
 
-#define ks_vpprintf(pool, zFormat, ap) __ks_vpprintf(pool, zFormat, ap, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define ks_pprintf(pool, zFormat, ...) __ks_pprintf(__FILE__, __LINE__, __PRETTY_FUNCTION__, pool, zFormat, __VA_ARGS__)
+#define ks_vpprintf(pool, zFormat, ap) __ks_vpprintf(pool, zFormat, ap, __FILE__, __LINE__, __KS_FUNC__)
+#define ks_pprintf(pool, zFormat, ...) __ks_pprintf(__FILE__, __LINE__, __KS_FUNC__, pool, zFormat, __VA_ARGS__)
 
 KS_END_EXTERN_C
 

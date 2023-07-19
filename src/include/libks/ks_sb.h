@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,7 +36,7 @@ KS_DECLARE(ks_status_t) ks_sb_accommodate(ks_sb_t *sb, ks_size_t len);
 KS_DECLARE(ks_status_t) ks_sb_append(ks_sb_t *sb, const char *str);
 KS_DECLARE(ks_status_t) ks_sb_append_ex(ks_sb_t *sb, const char *str, ks_size_t len);
 KS_DECLARE(ks_status_t) ks_sb_printf(ks_sb_t *sb, const char *fmt, ...);
-KS_DECLARE(ks_status_t) ks_sb_json(ks_sb_t *sb, const ks_json_t *json);
+KS_DECLARE(ks_status_t) ks_sb_json(ks_sb_t *sb, ks_json_t *json);
 
 KS_END_EXTERN_C
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,28 +39,12 @@ struct ks_thread {
 	size_t stack_size;
 	uint32_t flags;
 
-	/* We break up these states based on who is intended to modify them
-	 * thread_state - Set by the thread itself
-	 * caller_state - Set by the caller who is controlling the thread
-	 *                (with one exception, when a threaed self deletes)
-	 * We can eliminate a 'joined' flag through these states as well, a
-	 * thread has been 'joined' on if the thread_state is running and the
-	 * caller state is shutdown.
-	 */
-	volatile ks_thread_state_t thread_state;
-	volatile ks_thread_state_t caller_state;
-
-	/* Set to true while someone is actively blocking on join. This is a
-	 * separate flag from the states as the states may describe a stop
-	 * request as well. */
-	volatile ks_bool_t active_join;
+	ks_bool_t stop_requested;
 
 	uint8_t priority;
 	void *return_data;
+	ks_pool_t *pool_to_destroy;
 
-	/* Lightweight lock to protect against synchronization access to this structure */
-	ks_spinlock_t state_spin_lock;
-
-	/* Lightweight lock to make the transition from starting to running easy */
-	ks_spinlock_t thread_start_spin_lock;
+	ks_mutex_t *mutex;
+	ks_bool_t in_use;
 };

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,18 +24,12 @@
 
 #undef X509_NAME
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000
-#define X509_getm_notBefore X509_get_notBefore
-#define X509_getm_notAfter X509_get_notAfter
-#endif
-
 static ks_mutex_t **ssl_mutexes;
 static ks_pool_t *ssl_pool = NULL;
 static int ssl_count = 0;
 static int is_init = 0;
 static ks_bool_t skip_ssl = KS_FALSE;
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000
 static inline void ks_ssl_lock_callback(int mode, int type, char *file, int line)
 {
 	if (mode & CRYPTO_LOCK) {
@@ -50,7 +44,6 @@ static inline unsigned long ks_ssl_thread_id(void)
 {
 	return ks_thread_self_id();
 }
-#endif
 
 KS_DECLARE(void) ks_ssl_init_skip(ks_bool_t skip)
 {
@@ -65,7 +58,6 @@ KS_DECLARE(void) ks_ssl_init_ssl_locks(void)
 
 	is_init = 1;
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000
 	if (!skip_ssl) {
 		SSL_library_init();
 		SSL_load_error_strings();
@@ -89,7 +81,6 @@ KS_DECLARE(void) ks_ssl_init_ssl_locks(void)
 
 		ssl_count++;
 	}
-#endif
 }
 
 KS_DECLARE(void) ks_ssl_destroy_ssl_locks(void)
@@ -100,7 +91,6 @@ KS_DECLARE(void) ks_ssl_destroy_ssl_locks(void)
 
 	is_init = 0;
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000
 	if (!skip_ssl) {
 		if (ssl_count == 1) {
 			CRYPTO_set_locking_callback(NULL);
@@ -121,7 +111,6 @@ KS_DECLARE(void) ks_ssl_destroy_ssl_locks(void)
 		ERR_free_strings();
 		EVP_cleanup();
 	}
-#endif
 }
 
 static int mkcert(X509 **x509p, EVP_PKEY **pkeyp, int bits, int serial, int days);
@@ -172,7 +161,6 @@ KS_DECLARE(int) ks_gen_cert(const char *dir, const char *file)
 		}
 	}
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000
 	X509_free(x509);
 	EVP_PKEY_free(pkey);
 
@@ -183,7 +171,6 @@ KS_DECLARE(int) ks_gen_cert(const char *dir, const char *file)
 
 	//CRYPTO_mem_leaks(bio_err);
 	//BIO_free(bio_err);
-#endif
 
 
 	ks_safe_free(pvt);
@@ -246,8 +233,8 @@ static int mkcert(X509 **x509p, EVP_PKEY **pkeyp, int bits, int serial, int days
 
 	X509_set_version(x, 0);
 	ASN1_INTEGER_set(X509_get_serialNumber(x), serial);
-	X509_gmtime_adj(X509_getm_notBefore(x), -(long)60*60*24*7);
-	X509_gmtime_adj(X509_getm_notAfter(x), (long)60*60*24*days);
+	X509_gmtime_adj(X509_get_notBefore(x), -(long)60*60*24*7);
+	X509_gmtime_adj(X509_get_notAfter(x), (long)60*60*24*days);
 	X509_set_pubkey(x, pk);
 
 	name = X509_get_subject_name(x);

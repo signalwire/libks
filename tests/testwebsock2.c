@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -243,7 +243,7 @@ static void *tcp_sock_server(ks_thread_t *thread, void *thread_data)
 
 static int test_ws(char *url);
 
-static int start_tcp_server_and_test_ws(char *ip)
+static void start_tcp_server_and_test_ws(char *ip)
 {
 	ks_thread_t *thread_p = NULL;
 	ks_pool_t *pool;
@@ -306,7 +306,18 @@ static int test_ws(char *url)
 	ks_json_t *req = ks_json_create_object();
 	ks_json_add_string_to_object(req, "url", url);
 
-	ks_global_set_default_logger(7);
+	ks_json_t *headers = ks_json_create_array();
+	ks_json_add_item_to_object(req, "headers", headers);
+	ks_json_t *param = ks_json_create_object();
+	ks_json_add_string_to_object(param, "key", "X-Auth-Token");
+	ks_json_add_string_to_object(param, "value", "xxxx");
+	ks_json_add_item_to_array(headers, param);
+	param = ks_json_create_object();
+	ks_json_add_string_to_object(param, "key", "Agent");
+	ks_json_add_string_to_object(param, "value", "libks");
+	ks_json_add_item_to_array(headers, param);
+
+	ks_global_set_log_level(7);
 
 	ks_pool_open(&pool);
 	ks_assert(pool);
@@ -327,11 +338,11 @@ static int test_ws(char *url)
 	}
 
 	bytes = kws_read_frame(kws, &oc, &rdata);
-	printf("read bytes=%d oc=%d [%s]\n", bytes, oc, (char *)rdata);
+	printf("read bytes=%d oc=%d [%s]\n", (int)bytes, oc, (char *)rdata);
 
 	ok(oc == WSOC_TEXT);
 	if (bytes < 0 || oc != WSOC_TEXT || !rdata || !strstr((char *)rdata, "\"welcome\"")) {
-		printf("read bytes=%d oc=%d [%s]\n", bytes, oc, (char *)rdata);
+		printf("read bytes=%d oc=%d [%s]\n", (int)bytes, oc, (char *)rdata);
 	}
 
 	ok(rdata != NULL && strstr((char *)rdata, __MSG) != NULL);
@@ -348,6 +359,7 @@ int main(int argc, char *argv[])
 	char *url = NULL;
 
 	ks_init();
+	ks_log_jsonify();
 
 	plan(3);
 

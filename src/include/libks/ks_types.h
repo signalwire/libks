@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 SignalWire, Inc
+ * Copyright (c) 2018-2023 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -112,16 +112,6 @@ KS_BEGIN_EXTERN_C
 		KS_STATUS_PNT_OVER,	       /* pointer structure was overwritten */
 		KS_STATUS_INVALID_POINTER, /* address is not valid */
 		KS_STATUS_NOT_ALLOWED,     /* operation is not allowed */
-		/* handle errors */
-		KS_STATUS_HANDLE_INVALID,				/* An invalid handle was used */
-		KS_STATUS_HANDLE_READY,					/* A slot that was ready (when we expected it to be not ready) was used */
-		KS_STATUS_HANDLE_SEQ_MISMATCH,			/* The sequence id in the handle did not match the slot */
-		KS_STATUS_HANDLE_TYPE_MISMATCH,			/* The type of the handle did not match the actual handles encoded type */
-		KS_STATUS_HANDLE_NOMEM,					/* Allocation of a handle slot failed */
-		KS_STATUS_HANDLE_NO_MORE_SLOTS,			/* Max slots reached in a group (too many handles) */
-		KS_STATUS_HANDLE_PARENT_ALREADY_SET, 	/* An attempt to set a handles parent failed since one was already set */
-		KS_STATUS_HANDLE_INVALID_REQUEST,       /* An internal operation failed */
-		KS_STATUS_HANDLE_PENDING_CHILDREN,		/* A destroy failed due to children having refcounts */
 		/* Always insert new entries above this line*/
 		KS_STATUS_COUNT
 	} ks_status_t;
@@ -154,6 +144,7 @@ KS_BEGIN_EXTERN_C
 	"ALLOC",\
 	"PNT_OVER",\
 	"INVALID_POINTER",\
+	"NOT_ALLOWED",\
 	/* insert new entries before this */\
 	"COUNT"
 
