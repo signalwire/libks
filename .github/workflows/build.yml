@@ -1,0 +1,51 @@
+name: Build
+
+on:
+  push:
+    branches:
+    - "master"
+    - "min/build-image"
+  workflow_call:
+    secrets:
+      # Secrets used to build
+      DOCKERHUB_USERNAME:
+        required: true
+      DOCKERHUB_TOKEN:
+        required: true
+      GH_BOT_DEPLOY_KEY:
+        required: true
+
+jobs:
+  hash:
+    runs-on: ubuntu-latest
+    outputs:
+      HASH: ${{ steps.hash.outputs.HASH }}
+    steps:
+      - uses: actions/checkout@v3
+      - id: hash
+        run: |
+          hash=$(git rev-parse --short HEAD);
+          echo "HASH=$hash" >> $GITHUB_OUTPUT;
+        shell: bash
+  build:
+    needs: hash
+    strategy:
+      matrix:
+        include:
+          - tag: libks-libs10-${{ needs.hash.outputs.HASH }}
+            baseimage: "signalwire/freeswitch-base:debian-10"
+          - tag: libks-libs11-${{ needs.hash.outputs.HASH }}
+            baseimage: "signalwire/freeswitch-base:debian-11"     
+    name: "build libks"
+    uses: signalwire/actions-template/.github/workflows/ci-build.yml@main
+    with:
+      CONTAINER_SCAN: true
+      CONTAINER_TEST: false
+      PROJECT_NAME: "freeswitch-libs"
+      FILE: ./Dockerfile
+      PUSH: true
+      RUNNER: ubuntu-latest
+      TAG: ${{ matrix.tag }}
+      BUILD_ARGS: |
+        BASEIMAGE=${{ matrix.baseimage }}
+    secrets: inherit
