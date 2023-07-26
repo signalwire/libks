@@ -19,14 +19,14 @@ jobs:
   hash:
     runs-on: ubuntu-latest
     outputs:
-      HASH: ${{ steps.hash.outputs.HASH }}
+      HASH: ${{ steps.hash.outputs.short }}
     steps:
-      - uses: actions/checkout@v3
       - id: hash
-        run: |
-          hash=$(git rev-parse --short HEAD);
-          echo "HASH=$hash" >> $GITHUB_OUTPUT;
-        shell: bash
+        uses: pr-mpt/actions-commit-hash@v2
+        with:
+          # NOTE: since this workflow is only triggered by `push` event
+          # github.sha have correct commit sha
+          commit: ${{ github.sha }}
   build:
     needs: hash
     strategy:
