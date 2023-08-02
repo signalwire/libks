@@ -58,7 +58,6 @@ endif()
 # us to run the apps from the build dir without installing (come install time
 # the binary is re-linked with an rpath matching that of the install prefix)
 set(SKIP_BUILD_RPATH TRUE)
-set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 
 # Now detect a bunch of platform stuff
 include(CheckFunctionExists)
