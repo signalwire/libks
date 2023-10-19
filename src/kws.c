@@ -1037,12 +1037,17 @@ KS_DECLARE(ks_ssize_t) kws_close(kws_t *kws, int16_t reason)
 		kws->uri = NULL;
 	}
 
-	if (reason && kws->sock != KS_SOCK_INVALID) {
+	if (kws->handshake && kws->sock != KS_SOCK_INVALID) {
 		uint16_t *u16;
 		uint8_t fr[4] = {WSOC_CLOSE | 0x80, 2, 0};
 
 		u16 = (uint16_t *) &fr[2];
-		*u16 = htons((int16_t)reason);
+		if (reason) {
+			*u16 = htons((int16_t)reason);
+		} else {
+			*u16 = htons((int16_t)WS_NORMAL_CLOSE);  /* regular close initiated by us */
+		}
+
 		kws_raw_write(kws, fr, 4);
 	}
 
