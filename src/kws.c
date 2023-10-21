@@ -1039,7 +1039,7 @@ KS_DECLARE(ks_ssize_t) kws_close(kws_t *kws, int16_t reason)
 
 	if (kws->handshake && kws->sock != KS_SOCK_INVALID) {
 		uint16_t *u16;
-		int16_t got_reason = reason ? reason : WS_NORMAL_CLOSE;
+		int16_t got_reason = reason ? reason : WS_NORMAL_CLOSE /* regular close initiated by us */;
 
 		if (kws->type == KWS_CLIENT) {
 			const uint8_t maskb = 0x80;
@@ -1047,7 +1047,7 @@ KS_DECLARE(ks_ssize_t) kws_close(kws_t *kws, int16_t reason)
 			uint8_t *p;
 
 			u16 = (uint16_t *) &fr[6];
-			*u16 = htons((int16_t)got_reason);  /* regular close initiated by us */
+			*u16 = htons((int16_t)got_reason); 
 			p = (uint8_t *)u16; /*use p for masking the reason which is the payload */
 
 			gen_nonce(masking_key, 4);
