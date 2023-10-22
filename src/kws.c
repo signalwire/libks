@@ -1039,16 +1039,32 @@ KS_DECLARE(ks_ssize_t) kws_close(kws_t *kws, int16_t reason)
 
 	if (kws->handshake && kws->sock != KS_SOCK_INVALID) {
 		uint16_t *u16;
-		uint8_t fr[4] = {WSOC_CLOSE | 0x80, 2, 0};
+		int16_t got_reason = reason ? reason : WS_NORMAL_CLOSE /* regular close initiated by us */;
 
-		u16 = (uint16_t *) &fr[2];
-		if (reason) {
-			*u16 = htons((int16_t)reason);
+		if (kws->type == KWS_CLIENT) {
+			const uint8_t maskb = 0x80;
+			uint8_t size = 0x02, fr[8] = {WSOC_CLOSE | 0x80, size | maskb, 0, 0, 0, 0, 0, 0}, masking_key[4], i;
+			uint8_t *p;
+
+			u16 = (uint16_t *) &fr[6];
+			*u16 = htons((int16_t)got_reason); 
+			p = (uint8_t *)u16; /*use p for masking the reason which is the payload */
+
+			gen_nonce(masking_key, 4);
+			memcpy((uint8_t *)fr + 2, &masking_key, 4);
+
+			for (i = 0; i < size; i++) {
+				*(p + i) = (*((uint8_t *)p + i)) ^ (*(masking_key + (i % 4)));
+			}
+
+			kws_raw_write(kws, fr, 8);
 		} else {
-			*u16 = htons((int16_t)WS_NORMAL_CLOSE);  /* regular close initiated by us */
-		}
+			uint8_t fr[4] = {WSOC_CLOSE | 0x80, 2, 0};
 
-		kws_raw_write(kws, fr, 4);
+			u16 = (uint16_t *) &fr[2];
+			*u16 = htons((int16_t)got_reason);
+			kws_raw_write(kws, fr, 4);
+		}
 	}
 
 	if (kws->ssl && kws->sock != KS_SOCK_INVALID) {
