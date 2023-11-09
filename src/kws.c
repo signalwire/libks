@@ -1432,14 +1432,12 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 			blen = (int)(kws->body - kws->bbuffer);
 
 			/* The bbuffer for the body of the message should always be 1 larger than the total size (for null term) */
-			if (blen + kws->plen >= (ks_ssize_t)kws->bbuflen) {
+			/* Check if existing buffer size is big enough already */
+			if (need + blen > (ks_ssize_t)kws->bbuflen) {
 				void *tmp;
 
-				/* must be a sum of the size already written to the body (blen) plus the size to be written (kws->plen) */
-				kws->bbuflen = blen + kws->plen; /* total size */
-
-				/* and 1 more for NULL term */
-				kws->bbuflen++;
+				/* Increase allocated buffer size by difference needed including extra NULL byte */
+				kws->bbuflen += need + 1;
 
 				if (kws->payload_size_max && kws->bbuflen > kws->payload_size_max) {
 					/* size limit */
