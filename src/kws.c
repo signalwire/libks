@@ -28,7 +28,8 @@
 #pragma warning(disable: 4706)
 #endif
 
-#define WS_BLOCK 1
+#define WS_BLOCK 10000	/* ms, blocks read operation for 10 seconds */
+#define WS_SOFT_BLOCK 1000 /* ms, blocks read operation for 1 second */
 #define WS_NOBLOCK 0
 
 #define WS_INIT_SANITY 5000
@@ -70,6 +71,7 @@ struct kws_s {
 	char cipher_name[128];
 	kws_flag_t flags;
 	int x;
+	int ssl_io_error;
 	void *write_buffer;
 	ks_size_t write_buffer_len;
 	char *req_uri;
@@ -397,12 +399,14 @@ static int ws_server_handshake(kws_t *kws)
 
 }
 
+#define SSL_IO_ERROR(err) (err == SSL_ERROR_SYSCALL || err == SSL_ERROR_SSL)
 #define SSL_ERROR_WANT_READ_WRITE(err) (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE)
 
 KS_DECLARE(ks_ssize_t) kws_raw_read(kws_t *kws, void *data, ks_size_t bytes, int block)
 {
 	int r;
 	int ssl_err = 0;
+	int block_n = block / 10;
 
 	if (kws->unprocessed_buffer_len > 0) {
 		if (kws->unprocessed_buffer_len > bytes) {
@@ -430,6 +434,9 @@ KS_DECLARE(ks_ssize_t) kws_raw_read(kws_t *kws, void *data, ks_size_t bytes, int
 				ssl_err = SSL_get_error(kws->ssl, r);
 				if (ssl_err != SSL_ERROR_ZERO_RETURN) {
 					ks_log(KS_LOG_WARNING, "Weird SSL_read error: %d\n", ssl_err);
+					if (SSL_IO_ERROR(ssl_err)) {
+						kws->ssl_io_error = 1;
+					}
 				}
 			}
 
@@ -444,12 +451,16 @@ KS_DECLARE(ks_ssize_t) kws_raw_read(kws_t *kws, void *data, ks_size_t bytes, int
 					kws->x++;
 					ks_sleep_ms(10);
 				} else {
+					if (SSL_IO_ERROR(ssl_err)) {
+						kws->ssl_io_error = 1;
+					}
+
 					r = -1;
 					goto end;
 				}
 			}
 
-		} while (r < 0 && SSL_ERROR_WANT_READ_WRITE(ssl_err) && kws->x < 1000);
+		} while (r < 0 && SSL_ERROR_WANT_READ_WRITE(ssl_err) && kws->x < block_n);
 
 		goto end;
 	}
@@ -468,11 +479,11 @@ KS_DECLARE(ks_ssize_t) kws_raw_read(kws_t *kws, void *data, ks_size_t bytes, int
 				ks_sleep_ms(10);
 			}
 		}
-	} while (r == -1 && ks_errno_is_blocking(ks_errno()) && kws->x < 1000);
+	} while (r == -1 && ks_errno_is_blocking(ks_errno()) && kws->x < block_n);
 
  end:
 
-	if (kws->x >= 10000 || (block && kws->x >= 1000)) {
+	if (kws->x >= 10000 || (block && kws->x >= block_n)) {
 		r = -1;
 	}
 
@@ -555,6 +566,11 @@ KS_DECLARE(ks_ssize_t) kws_raw_write(kws_t *kws, void *data, ks_size_t bytes)
 			r = SSL_write(kws->ssl, (void *)((unsigned char *)data + wrote), (int)(bytes - wrote));
 
 			if (r == 0) {
+				ssl_err = SSL_get_error(kws->ssl, r);
+				if (SSL_IO_ERROR(ssl_err)) {
+					kws->ssl_io_error = 1;
+				}
+
 				ssl_err = 42;
 				break;
 			}
@@ -573,6 +589,7 @@ KS_DECLARE(ks_ssize_t) kws_raw_write(kws_t *kws, void *data, ks_size_t bytes)
 						ms = 25;
 					}
 				}
+
 				ks_sleep_ms(ms);
 			}
 
@@ -580,8 +597,13 @@ KS_DECLARE(ks_ssize_t) kws_raw_write(kws_t *kws, void *data, ks_size_t bytes)
 				ssl_err = SSL_get_error(kws->ssl, r);
 
 				if (!SSL_ERROR_WANT_READ_WRITE(ssl_err)) {
+					if (SSL_IO_ERROR(ssl_err)) {
+						kws->ssl_io_error = 1;
+					}
+
 					break;
 				}
+
 				ssl_err = 0;
 			}
 
@@ -873,7 +895,7 @@ KS_DECLARE(ks_status_t) kws_init_ex(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl
 	kws->payload_size_max = ks_json_get_object_number_int(params, "payload_size_max", 0);
 
 	if ((flags & KWS_BLOCK)) {
-		kws->block = 1;
+		kws->block = WS_BLOCK;
 	}
 
 	if (client_data) {
@@ -1037,27 +1059,109 @@ KS_DECLARE(ks_ssize_t) kws_close(kws_t *kws, int16_t reason)
 		kws->uri = NULL;
 	}
 
-	if (reason && kws->sock != KS_SOCK_INVALID) {
+	if (kws->handshake && kws->sock != KS_SOCK_INVALID) {
 		uint16_t *u16;
-		uint8_t fr[4] = {WSOC_CLOSE | 0x80, 2, 0};
+		int16_t got_reason = reason ? reason : WS_NORMAL_CLOSE /* regular close initiated by us */;
 
-		u16 = (uint16_t *) &fr[2];
-		*u16 = htons((int16_t)reason);
-		kws_raw_write(kws, fr, 4);
+		if (kws->type == KWS_CLIENT) {
+			const uint8_t maskb = 0x80;
+			uint8_t size = 0x02, fr[8] = {WSOC_CLOSE | 0x80, size | maskb, 0, 0, 0, 0, 0, 0}, masking_key[4], i;
+			uint8_t *p;
+
+			u16 = (uint16_t *) &fr[6];
+			*u16 = htons((int16_t)got_reason); 
+			p = (uint8_t *)u16; /*use p for masking the reason which is the payload */
+
+			gen_nonce(masking_key, 4);
+			memcpy((uint8_t *)fr + 2, &masking_key, 4);
+
+			for (i = 0; i < size; i++) {
+				*(p + i) = (*((uint8_t *)p + i)) ^ (*(masking_key + (i % 4)));
+			}
+
+			kws_raw_write(kws, fr, 8);
+		} else {
+			uint8_t fr[4] = {WSOC_CLOSE | 0x80, 2, 0};
+
+			u16 = (uint16_t *) &fr[2];
+			*u16 = htons((int16_t)got_reason);
+			kws_raw_write(kws, fr, 4);
+		}
 	}
 
 	if (kws->ssl && kws->sock != KS_SOCK_INVALID) {
-		/* first invocation of SSL_shutdown() would normally return 0 and just try to send SSL protocol close request.
+		/* first invocation of SSL_shutdown() would normally return 0 and just try to send SSL protocol close request (close_notify_alert).
 		   we just slightly polite, since we want to close socket fast and
 		   not bother waiting for SSL protocol close response before closing socket,
 		   since we want cleanup to be done fast for scenarios like:
 		   client change NAT (like jump from one WiFi to another) and now unreachable from old ip:port, however
 		   immidiately reconnect with new ip:port but old session id (and thus should replace the old session/channel)
+		   However it is recommended to do bidirectional shutdown
+		   and also to read all the remaining data sent by the client
+		   before it indicates EOF (SSL_ERROR_ZERO_RETURN).
+		   To avoid stuck in this process in case of dead peers,
+		   we wait for WS_SOFT_BLOCK time (1s) before we give up.
 		*/
-		ERR_clear_error();
-		SSL_shutdown(kws->ssl);
+		int code = 0, rcode = 0;
+		int ssl_error = 0;
+		int n = 0, block_n = WS_SOFT_BLOCK / 10;
+
+		/* SSL layer was never established or underlying IO error occured */
+		if (!kws->secure_established || kws->ssl_io_error) {
+			goto end;
+		}
+
+		/* connection has been already closed */
+		if (SSL_get_shutdown(kws->ssl) & SSL_SENT_SHUTDOWN) {
+			goto end;
+		}
+
+		/* peer closes the connection */
+		if (SSL_get_shutdown(kws->ssl) & SSL_RECEIVED_SHUTDOWN) {
+			ERR_clear_error();
+			SSL_shutdown(kws->ssl);
+			goto end;
+		}
+
+		/* us closes the connection. We do bidirection shutdown handshake */
+		for(;;) {
+			ERR_clear_error();
+			code = SSL_shutdown(kws->ssl);
+			ssl_error = SSL_get_error(kws->ssl, code);
+			if (code <= 0 && ssl_error == SSL_ERROR_WANT_READ) {
+				/* need to make sure there are no more data to read */
+				for(;;) {
+					ERR_clear_error();
+					if ((rcode = SSL_read(kws->ssl, kws->buffer, 9)) <= 0) {
+						ssl_error = SSL_get_error(kws->ssl, rcode);
+						if (ssl_error == SSL_ERROR_ZERO_RETURN) {
+							break;
+						} else if (SSL_IO_ERROR(ssl_error)) {
+							goto end;
+						} else if (ssl_error == SSL_ERROR_WANT_READ) {
+							if (++n == block_n) {
+								goto end;
+							}
+
+							ks_sleep_ms(10);
+						} else {
+							goto end;
+						}
+					}
+				}
+			} else if (code == 0 || (code < 0 && ssl_error == SSL_ERROR_WANT_WRITE)) {
+				if (++n == block_n) {
+					goto end;
+				}
+
+				ks_sleep_ms(10);
+			} else { /* code != 0 */
+				goto end;
+			}
+		}
 	}
 
+ end:
 	/* restore to blocking here, so any further read/writes will block */
 	restore_socket(kws->sock);
 
