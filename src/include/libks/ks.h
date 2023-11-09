@@ -30,10 +30,10 @@
 #endif
 
 /* libks version as a string */
-#define KS_VERSION "2.0.2"
+#define KS_VERSION "2.0.3"
 
 /* libks version as a number */
-#define KS_VERSION_NUM 20002
+#define KS_VERSION_NUM 20003
 
 /* Use this to allow enabling TCP_KEEPIDLE and TCP_KEEPINTVL socket options */
 //#define KS_KEEP_IDLE_INTVL 1
