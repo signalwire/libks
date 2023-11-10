@@ -1482,7 +1482,7 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 			if (mask && maskp) {
 				ks_ssize_t i;
 
-				for (i = 0; i < kws->datalen; i++) {
+				for (i = 0; i < kws->plen; i++) {
 					kws->body[i] ^= maskp[i % 4];
 				}
 			}
