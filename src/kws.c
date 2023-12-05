@@ -88,6 +88,7 @@ struct kws_s {
 	ks_json_t *params;
 
 	ks_ssize_t payload_size_max;
+	int min_bytes;
 };
 
 
@@ -912,9 +913,11 @@ KS_DECLARE(ks_status_t) kws_init_ex(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl
 		}
 
 		kws->type = KWS_CLIENT;
+		kws->min_bytes = 2;
 	} else {
 		kws->type = KWS_SERVER;
 		kws->flags |= KWS_FLAG_DONTMASK;
+		kws->min_bytes = 6;
 	}
 
 	kws->sock = sock;
@@ -1312,7 +1315,7 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 		return kws_close(kws, WS_NONE);
 	}
 
-	if ((kws->datalen = kws_string_read(kws, kws->buffer, 9 + 1, kws->block)) < 0) { // read 9 bytes into NULL terminated 10 byte buffer
+	if ((kws->datalen = kws_string_read(kws, kws->buffer, kws->min_bytes + 1, kws->block)) < 0) { // read 9 bytes into NULL terminated 10 byte buffer
 		ks_log(KS_LOG_ERROR, "Read frame error because kws_string_read returned %ld\n", kws->datalen);
 		if (kws->datalen == -2) {
 			return -2;
@@ -1321,7 +1324,7 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 	}
 
 	if (kws->datalen < need) {
-		ssize_t bytes = kws_string_read(kws, kws->buffer + kws->datalen, 9 - kws->datalen, WS_BLOCK);
+		ssize_t bytes = kws_string_read(kws, kws->buffer + kws->datalen, kws->min_bytes - kws->datalen + 1, WS_BLOCK);
 
 		if (bytes < 0 || (kws->datalen += bytes) < need) {
 			/* too small - protocol err */
@@ -1358,20 +1361,6 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 				frag = 0;
 			}
 
-			if (mask) {
-				need += 4;
-
-				if (need > kws->datalen) {
-					ks_ssize_t bytes = kws_string_read_blocking(kws, kws->buffer + kws->datalen, need - kws->datalen + 1, 10);
-					if (bytes < 0 || (kws->datalen += bytes) < need) {
-						/* too small - protocol err */
-						ks_log(KS_LOG_ERROR, "Read frame error because not enough data for mask\n");
-						*oc = WSOC_CLOSE;
-						return kws_close(kws, WS_NONE);
-					}
-				}
-			}
-
 			kws->plen = kws->buffer[1] & 0x7f;
 			kws->payload = &kws->buffer[2];
 
@@ -1390,7 +1379,8 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 						return kws_close(kws, WS_NONE);
 					}
 				}
-
+				
+				kws->payload = &kws->buffer[2];
 				u64 = (uint64_t *) kws->payload;
 				kws->payload += 8;
 				kws->plen = (ks_ssize_t)ntoh64(*u64);
@@ -1409,12 +1399,29 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 					}
 				}
 
+				kws->payload = &kws->buffer[2];
 				u16 = (uint16_t *) kws->payload;
 				kws->payload += 2;
 				kws->plen = ntohs(*u16);
+			} else if(kws->plen == 0) {
+				if(*oc == WSOC_PING) {
+					*data = NULL;
+					return 0;
+				}
 			}
 
 			if (mask) {
+				need += 4;
+				if (need > kws->datalen) {
+					ks_ssize_t bytes = kws_string_read_blocking(kws, kws->buffer + kws->datalen, need - kws->datalen + 1, 10);
+					if (bytes < 0 || (kws->datalen += bytes) < need) {
+						/* too small - protocol err */
+						ks_log(KS_LOG_ERROR, "Read frame error because not enough data for mask\n");
+						*oc = WSOC_CLOSE;
+						return kws_close(kws, WS_NONE);
+					}
+				}
+
 				maskp = (char *)kws->payload;
 				kws->payload += 4;
 			}
