@@ -115,6 +115,11 @@ KS_DECLARE(ks_bool_t) ks_json_type_is_bool(ks_json_t *item);
 KS_DECLARE(ks_json_t *) ks_json_enum_child(ks_json_t *item);
 KS_DECLARE(ks_json_t *) ks_json_enum_next(ks_json_t *item);
 
+KS_DECLARE(ks_bool_t) ks_json_replace_item(ks_json_t *parent, ks_json_t **item, ks_json_t *replacement);
+KS_DECLARE(ks_bool_t) ks_json_replace_value_string(ks_json_t *string_item, char *value_string);
+
+#define HAVE_KS_JSON_REPLACE_ITEM
+
 #define KS_JSON_ARRAY_FOREACH(element, array) for(element = ks_json_enum_child((array))	\
 			; element != NULL; element = ks_json_enum_next(element))
 

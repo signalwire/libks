@@ -451,6 +451,55 @@ KS_DECLARE(ks_json_t *) ks_json_enum_next(ks_json_t *item)
 	return item->next;
 }
 
+KS_DECLARE(ks_bool_t) ks_json_replace_item(ks_json_t *parent, ks_json_t **item, ks_json_t *replacement)
+{
+	if ((parent == NULL) || (replacement == NULL) || (item == NULL) || (*item == NULL)) {
+		return KS_FALSE;
+	}
+
+	replacement->next = (*item)->next;
+	replacement->prev = (*item)->prev;
+
+	if ((*item)->string) {
+		if (replacement->string) {
+			free(replacement->string);
+		}
+		replacement->string = strdup((*item)->string);
+	}
+
+	if (replacement->next != NULL) {
+		replacement->next->prev = replacement;
+	}
+	if (replacement->prev != NULL) {
+		replacement->prev->next = replacement;
+	}
+	if (parent->child == *item) {
+		parent->child = replacement;
+	}
+
+	(*item)->next = NULL;
+	(*item)->prev = NULL;
+
+	ks_json_delete(item);
+
+	return KS_TRUE;
+}
+
+KS_DECLARE(ks_bool_t) ks_json_replace_value_string(ks_json_t *string_item, char *value_string)
+{
+	if (string_item == NULL || !ks_json_type_is_string(string_item)) {
+		return KS_FALSE;
+	}
+
+	if (string_item->valuestring != NULL) {
+		free(string_item->valuestring);
+	}
+
+	string_item->valuestring = value_string;
+
+	return KS_TRUE;
+}
+
 /* For Emacs:
  * Local Variables:
  * mode:c
