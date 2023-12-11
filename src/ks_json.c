@@ -457,6 +457,12 @@ KS_DECLARE(ks_bool_t) ks_json_replace_item(ks_json_t *parent, ks_json_t **item, 
 		return KS_FALSE;
 	}
 
+	if (replacement == *item) {
+		*item = NULL;
+
+		return KS_TRUE;
+	}
+
 	replacement->next = (*item)->next;
 	replacement->prev = (*item)->prev;
 
