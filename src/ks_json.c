@@ -470,15 +470,18 @@ KS_DECLARE(ks_bool_t) ks_json_replace_item(ks_json_t *parent, ks_json_t **item, 
 		if (replacement->string) {
 			free(replacement->string);
 		}
+
 		replacement->string = strdup((*item)->string);
 	}
 
 	if (replacement->next != NULL) {
 		replacement->next->prev = replacement;
 	}
+
 	if (replacement->prev != NULL) {
 		replacement->prev->next = replacement;
 	}
+
 	if (parent->child == *item) {
 		parent->child = replacement;
 	}
