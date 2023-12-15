@@ -97,11 +97,15 @@ static void sha1_digest(char *digest, unsigned char *in)
 
 static void sha1_digest(unsigned char *digest, char *in)
 {
+#if OPENSSL_VERSION_NUMBER >= 0x30000000
+	SHA1(in, strlen(in), digest);
+#else
 	SHA_CTX sha;
 
 	SHA1_Init(&sha);
 	SHA1_Update(&sha, in, strlen(in));
 	SHA1_Final(digest, &sha);
+#endif
 }
 #endif
 
