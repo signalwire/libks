@@ -468,10 +468,11 @@ KS_DECLARE(ks_bool_t) ks_json_replace_item(ks_json_t *parent, ks_json_t **item, 
 
 	if ((*item)->string) {
 		if (replacement->string) {
-			free(replacement->string);
+			kJSON_free(replacement->string);
 		}
 
-		replacement->string = strdup((*item)->string);
+		replacement->string = (*item)->string;
+		(*item)->string = NULL;
 	}
 
 	if (replacement->next != NULL) {
@@ -501,7 +502,7 @@ KS_DECLARE(ks_bool_t) ks_json_replace_value_string(ks_json_t *string_item, char 
 	}
 
 	if (string_item->valuestring != NULL) {
-		free(string_item->valuestring);
+		kJSON_free(string_item->valuestring);
 	}
 
 	string_item->valuestring = value_string;
