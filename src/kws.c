@@ -1432,12 +1432,14 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 			blen = (int)(kws->body - kws->bbuffer);
 
 			/* The bbuffer for the body of the message should always be 1 larger than the total size (for null term) */
-			/* Check if existing buffer size is big enough already */
-			if (need + blen > (ks_ssize_t)kws->bbuflen) {
+			if (blen + kws->plen >= (ks_ssize_t)kws->bbuflen) {
 				void *tmp;
 
-				/* Increase allocated buffer size by difference needed including extra NULL byte */
-				kws->bbuflen += need + 1;
+				/* must be a sum of the size already written to the body (blen) plus the size to be written (kws->plen) */
+				kws->bbuflen = blen + kws->plen; /* total size */
+
+				/* and 1 more for NULL term */
+				kws->bbuflen++;
 
 				if (kws->payload_size_max && kws->bbuflen > kws->payload_size_max) {
 					/* size limit */
@@ -1463,8 +1465,9 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 				memcpy(kws->body, kws->payload, kws->rplen);
 			}
 
+			ks_assert((kws->body + kws->plen) <= (kws->bbuffer + kws->bbuflen));
+
 			while(need) {
-				ks_assert((kws->body + need + kws->rplen) <= (kws->bbuffer + kws->bbuflen));
 				ks_ssize_t r = kws_string_read(kws, kws->body + kws->rplen, need + 1, WS_BLOCK);
 
 				if (r < 1) {
@@ -1482,7 +1485,7 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 			if (mask && maskp) {
 				ks_ssize_t i;
 
-				for (i = 0; i < kws->datalen; i++) {
+				for (i = 0; i < kws->plen; i++) {
 					kws->body[i] ^= maskp[i % 4];
 				}
 			}
