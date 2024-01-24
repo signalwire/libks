@@ -1,0 +1,137 @@
+name: Build and Distribute
+
+on:
+  # pull_request:
+  push:
+    branches: [ master ]
+    paths:
+      - "**"
+      - "!debian/changelog"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.head_ref || github.ref }}
+
+jobs:
+  build_deb:
+    name: 'Build DEB'
+    uses: signalwire/actions-template/.github/workflows/ci-deb-packages-v2.yml@main
+    strategy:
+      fail-fast: false
+      matrix:
+        codename:
+          - bookworm
+          - bullseye
+          - buster
+          - stretch
+        platform:
+          - amd64
+    with:
+      PROJECT_NAME: libks
+      RUNNER: ubuntu-latest
+      BASE_IMAGE: signalwire/build-deb-action
+      DISTRO_CODENAME: ${{ matrix.codename }}
+      PLATFORM: ${{ matrix.platform }}
+      USE_CMAKE: true
+      CMAKE_BUILD_TYPE: 'Debug'
+
+  generate_meta_deb:
+    name: 'Meta DEB'
+    needs: [ build_deb ]
+    strategy:
+      matrix:
+        os:
+          - deb
+        codename:
+          - bookworm
+          - bullseye
+          - buster
+          - stretch
+        platform:
+          - amd64
+    uses: signalwire/actions-template/.github/workflows/ci-libs-metadata-v2.yml@main
+    with:
+      ARTIFACT_NAME: ${{ matrix.os }}-${{ matrix.codename }}-${{ matrix.platform }}-artifact
+      OS_PLATFORM: ${{ matrix.os }}-${{ matrix.codename }}-${{ matrix.platform }}
+      RUNNER: ubuntu-latest
+      FILE_PATH_PREFIX: /var/www/libks-${{ matrix.os }}-${{ matrix.platform }}/${{ github.run_id }}-${{ github.run_number }}
+
+  distribute_matrix_deb:
+    permissions: write-all
+    name: 'Copy to remote DEB'
+    needs: [ build_deb ]
+    strategy:
+      matrix:
+        os:
+          - deb
+        codename:
+          - bookworm
+          - bullseye
+          - buster
+          - stretch
+        platform:
+          - amd64
+    uses: signalwire/actions-template/.github/workflows/cd-scp.yml@main
+    with:
+      ARTIFACT_NAME: ${{ matrix.os }}-${{ matrix.codename }}-${{ matrix.platform }}-artifact
+      TARGET_FOLDER: /var/www/libks-${{ matrix.os }}-${{ matrix.platform }}/${{ github.run_id }}-${{ github.run_number }}
+      RUNNER: ubuntu-latest
+      FILES: '*.tar.gz'
+      CREATE_DESTINATION_FOLDERS: true
+    secrets:
+      # Explicit define secrets for better understanding but it could be just inherit
+      PROXY_URL: ${{ secrets.PROXY_URL }}
+      USERNAME: ${{ secrets.USERNAME }}
+      HOSTNAME: ${{ secrets.HOSTNAME }}
+      TELEPORT_TOKEN: ${{ secrets.TELEPORT_TOKEN }}
+
+  distribute_meta_deb:
+    permissions: write-all
+    name: 'Copy meta to remote DEB'
+    needs: [ generate_meta_deb ]
+    strategy:
+      max-parallel: 1
+      matrix:
+        os:
+          - deb
+        codename:
+          - bookworm
+          - bullseye
+          - buster
+          - stretch
+        platform:
+          - amd64
+    uses: signalwire/actions-template/.github/workflows/cd-libs-metadata.yml@main
+    with:
+      ARTIFACT_NAME: ${{ matrix.os }}-${{ matrix.codename }}-${{ matrix.platform }}-meta
+      LIB_NAME: libks
+      TARGET_OS: ${{ matrix.os }}
+      TARGET_PLATFORM: ${{ matrix.platform }}
+      RUNNER: ubuntu-latest
+      TARGET_REPO: signalwire/bamboo_gha_trigger
+    secrets:
+      GH_BOT_DEPLOY_TOKEN: ${{ secrets.PAT }}
+    concurrency:
+      group: libks-${{ matrix.os }}-${{ matrix.platform }}
+      cancel-in-progress: true
+
+  distribute_hash_deb:
+    permissions: write-all
+    name: 'Copy hash to remote DEB'
+    needs: [ distribute_meta_deb ]
+    uses: signalwire/actions-template/.github/workflows/cd-scp.yml@main
+    strategy:
+      matrix:
+        os:
+          - deb
+        platform:
+          - amd64
+    with:
+      RUNNER: ubuntu-latest
+      CREATE_DESTINATION_FOLDERS: false
+      EXEC_COMMANDS: 'echo "${{ github.sha }}" > /var/www/libks-${{ matrix.os }}-${{ matrix.platform }}/${{ github.run_id }}-${{ github.run_number }}/hash.txt'
+    secrets:
+      PROXY_URL: ${{ secrets.PROXY_URL }}
+      USERNAME: ${{ secrets.USERNAME }}
+      HOSTNAME: ${{ secrets.HOSTNAME }}
+      TELEPORT_TOKEN: ${{ secrets.TELEPORT_TOKEN }}
