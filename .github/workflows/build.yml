@@ -15,7 +15,7 @@ concurrency:
 jobs:
   build_deb:
     name: 'Build DEB'
-    uses: signalwire/actions-template/.github/workflows/ci-deb-packages-v2.yml@main
+    uses: s3rj1k/actions-template/.github/workflows/ci-deb-packages-v2.yml@meta_branch_name
     strategy:
       fail-fast: false
       matrix:
@@ -50,7 +50,7 @@ jobs:
           - stretch
         platform:
           - amd64
-    uses: signalwire/actions-template/.github/workflows/ci-libs-metadata-v2.yml@main
+    uses: s3rj1k/actions-template/.github/workflows/ci-libs-metadata-v2.yml@meta_branch_name
     with:
       ARTIFACT_NAME: ${{ matrix.os }}-${{ matrix.codename }}-${{ matrix.platform }}-artifact
       OS_PLATFORM: ${{ matrix.os }}-${{ matrix.codename }}-${{ matrix.platform }}
@@ -73,7 +73,7 @@ jobs:
           - stretch
         platform:
           - amd64
-    uses: signalwire/actions-template/.github/workflows/cd-scp.yml@main
+    uses: s3rj1k/actions-template/.github/workflows/cd-scp.yml@meta_branch_name
     with:
       ARTIFACT_NAME: ${{ matrix.os }}-${{ matrix.codename }}-${{ matrix.platform }}-artifact
       TARGET_FOLDER: /var/www/libks-${{ github.ref_name }}-${{ matrix.os }}-${{ matrix.platform }}/${{ github.run_id }}-${{ github.run_number }}
@@ -104,10 +104,11 @@ jobs:
           - stretch
         platform:
           - amd64
-    uses: signalwire/actions-template/.github/workflows/cd-libs-metadata.yml@main
+    uses: s3rj1k/actions-template/.github/workflows/cd-libs-metadata.yml@meta_branch_name
     with:
       ARTIFACT_NAME: ${{ matrix.os }}-${{ matrix.codename }}-${{ matrix.platform }}-meta
       LIB_NAME: libks
+      SOURCE_BRANCH: ${{ github.ref_name }}
       TARGET_OS: ${{ matrix.os }}
       TARGET_PLATFORM: ${{ matrix.platform }}
       RUNNER: ubuntu-latest
@@ -123,7 +124,7 @@ jobs:
     permissions: write-all
     name: 'Copy hash to remote DEB'
     needs: [ distribute_meta_deb ]
-    uses: signalwire/actions-template/.github/workflows/cd-scp.yml@main
+    uses: s3rj1k/actions-template/.github/workflows/cd-scp.yml@meta_branch_name
     strategy:
       matrix:
         os:
