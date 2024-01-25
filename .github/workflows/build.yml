@@ -1,7 +1,7 @@
 name: Build and Distribute
 
 on:
-  # pull_request:
+  pull_request:
   push:
     branches: [ master ]
     paths:
@@ -36,6 +36,7 @@ jobs:
       CMAKE_BUILD_TYPE: 'Debug'
 
   generate_meta_deb:
+    if: (github.ref_type == 'branch' && github.base_ref == '')
     name: 'Meta DEB'
     needs: [ build_deb ]
     strategy:
@@ -54,9 +55,10 @@ jobs:
       ARTIFACT_NAME: ${{ matrix.os }}-${{ matrix.codename }}-${{ matrix.platform }}-artifact
       OS_PLATFORM: ${{ matrix.os }}-${{ matrix.codename }}-${{ matrix.platform }}
       RUNNER: ubuntu-latest
-      FILE_PATH_PREFIX: /var/www/libks-${{ matrix.os }}-${{ matrix.platform }}/${{ github.run_id }}-${{ github.run_number }}
+      FILE_PATH_PREFIX: /var/www/libks-${{ github.ref_name }}-${{ matrix.os }}-${{ matrix.platform }}/${{ github.run_id }}-${{ github.run_number }}
 
   distribute_matrix_deb:
+    if: (github.ref_type == 'branch' && github.base_ref == '')
     permissions: write-all
     name: 'Copy to remote DEB'
     needs: [ build_deb ]
@@ -74,7 +76,7 @@ jobs:
     uses: signalwire/actions-template/.github/workflows/cd-scp.yml@main
     with:
       ARTIFACT_NAME: ${{ matrix.os }}-${{ matrix.codename }}-${{ matrix.platform }}-artifact
-      TARGET_FOLDER: /var/www/libks-${{ matrix.os }}-${{ matrix.platform }}/${{ github.run_id }}-${{ github.run_number }}
+      TARGET_FOLDER: /var/www/libks-${{ github.ref_name }}-${{ matrix.os }}-${{ matrix.platform }}/${{ github.run_id }}-${{ github.run_number }}
       RUNNER: ubuntu-latest
       FILES: '*.tar.gz'
       CREATE_DESTINATION_FOLDERS: true
@@ -86,6 +88,7 @@ jobs:
       TELEPORT_TOKEN: ${{ secrets.TELEPORT_TOKEN }}
 
   distribute_meta_deb:
+    if: (github.ref_type == 'branch' && github.base_ref == '')
     permissions: write-all
     name: 'Copy meta to remote DEB'
     needs: [ generate_meta_deb ]
@@ -116,6 +119,7 @@ jobs:
       cancel-in-progress: true
 
   distribute_hash_deb:
+    if: (github.ref_type == 'branch' && github.base_ref == '')
     permissions: write-all
     name: 'Copy hash to remote DEB'
     needs: [ distribute_meta_deb ]
@@ -129,7 +133,7 @@ jobs:
     with:
       RUNNER: ubuntu-latest
       CREATE_DESTINATION_FOLDERS: false
-      EXEC_COMMANDS: 'echo "${{ github.sha }}" > /var/www/libks-${{ matrix.os }}-${{ matrix.platform }}/${{ github.run_id }}-${{ github.run_number }}/hash.txt'
+      EXEC_COMMANDS: 'echo "${{ github.sha }}" > /var/www/libks-${{ github.ref_name }}-${{ matrix.os }}-${{ matrix.platform }}/${{ github.run_id }}-${{ github.run_number }}/hash.txt'
     secrets:
       PROXY_URL: ${{ secrets.PROXY_URL }}
       USERNAME: ${{ secrets.USERNAME }}
