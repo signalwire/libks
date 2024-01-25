@@ -108,6 +108,7 @@ jobs:
     with:
       ARTIFACT_NAME: ${{ matrix.os }}-${{ matrix.codename }}-${{ matrix.platform }}-meta
       LIB_NAME: libks
+      SOURCE_BRANCH: ${{ github.ref_name }}
       TARGET_OS: ${{ matrix.os }}
       TARGET_PLATFORM: ${{ matrix.platform }}
       RUNNER: ubuntu-latest
