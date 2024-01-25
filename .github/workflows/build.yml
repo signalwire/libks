@@ -3,7 +3,9 @@ name: Build and Distribute
 on:
   pull_request:
   push:
-    branches: [ master ]
+    branches:
+      - release
+      - master
     paths:
       - "**"
       - "!debian/changelog"
