@@ -28,6 +28,7 @@ jobs:
           - stretch
         platform:
           - amd64
+          - armhf
     with:
       PROJECT_NAME: libks
       RUNNER: ubuntu-latest
@@ -52,6 +53,7 @@ jobs:
           - stretch
         platform:
           - amd64
+          - armhf
     uses: signalwire/actions-template/.github/workflows/ci-libs-metadata-v2.yml@main
     with:
       ARTIFACT_NAME: ${{ matrix.os }}-${{ matrix.codename }}-${{ matrix.platform }}-artifact
@@ -75,6 +77,7 @@ jobs:
           - stretch
         platform:
           - amd64
+          - armhf
     uses: signalwire/actions-template/.github/workflows/cd-scp.yml@main
     with:
       ARTIFACT_NAME: ${{ matrix.os }}-${{ matrix.codename }}-${{ matrix.platform }}-artifact
@@ -106,6 +109,7 @@ jobs:
           - stretch
         platform:
           - amd64
+          - armhf
     uses: signalwire/actions-template/.github/workflows/cd-libs-metadata.yml@main
     with:
       ARTIFACT_NAME: ${{ matrix.os }}-${{ matrix.codename }}-${{ matrix.platform }}-meta
@@ -133,6 +137,7 @@ jobs:
           - deb
         platform:
           - amd64
+          - armhf
     with:
       RUNNER: ubuntu-latest
       CREATE_DESTINATION_FOLDERS: false
