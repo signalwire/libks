@@ -161,7 +161,7 @@ jobs:
     uses: signalwire/actions-template/.github/workflows/cd-libs-metadata.yml@main
     with:
       ARTIFACT_NAME: ${{ matrix.os }}-${{ matrix.platform }}-meta
-      LIB_NAME: sofia-sip
+      LIB_NAME: libks
       SOURCE_BRANCH: ${{ github.ref_name }}
       TARGET_OS: ${{ matrix.os }}
       TARGET_PLATFORM: ${{ matrix.platform }}
