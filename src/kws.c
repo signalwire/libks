@@ -1465,8 +1465,9 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 				memcpy(kws->body, kws->payload, kws->rplen);
 			}
 
+			ks_assert((kws->body + kws->plen) <= (kws->bbuffer + kws->bbuflen));
+
 			while(need) {
-				ks_assert((kws->body + need + kws->rplen) <= (kws->bbuffer + kws->bbuflen));
 				ks_ssize_t r = kws_string_read(kws, kws->body + kws->rplen, need + 1, WS_BLOCK);
 
 				if (r < 1) {
@@ -1484,7 +1485,7 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 			if (mask && maskp) {
 				ks_ssize_t i;
 
-				for (i = 0; i < kws->datalen; i++) {
+				for (i = 0; i < kws->plen; i++) {
 					kws->body[i] ^= maskp[i % 4];
 				}
 			}
