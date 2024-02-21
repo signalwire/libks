@@ -17,7 +17,7 @@ concurrency:
 jobs:
   build_rpm:
     name: 'Build RPM'
-    uses: signalwire/actions-template/.github/workflows/ci-rpm-packages.yml@main
+    uses: s3rj1k/actions-template/.github/workflows/ci-rpm-packages.yml@prebuild_script
     with:
       PROJECT_NAME: libks
       RUNNER: ubuntu-latest
@@ -29,7 +29,7 @@ jobs:
 
   build_deb:
     name: 'Build DEB'
-    uses: signalwire/actions-template/.github/workflows/ci-deb-packages-v2.yml@main
+    uses: s3rj1k/actions-template/.github/workflows/ci-deb-packages-v2.yml@prebuild_script
     strategy:
       fail-fast: false
       matrix:
@@ -60,7 +60,7 @@ jobs:
           - rpm
         platform:
           - amd64
-    uses: signalwire/actions-template/.github/workflows/ci-libs-metadata-v2.yml@main
+    uses: s3rj1k/actions-template/.github/workflows/ci-libs-metadata-v2.yml@prebuild_script
     with:
       ARTIFACT_NAME: ${{ matrix.os }}-${{ matrix.platform }}-artifact
       OS_PLATFORM: ${{ matrix.os }}-${{ matrix.platform }}
@@ -83,7 +83,7 @@ jobs:
         platform:
           - amd64
           - armhf
-    uses: signalwire/actions-template/.github/workflows/ci-libs-metadata-v2.yml@main
+    uses: s3rj1k/actions-template/.github/workflows/ci-libs-metadata-v2.yml@prebuild_script
     with:
       ARTIFACT_NAME: ${{ matrix.os }}-${{ matrix.codename }}-${{ matrix.platform }}-artifact
       OS_PLATFORM: ${{ matrix.os }}-${{ matrix.codename }}-${{ matrix.platform }}
@@ -101,7 +101,7 @@ jobs:
           - rpm
         platform:
           - amd64
-    uses: signalwire/actions-template/.github/workflows/cd-scp.yml@main
+    uses: s3rj1k/actions-template/.github/workflows/cd-scp.yml@prebuild_script
     with:
       ARTIFACT_NAME: ${{ matrix.os }}-${{ matrix.platform }}-artifact
       TARGET_FOLDER: /var/www/libks-${{ github.ref_name }}-${{ matrix.os }}-${{ matrix.platform }}/${{ github.run_id }}-${{ github.run_number }}
@@ -132,7 +132,7 @@ jobs:
         platform:
           - amd64
           - armhf
-    uses: signalwire/actions-template/.github/workflows/cd-scp.yml@main
+    uses: s3rj1k/actions-template/.github/workflows/cd-scp.yml@prebuild_script
     with:
       ARTIFACT_NAME: ${{ matrix.os }}-${{ matrix.codename }}-${{ matrix.platform }}-artifact
       TARGET_FOLDER: /var/www/libks-${{ github.ref_name }}-${{ matrix.os }}-${{ matrix.platform }}/${{ github.run_id }}-${{ github.run_number }}
@@ -158,7 +158,7 @@ jobs:
           - rpm
         platform:
           - amd64
-    uses: signalwire/actions-template/.github/workflows/cd-libs-metadata.yml@main
+    uses: s3rj1k/actions-template/.github/workflows/cd-libs-metadata.yml@prebuild_script
     with:
       ARTIFACT_NAME: ${{ matrix.os }}-${{ matrix.platform }}-meta
       LIB_NAME: libks
@@ -191,7 +191,7 @@ jobs:
         platform:
           - amd64
           - armhf
-    uses: signalwire/actions-template/.github/workflows/cd-libs-metadata.yml@main
+    uses: s3rj1k/actions-template/.github/workflows/cd-libs-metadata.yml@prebuild_script
     with:
       ARTIFACT_NAME: ${{ matrix.os }}-${{ matrix.codename }}-${{ matrix.platform }}-meta
       LIB_NAME: libks
@@ -211,7 +211,7 @@ jobs:
     permissions: write-all
     name: 'Copy hash to remote RPM'
     needs: [ distribute_meta_rpm ]
-    uses: signalwire/actions-template/.github/workflows/cd-scp.yml@main
+    uses: s3rj1k/actions-template/.github/workflows/cd-scp.yml@prebuild_script
     strategy:
       matrix:
         os:
@@ -233,7 +233,7 @@ jobs:
     permissions: write-all
     name: 'Copy hash to remote DEB'
     needs: [ distribute_meta_deb ]
-    uses: signalwire/actions-template/.github/workflows/cd-scp.yml@main
+    uses: s3rj1k/actions-template/.github/workflows/cd-scp.yml@prebuild_script
     strategy:
       matrix:
         os:
