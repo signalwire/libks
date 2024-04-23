@@ -40,7 +40,7 @@ if (KS_PLAT_WIN OR WITH_KS_TEST)
 endif()
 
 # Declare our project, libks2
-project(LibKS2 VERSION 2.0.4 LANGUAGES C CXX)
+project(LibKS2 VERSION 2.0.5 LANGUAGES C CXX)
 message("LibKS2 Version ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}")
 
 # Set package version
@@ -260,23 +260,24 @@ if("${CMAKE_OS_NAME}" STREQUAL "Debian")
 		set(CHANGELOG_FOOTER " -- ${CPACK_DEBIAN_PACKAGE_MAINTAINER}  ${RFC2822_TIMESTAMP}")
 	endif()
 
-	# Set version release from environment variable
+	# Guess version release from environment variable
+	# (usage of CPACK_DEBIAN_PACKAGE_RELEASE breaks ability to set CPACK_DEBIAN_PACKAGE_VERSION properly)
 	if (NOT "$ENV{PACKAGE_RELEASE}" STREQUAL "")
-		set(CPACK_DEBIAN_PACKAGE_RELEASE "$ENV{PACKAGE_RELEASE}")
+		set(PACKAGE_RELEASE "$ENV{PACKAGE_RELEASE}")
 	else()
 		if(DATE_CMD)
 			execute_process(COMMAND ${DATE_CMD} +%Y%m%d OUTPUT_VARIABLE DATE_YMD)
-			set(CPACK_DEBIAN_PACKAGE_RELEASE ${DATE_YMD})
+			set(PACKAGE_RELEASE ${DATE_YMD})
 		else()
-			set(CPACK_DEBIAN_PACKAGE_RELEASE "1")
+			set(PACKAGE_RELEASE "1")
 		endif()
 	endif()
 
 	# Set package version
-	set(CPACK_DEBIAN_PACKAGE_VERSION ${PROJECT_VERSION}-${CPACK_DEBIAN_PACKAGE_RELEASE}~${DISTRO_CODENAME})
+	set(CPACK_DEBIAN_PACKAGE_VERSION ${PROJECT_VERSION}-${PACKAGE_RELEASE}~${DISTRO_CODENAME})
 
 	# Set debian file name format
-	set(CPACK_DEBIAN_FILE_NAME "${PACKAGE_NAME}_${PROJECT_VERSION}-${CPACK_DEBIAN_PACKAGE_RELEASE}_${DISTRO_CODENAME}_${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}.deb")
+	set(CPACK_DEBIAN_FILE_NAME "${PACKAGE_NAME}_${PROJECT_VERSION}-${PACKAGE_RELEASE}_${DISTRO_CODENAME}_${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}.deb")
 
 	# Set a Debian compliant changelog header
 	set(CHANGELOG_HEADER "libks (${CPACK_DEBIAN_PACKAGE_VERSION}) ${DISTRO_CODENAME}\; urgency=${CPACK_DEBIAN_PACKAGE_PRIORITY}")
@@ -328,6 +329,7 @@ if("${CMAKE_OS_NAME}" STREQUAL "Debian")
 	else()
 		message(WARNING "DEB Generator: Can't find git and/or gzip and/or date in your path. DEB packages will be missing changelog.Debian.gz.")
 	endif()
+
 endif()
 
 # Enable packaging module
