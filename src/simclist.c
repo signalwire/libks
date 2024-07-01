@@ -1354,7 +1354,7 @@ int ks_list_dump_filedescriptor(const ks_list_t *restrict l, int fd, ks_size_t *
 					WRITE_ERRCHECK(fd, ser_buf, bufsize);
 				}
 				else {                        /* speculation found broken */
-					WRITE_ERRCHECK(fd, &bufsize, sizeof(ks_size_t));
+					WRITE_ERRCHECK(fd, &bufsize, sizeof(uint32_t));
 					WRITE_ERRCHECK(fd, ser_buf, bufsize);
 				}
 				ks_pool_free(&ser_buf);
@@ -1379,7 +1379,7 @@ int ks_list_dump_filedescriptor(const ks_list_t *restrict l, int fd, ks_size_t *
 					WRITE_ERRCHECK(fd, x->data, bufsize);
 				}
 				else {
-					WRITE_ERRCHECK(fd, &bufsize, sizeof(ks_size_t));
+					WRITE_ERRCHECK(fd, &bufsize, sizeof(uint32_t));
 					WRITE_ERRCHECK(fd, x->data, bufsize);
 				}
 			}
