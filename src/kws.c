@@ -615,7 +615,7 @@ KS_DECLARE(ks_ssize_t) kws_raw_write(kws_t *kws, void *data, ks_size_t bytes)
 			r = ssl_err * -1;
 		}
 
-		return r;
+		return r > 0 ? wrote : r;
 	}
 
 	do {
@@ -650,7 +650,7 @@ KS_DECLARE(ks_ssize_t) kws_raw_write(kws_t *kws, void *data, ks_size_t bytes)
 		//printf("wRITE FAIL: %s\n", strerror(errno));
 	//}
 
-	return wrote;
+	return r > 0 ? wrote : r;
 }
 
 static void setup_socket(ks_socket_t sock)
