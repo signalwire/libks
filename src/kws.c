@@ -615,7 +615,7 @@ KS_DECLARE(ks_ssize_t) kws_raw_write(kws_t *kws, void *data, ks_size_t bytes)
 			r = ssl_err * -1;
 		}
 
-		return r;
+		return r > 0 ? wrote : r;
 	}
 
 	do {
@@ -650,7 +650,7 @@ KS_DECLARE(ks_ssize_t) kws_raw_write(kws_t *kws, void *data, ks_size_t bytes)
 		//printf("wRITE FAIL: %s\n", strerror(errno));
 	//}
 
-	return r;
+	return r >= 0 ? wrote : r;
 }
 
 static void setup_socket(ks_socket_t sock)
@@ -1622,7 +1622,7 @@ KS_DECLARE(ks_ssize_t) kws_write_frame(kws_t *kws, kws_opcode_t oc, const void *
 
 	raw_ret = kws_raw_write(kws, bp, (hlen + bytes));
 
-	if (raw_ret != (ks_ssize_t) (hlen + bytes)) {
+	if (raw_ret <= 0 || raw_ret != (ks_ssize_t) (hlen + bytes)) {
 		return raw_ret;
 	}
 
