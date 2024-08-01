@@ -35,6 +35,8 @@ typedef enum {
 	WS_DATA_TOO_BIG = 1009
 } kws_cause_t;
 
+#define WS_NORMAL_CLOSE 1000
+
 typedef enum {
 	WSOC_CONTINUATION = 0x0,
 	WSOC_TEXT = 0x1,

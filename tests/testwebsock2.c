@@ -164,8 +164,8 @@ static ssize_t append_text_frame(void *bp)
 	}
 
 	memcpy(bp, (void *) &hdr[0], hlen);
-	memcpy(bp + hlen, data, bytes);
-	*(uint8_t *)(bp + hlen + bytes) = '\0';
+	memcpy((unsigned char *)bp + hlen, data, bytes);
+	*(uint8_t *)((unsigned char *)bp + hlen + bytes) = '\0';
 
 	return hlen + bytes;
 }
@@ -247,7 +247,6 @@ static void start_tcp_server_and_test_ws(char *ip)
 {
 	ks_thread_t *thread_p = NULL;
 	ks_pool_t *pool;
-	ks_sockaddr_t addr;
 	int family = AF_INET;
 	ks_socket_t cl_sock = KS_SOCK_INVALID;
 	char buf[8192] = "";
@@ -302,7 +301,6 @@ static int test_ws(char *url)
 	ks_pool_t *pool;
 	kws_opcode_t oc;
 	uint8_t *rdata;
-	ks_ssize_t ret;
 	ks_json_t *req = ks_json_create_object();
 	ks_json_add_string_to_object(req, "url", url);
 
