@@ -1664,7 +1664,6 @@ KS_DECLARE(ks_status_t) kws_connect_ex(kws_t **kwsP, ks_json_t *params, kws_flag
 	const char *ip = "127.0.0.1";
 	ks_port_t port = 443;
 	// char buf[50] = "";
-	struct hostent *he;
 	const char *url = ks_json_get_object_string(params, "url", NULL);
 	// const char *headers = ks_json_get_object_string(params, "headers", NULL);
 	const char *host = NULL;
@@ -1673,6 +1672,7 @@ KS_DECLARE(ks_status_t) kws_connect_ex(kws_t **kwsP, ks_json_t *params, kws_flag
 	char *p = NULL;
 	const char *client_data = NULL;
 	int destroy_ssl_ctx = 0;
+	ks_status_t status;
 
 	if (!url) {
 		ks_json_t *tmp;
@@ -1732,20 +1732,8 @@ KS_DECLARE(ks_status_t) kws_connect_ex(kws_t **kwsP, ks_json_t *params, kws_flag
 
 	if (!host || !path) return KS_STATUS_FAIL;
 
-	he = gethostbyname(host);
-
-	if (!he) {
-		ip = host;
-
-		if (strchr(ip, ':')) {
-			family = AF_INET6;
-		}
-
-		ks_addr_set(&addr, ip, port, family);
-	} else {
-		ks_addr_set_raw(&addr, he->h_addr, port, ((struct sockaddr_in *)he->h_addr)->sin_family);
-		// ip = ks_addr_get_host(&addr1);
-	}
+	status = ks_addr_getbyname(host, port, AF_UNSPEC, &addr);
+	if (status != KS_STATUS_SUCCESS) return status;
 
 	cl_sock = ks_socket_connect_ex(SOCK_STREAM, IPPROTO_TCP, &addr, timeout_ms);
 
