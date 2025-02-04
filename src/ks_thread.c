@@ -77,7 +77,16 @@ KS_DECLARE(ks_pid_t) ks_thread_self_id(void)
 #elif KS_PLAT_LIN
 	return syscall(SYS_gettid);
 #else
-	return pthread_self();
+	uint64_t tid;
+	int r = pthread_threadid_np(NULL, &tid);
+	if (!r) {
+		return tid;
+	} else {
+		ks_log(KS_LOG_CRIT, "pthread_threadid_np error, return %d", r);
+		ks_log(KS_LOG_CRIT, "BACKTRACE:");
+		ks_debug_dump_backtrace();
+		abort();
+	}
 #endif
 }
 
@@ -165,10 +174,10 @@ static void *KS_THREAD_CALLING_CONVENTION thread_launch(void *args)
 	if (thread->tag)
 		SetThreadName(thread->id, thread->tag);
 #elif KS_PLAT_MAC
-	if (thread->tag && pthread_setname_np)
+	if (thread->tag && &pthread_setname_np)
 		pthread_setname_np(thread->tag);
 #else
-	if (thread->tag && pthread_setname_np)
+	if (thread->tag && &pthread_setname_np)
 		pthread_setname_np(pthread_self(), thread->tag);
 #endif
 
