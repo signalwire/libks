@@ -43,8 +43,11 @@ typedef void *(*ks_thread_function_t) (ks_thread_t *, void *);
 #ifdef KS_PLAT_WIN
 	typedef void * ks_thread_os_handle_t;
 	typedef DWORD ks_pid_t;
-#else
+#elif KS_PLAT_LIN
 	typedef pid_t ks_pid_t;
+	typedef pthread_t ks_thread_os_handle_t;
+#else
+	typedef uint64_t ks_pid_t;
 	typedef pthread_t ks_thread_os_handle_t;
 #endif
 
