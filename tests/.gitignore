@@ -17,3 +17,4 @@ testdht_net
 testdht_msg
 dht_example
 testhttp
+testtls

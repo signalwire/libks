@@ -112,6 +112,7 @@ KS_BEGIN_EXTERN_C
 		KS_STATUS_PNT_OVER,	       /* pointer structure was overwritten */
 		KS_STATUS_INVALID_POINTER, /* address is not valid */
 		KS_STATUS_NOT_ALLOWED,     /* operation is not allowed */
+		KS_STATUS_RETRY,           /* caller must retry the operation */
 		/* Always insert new entries above this line*/
 		KS_STATUS_COUNT
 	} ks_status_t;
