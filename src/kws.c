@@ -1760,7 +1760,9 @@ KS_DECLARE(ks_status_t) kws_connect_ex(kws_t **kwsP, ks_json_t *params, kws_flag
 	return KS_STATUS_SUCCESS;
 
 err:
-	if (destroy_ssl_ctx) SSL_CTX_free(ssl_ctx);
+	if (destroy_ssl_ctx) {
+		SSL_CTX_free(ssl_ctx);
+	}
 
 	return status;
 }
