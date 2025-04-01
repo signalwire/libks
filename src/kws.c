@@ -1730,10 +1730,15 @@ KS_DECLARE(ks_status_t) kws_connect_ex(kws_t **kwsP, ks_json_t *params, kws_flag
 		}
 	}
 
-	if (!host || !path) return KS_STATUS_FAIL;
+	if (!host || !path) {
+		status = KS_STATUS_FAIL;
+		goto err;
+	}
 
 	status = ks_addr_getbyname(host, port, AF_UNSPEC, &addr);
-	if (status != KS_STATUS_SUCCESS) return status;
+	if (status != KS_STATUS_SUCCESS) {
+		goto err;
+	}
 
 	cl_sock = ks_socket_connect_ex(SOCK_STREAM, IPPROTO_TCP, &addr, timeout_ms);
 
@@ -1744,14 +1749,20 @@ KS_DECLARE(ks_status_t) kws_connect_ex(kws_t **kwsP, ks_json_t *params, kws_flag
 	}
 
 	if (kws_init_ex(kwsP, cl_sock, ssl_ctx, client_data, flags, pool, params) != KS_STATUS_SUCCESS) {
-		if (destroy_ssl_ctx) SSL_CTX_free(ssl_ctx);
-
-		return KS_STATUS_FAIL;
+		status = KS_STATUS_FAIL;
+		goto err;
 	}
 
-	(*kwsP)->destroy_ssl_ctx = 1;
+	if (destroy_ssl_ctx) {
+		(*kwsP)->destroy_ssl_ctx = 1;
+	}
 
 	return KS_STATUS_SUCCESS;
+
+err:
+	if (destroy_ssl_ctx) SSL_CTX_free(ssl_ctx);
+
+	return status;
 }
 
 KS_DECLARE(int) kws_wait_sock(kws_t *kws, uint32_t ms, ks_poll_t flags)
