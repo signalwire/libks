@@ -1138,7 +1138,11 @@ KS_DECLARE(ks_status_t) ks_addr_getbyname(const char *name, ks_port_t port, int 
 	else {
 		ks_assert(res);
 
-		ks_addr_set_raw(result, &((struct sockaddr_in *)res->ai_addr)->sin_addr, port, res->ai_family);
+		if (res->ai_family == AF_INET6) {
+			ks_addr_set_raw(result, &((struct sockaddr_in6 *)res->ai_addr)->sin6_addr, port, res->ai_family);
+		} else {
+			ks_addr_set_raw(result, &((struct sockaddr_in *)res->ai_addr)->sin_addr, port, res->ai_family);
+		}
 	}
 
 	if (res)
