@@ -137,7 +137,7 @@ KS_DECLARE(int) ks_gen_cert(const char *dir, const char *file)
 
 	//bio_err=BIO_new_fp(stderr, BIO_NOCLOSE);
 
-	mkcert(&x509, &pkey, 1024, 0, 36500);
+	mkcert(&x509, &pkey, 2048, 0, 36500);
 
 	//RSA_print_fp(stdout, pkey->pkey.rsa, 0);
 	//X509_print_fp(stdout, x509);
