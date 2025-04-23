@@ -90,6 +90,7 @@ KS_DECLARE(int) ks_wait_sock(ks_socket_t sock, uint32_t ms, ks_poll_t flags);
 
 KS_DECLARE(ks_socket_t) ks_socket_connect(int type, int protocol, ks_sockaddr_t *addr);
 KS_DECLARE(ks_socket_t) ks_socket_connect_ex(int type, int protocol, ks_sockaddr_t *addr, uint32_t nb_timeout);
+KS_DECLARE(void) ks_socket_common_setup(ks_socket_t sock);
 KS_DECLARE(ks_status_t) ks_addr_bind(ks_socket_t server_sock, const ks_sockaddr_t *addr);
 KS_DECLARE(const char *) ks_addr_get_host(ks_sockaddr_t *addr);
 KS_DECLARE(ks_port_t) ks_addr_get_port(ks_sockaddr_t *addr);
