@@ -58,6 +58,7 @@ using System.Diagnostics;
                 Directory.CreateDirectory(package_root + @"\src\include");
 
                 CopyFilesRecursively(new DirectoryInfo(@"..\src\include\"), new DirectoryInfo(package_root + @"\src\include"));
+                CopyFilesRecursively(new DirectoryInfo(@"..\Build-$(Platform)\src\include\"), new DirectoryInfo(package_root + @"\src\include"));
                 string[] files = {"CMakeLists.txt", @"cmake\ksutil.cmake"};
                 foreach (string f in files) {        
                     File.Copy(@"..\" + f, package_root + @"\" + f);

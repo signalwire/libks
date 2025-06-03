@@ -38,6 +38,7 @@
 /* Use this to allow enabling TCP_KEEPIDLE and TCP_KEEPINTVL socket options */
 //#define KS_KEEP_IDLE_INTVL 1
 
+#include "libks/ks_defines.h"
 #include "libks/ks_platform.h"
 #include "libks/ks_types.h"
 
