@@ -38,21 +38,17 @@
 /* Use this to allow enabling TCP_KEEPIDLE and TCP_KEEPINTVL socket options */
 //#define KS_KEEP_IDLE_INTVL 1
 
+#if !defined(KS_PLAT_LINUX) && !defined(KS_PLAT_WIN) && !defined(KS_PLAT_MAC)
+#ifdef __linux__
+#define KS_PLAT_LINUX
+#else
 #ifdef WIN32
-#ifndef	KS_PLAT_WIN
 #define KS_PLAT_WIN
-#endif
-#endif
-
+#else
 #ifdef __APPLE__
-#ifndef KS_PLAT_MAC
 #define KS_PLAT_MAC
 #endif
 #endif
-
-#ifdef __linux__
-#ifndef KS_PLAT_LIN
-#define KS_PLAT_LIN
 #endif
 #endif
 
