@@ -14,7 +14,7 @@ on:
 jobs:
   build:
     name: Build libks Windows
-    runs-on: windows-2019
+    runs-on: windows-2022
 
     steps:
       - name: Checkout code
@@ -28,7 +28,7 @@ jobs:
           echo "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           echo "C:\Strawberry\perl\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      # https://learn.microsoft.com/en-us/visualstudio/releases/2019/history
+      # https://learn.microsoft.com/en-us/visualstudio/releases/2022/release-history
       - name: Check available VS versions
         shell: cmd
         run: |
