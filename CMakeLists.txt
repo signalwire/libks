@@ -15,13 +15,6 @@ option(WITH_LIBBACKTRACE "Enables linking to libbacktrace as an external project
 include(cmake/ksutil.cmake)
 ksutil_setup_platform()
 
-# Generate ks_defines.h from ks_defines.h.in
-configure_file(
-	${CMAKE_SOURCE_DIR}/src/include/libks/ks_defines.h.in
-	${CMAKE_BINARY_DIR}/src/include/libks/ks_defines.h
-	@ONLY
-)
-
 # Find stuff we need for packaging on UNIX
 if(KS_PLAT_LIN)
 	find_package(Git)
@@ -349,12 +342,9 @@ include(cmake/ksutil.cmake)
 file(GLOB_RECURSE KsDeps [LIST_DIRECTORIES false]
 	${CMAKE_CURRENT_LIST_DIR}/src/*.c
 	${CMAKE_CURRENT_LIST_DIR}/src/include/libks/*.h
-	${CMAKE_BINARY_DIR}/src/include/libks/ks_defines.h
 	${CMAKE_CURRENT_LIST_DIR}/src/include/crypt/*.c
 	${CMAKE_CURRENT_LIST_DIR}/src/include/crypt/*.h
 )
-
-include_directories(${CMAKE_BINARY_DIR}/src/include/)
 
 if (KS_PLAT_WIN)
 	source_group(TREE ${CMAKE_CURRENT_LIST_DIR} FILES ${KsDeps})
@@ -571,8 +561,7 @@ if (NOT KS_PLAT_WIN)
 
 	# Set install targets
 	install(TARGETS ks2 COMPONENT "runtime" EXPORT LibKS2Config DESTINATION lib)
-	install(DIRECTORY src/include/libks COMPONENT "runtime" DESTINATION include/libks2 PATTERN src/include/libks/internal EXCLUDE PATTERN src/include/libks/ks_defines.h.in EXCLUDE)
-	install(FILES ${CMAKE_BINARY_DIR}/src/include/libks/ks_defines.h COMPONENT "runtime" DESTINATION include/libks2/libks)
+	install(DIRECTORY src/include/libks COMPONENT "runtime" DESTINATION include/libks2 PATTERN src/include/libks/internal EXCLUDE)
 
 	# Set path for pkg-config based on ARCH and distro type
 	if("${CMAKE_OS_NAME}" STREQUAL "Centos") # pkg-config --variable pc_path pkg-config
