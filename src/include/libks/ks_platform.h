@@ -25,7 +25,7 @@
 
 KS_BEGIN_EXTERN_C
 
-#if !defined(KS_PLAT_LINUX) && !defined(KS_PLAT_WIN) && !defined(KS_PLAT_MAC)
+#if !defined(KS_PLAT_LIN) && !defined(KS_PLAT_WIN) && !defined(KS_PLAT_MAC)
 #ifdef __linux__
 #define KS_PLAT_LINUX
 #else
