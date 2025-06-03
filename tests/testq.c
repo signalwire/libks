@@ -241,6 +241,8 @@ ks_status_t qtest3()
 
 	ks_q_destroy(&q);
 	ks_pool_close(&pool);
+
+	return status;
 }
 
 int main(int argc, char **argv)
