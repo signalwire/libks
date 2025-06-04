@@ -74,7 +74,7 @@ static void __report_mutex_lock_released(ks_mutex_t *mutex, const char *file, in
 	ks_pid_t tid = ks_thread_self_id();
 	pid_t utid = syscall(SYS_gettid);
 
-	printf("MUTEX_LOCK_RELEASE THR: %8.8x[%i] MUTEX ADDR: %p COUNT: %zu LOCATION: %s:%d (%s)\n",
+	printf("MUTEX_LOCK_RELEASE THR: %"KS_PID_FMT"[%i] MUTEX ADDR: %p COUNT: %zu LOCATION: %s:%d (%s)\n",
 		 mutex->record.owner_id,
 		 mutex->record.owner_unique_id,
 		 (void *)mutex,
@@ -118,7 +118,7 @@ static void __report_mutex_lock_aquired(ks_mutex_t *mutex, const char *file, int
 	mutex->record.owner_count++;
 	ks_assert(mutex->record.owner_count != 0);
 
-	printf("MUTEX_LOCK_AQUIRE THR: %8.8x[%i] MUTEX ADDR: %p COUNT: %zu LOCATION: %s:%d (%s)\n",
+	printf("MUTEX_LOCK_AQUIRE THR: %"KS_PID_FMT"[%i] MUTEX ADDR: %p COUNT: %zu LOCATION: %s:%d (%s)\n",
 		 mutex->record.owner_id,
 		 mutex->record.owner_unique_id,
 		 (void *)mutex,
@@ -322,7 +322,7 @@ KS_DECLARE(ks_status_t) __ks_mutex_trylock(ks_mutex_t *mutex, const char *file, 
 #endif
 
 #ifdef KS_DEBUG_MUTEX
-	printf("POST_MUTEX_TRY_LOCK THR: %8.8x[%i] MUTEX ADDR: %p ERRNO: %d PTHREAD_COUNT: %d PTHREAD_OWNER: [%d] LOCATION: %s:%d (%s)\n",
+	printf("POST_MUTEX_TRY_LOCK THR: %"KS_PID_FMT"[%i] MUTEX ADDR: %p ERRNO: %d PTHREAD_COUNT: %d PTHREAD_OWNER: [%d] LOCATION: %s:%d (%s)\n",
 		 mutex->record.owner_id,
 		 mutex->record.owner_unique_id,
 		 (void *)mutex,
@@ -669,7 +669,7 @@ static void __report_rwl_read_lock_aquired(ks_rwl_t *rwlock, const char *parent_
 	rwlock->read_lock_count++;
 	ks_assert(rwlock->read_lock_count != 0);
 
-	printf("RWL_LOCK_READ_LOCK_AQUIRED THR: %8.8x[%i] RWL ADDR: %p READ COUNT: %zu WRITE COUNT: %zu METHOD: %s LOCATION: %s:%d (%s)\n",
+	printf("RWL_LOCK_READ_LOCK_AQUIRED THR: %"KS_PID_FMT"[%i] RWL ADDR: %p READ COUNT: %zu WRITE COUNT: %zu METHOD: %s LOCATION: %s:%d (%s)\n",
 		 tid,
 		 utid,
 		 (void *)rwlock,
@@ -701,7 +701,7 @@ static void __report_rwl_read_lock_released(ks_rwl_t *rwlock, const char *parent
 	rwlock->read_lock_count--;
 	__allocate_thread_lock_record(rwlock, READ_RELEASE, file, line, tag);
 
-	printf("RWL_LOCK_READ_LOCK_RELEASED THR: %8.8x[%i] RWL ADDR: %p READ COUNT: %zu WRITE COUNT: %zu METHOD: %s LOCATION: %s:%d (%s)\n",
+	printf("RWL_LOCK_READ_LOCK_RELEASED THR: %"KS_PID_FMT"[%i] RWL ADDR: %p READ COUNT: %zu WRITE COUNT: %zu METHOD: %s LOCATION: %s:%d (%s)\n",
 		 tid,
 		 utid,
 		 (void *)rwlock,
@@ -725,7 +725,7 @@ static void __report_rwl_write_lock_aquired(ks_rwl_t *rwlock, const char *file, 
 		ks_atomic_decrement_uint32(&rwlock->record_lock_flag);
 	}
 
-	printf("RWL_LOCK_WRITE_LOCK_AQUIRE THR: %8.8x[%i] RWL ADDR: %p READ COUNT: %zu WRITE COUNT: %zu LOCATION: %s:%d (%s)\n",
+	printf("RWL_LOCK_WRITE_LOCK_AQUIRE THR: %"KS_PID_FMT"[%i] RWL ADDR: %p READ COUNT: %zu WRITE COUNT: %zu LOCATION: %s:%d (%s)\n",
 		 tid,
 		 utid,
 		 (void *)rwlock,
@@ -752,7 +752,7 @@ static void __report_rwl_write_lock_released(ks_rwl_t *rwlock, const char *file,
 		ks_atomic_decrement_uint32(&rwlock->record_lock_flag);
 	}
 
-	printf("RWL_LOCK_WRITE_LOCK_RELEASE THR: %8.8x[%i] RWL ADDR: %p READ COUNT: %zu WRITE COUNT: %zu LOCATION: %s:%d (%s)\n",
+	printf("RWL_LOCK_WRITE_LOCK_RELEASE THR: %"KS_PID_FMT"[%i] RWL ADDR: %p READ COUNT: %zu WRITE COUNT: %zu LOCATION: %s:%d (%s)\n",
 		 tid,
 		 utid,
 		 (void *)rwlock,

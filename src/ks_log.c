@@ -196,11 +196,15 @@ KS_DECLARE(ks_size_t) ks_log_format_output(char *buf, ks_size_t bufSize, const c
 			}
 		}
 		if (ks_log_prefix & KS_LOG_PREFIX_THREAD) {
+#ifdef KS_PLAT_MAC
+			uint64_t id = (uint64_t)ks_thread_self_id();
+#else
 			uint32_t id = (uint32_t)ks_thread_self_id();
 #ifdef __GNU__
 			id = (uint32_t)syscall(SYS_gettid);
 #endif
-			used += snprintf(buf + used - 1, bufSize - used, "#%8.8X ", id);
+#endif
+			used += snprintf(buf + used - 1, bufSize - used, "#%"KS_PID_FMT" ", id);
 			if (used >= bufSize) goto done;
 		}
 		if (ks_log_prefix & KS_LOG_PREFIX_FILE) {
@@ -288,12 +292,15 @@ static void default_logger(const char *file, const char *func, int line, int lev
 			}
 
 			{
+#ifdef KS_PLAT_MAC
+				uint64_t id = (uint64_t)ks_thread_self_id();
+#else
 				uint32_t id = (uint32_t)ks_thread_self_id();
 #ifdef __GNU__
 				id = (uint32_t)syscall(SYS_gettid);
 #endif
-				snprintf(tbuf, sizeof(tbuf), "#%8.8X", id);
-
+#endif
+				snprintf(tbuf, sizeof(tbuf), "#%"KS_PID_FMT, id);
 				ks_json_add_string_to_object(json, "thread", tbuf);
 			}
 
