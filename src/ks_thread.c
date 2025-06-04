@@ -74,8 +74,20 @@ KS_DECLARE(ks_pid_t) ks_thread_self_id(void)
 {
 #ifdef KS_PLAT_WIN
 	return GetCurrentThreadId();
-#elif KS_PLAT_LIN
+#elif defined(KS_PLAT_LIN)
 	return syscall(SYS_gettid);
+#elif defined(KS_PLAT_MAC)
+	uint64_t tid;
+	int r = pthread_threadid_np(NULL, &tid);
+
+	if (!r) {
+		return tid;
+	} else {
+		ks_log(KS_LOG_CRIT, "pthread_threadid_np error, return %d", r);
+		ks_log(KS_LOG_CRIT, "BACKTRACE:");
+		ks_debug_dump_backtrace();
+		abort();
+	}
 #else
 	return pthread_self();
 #endif
@@ -99,19 +111,19 @@ static ks_status_t __ks_thread_destroy_ex(ks_thread_t **threadp, ks_bool_t inter
 	detached = (thread->flags & KS_THREAD_FLAG_DETACHED) ? KS_TRUE : KS_FALSE;
 
 	if (!internal_call && detached) {
-		ks_log(KS_LOG_ERROR, "Detached thread cannot be explicitly destroyed. Thread: %p, tid: %8.8x", (void *)thread, thread->id);
+		ks_log(KS_LOG_ERROR, "Detached thread cannot be explicitly destroyed. Thread: %p, tid: %"KS_PID_FMT, (void *)thread, thread->id);
 		return status;
 	}
 
 	ks_mutex_lock(thread->mutex);
 	if (thread->in_use) {
 		ks_mutex_unlock(thread->mutex);
-		ks_log(KS_LOG_ERROR, "Thread still in use. Shut worker first. Thread: %p, tid: %8.8x", (void *)thread, thread->id);
+		ks_log(KS_LOG_ERROR, "Thread still in use. Shut worker first. Thread: %p, tid: %"KS_PID_FMT, (void *)thread, thread->id);
 		return status;
 	}
 	ks_mutex_unlock(thread->mutex);
 
-	ks_log(KS_LOG_DEBUG, "Thread destroy complete, deleting os primitives for thread address %p, tid: %8.8x", (void *)thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "Thread destroy complete, deleting os primitives for thread address %p, tid: %"KS_PID_FMT, (void *)thread, thread->id);
 
 #ifdef WIN32
 	CloseHandle(thread->handle);
@@ -157,7 +169,7 @@ static void *KS_THREAD_CALLING_CONVENTION thread_launch(void *args)
 	ks_thread_t *thread = (ks_thread_t *) args;
 	void *ret = NULL;
 
-	ks_log(KS_LOG_DEBUG, "Thread has launched with address: %p, tid: %8.8x\n", (void *)thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "Thread has launched with address: %p, tid: %"KS_PID_FMT"\n", (void *)thread, thread->id);
 
 	thread->id = ks_thread_self_id();
 
@@ -165,16 +177,16 @@ static void *KS_THREAD_CALLING_CONVENTION thread_launch(void *args)
 	if (thread->tag)
 		SetThreadName(thread->id, thread->tag);
 #elif KS_PLAT_MAC
-	if (thread->tag && pthread_setname_np)
+	if (thread->tag && &pthread_setname_np)
 		pthread_setname_np(thread->tag);
 #else
-	if (thread->tag && pthread_setname_np)
+	if (thread->tag && &pthread_setname_np)
 		pthread_setname_np(pthread_self(), thread->tag);
 #endif
 
-	ks_log(KS_LOG_DEBUG, "START call user thread callback with address: %p, tid: %8.8x\n", (void *)thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "START call user thread callback with address: %p, tid: %"KS_PID_FMT"\n", (void *)thread, thread->id);
 	ret = thread->function(thread, thread->private_data);
-	ks_log(KS_LOG_DEBUG, "STOP call user thread callback with address: %p, tid: %8.8x\n", (void *)thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "STOP call user thread callback with address: %p, tid: %"KS_PID_FMT"\n", (void *)thread, thread->id);
 
 	if (thread->flags & KS_THREAD_FLAG_DETACHED) {
 		thread->in_use = KS_FALSE;
@@ -258,25 +270,25 @@ KS_DECLARE(uint8_t) ks_thread_priority(ks_thread_t *thread) {
 
 static ks_status_t __join_os_thread(ks_thread_t *thread) {
 	if (ks_thread_self_id() != thread->id) {
-		ks_log(KS_LOG_DEBUG, "Joining on thread address: %p, tid: %8.8lx\n", (void *)thread, thread->id);
+		ks_log(KS_LOG_DEBUG, "Joining on thread address: %p, tid: %"KS_PID_FMT"\n", (void *)thread, thread->id);
 #ifdef WIN32
 		ks_assertd(WaitForSingleObject(thread->handle, INFINITE) == WAIT_OBJECT_0);
 #else
 		int err = 0;
 		if ((err = pthread_join(thread->handle, NULL)) != 0 && err != ESRCH) {
-			ks_log(KS_LOG_DEBUG, "Failed to join on thread address: %p, tid: %8.8x, error = %s\n", (void *)thread, thread->id, strerror(err));
+			ks_log(KS_LOG_DEBUG, "Failed to join on thread address: %p, tid: %"KS_PID_FMT", error = %s\n", (void *)thread, thread->id, strerror(err));
 			return KS_STATUS_FAIL;
 		}
 #endif
-		ks_log(KS_LOG_DEBUG, "Completed join on thread address: %p, tid: %8.8x\n", (void *)thread, thread->id);
+		ks_log(KS_LOG_DEBUG, "Completed join on thread address: %p, tid: %"KS_PID_FMT"\n", (void *)thread, thread->id);
 	} else {
-		ks_log(KS_LOG_DEBUG, "Not joining on self address: %p, tid: %8.8x\n", (void *)thread, thread->id);
+		ks_log(KS_LOG_DEBUG, "Not joining on self address: %p, tid: %"KS_PID_FMT"\n", (void *)thread, thread->id);
 	}
 	return KS_STATUS_SUCCESS;
 }
 
 KS_DECLARE(ks_status_t) ks_thread_join(ks_thread_t *thread) {
-	ks_log(KS_LOG_DEBUG, "Join requested by thread: %8.8lx for thread address: %p, tid: %8.8x\n", ks_thread_self_id(), (void *)&thread, thread->id);
+	ks_log(KS_LOG_DEBUG, "Join requested by thread: %"KS_PID_FMT" for thread address: %p, tid: %"KS_PID_FMT"\n", ks_thread_self_id(), (void *)&thread, thread->id);
 
 	return __join_os_thread(thread);
 }

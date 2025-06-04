@@ -16,7 +16,7 @@ jobs:
           apt-get update && apt-get install -yq build-essential autotools-dev lsb-release pkg-config automake autoconf libtool-bin clang-tools-7
           apt-get install -yq cmake uuid-dev libssl-dev
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - run: pwd
       - id: scan_build
         run: ./scan_build.sh
@@ -41,7 +41,7 @@ jobs:
 
       - name: Upload artifacts
         if: failure()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.tar.outputs.ARTIFACT }}-${{ github.sha }}-${{ github.run_id }}
           path: ${{ steps.tar.outputs.ARTIFACT_PATH }}
@@ -60,13 +60,13 @@ jobs:
       image: debian:buster
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: run tests
         id: tests
         run: ./run_tests.sh
       - name: Upload artifacts
         if: failure()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: test-artifacts-${{ github.sha }}-${{ github.run_id }}.html
           path: ${{ steps.tests.outputs.TEST_ARTIFACT_FILE }}

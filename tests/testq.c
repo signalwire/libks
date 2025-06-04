@@ -24,6 +24,10 @@
 #include "tap.h"
 #define MAX 200
 
+#ifndef MIN
+#define MIN(a, b) ((a)<(b)?(a):(b))
+#endif
+
 static void *test1_thread(ks_thread_t *thread, void *data)
 {
 	ks_q_t *q = (ks_q_t *) data;
@@ -237,6 +241,8 @@ ks_status_t qtest3()
 
 	ks_q_destroy(&q);
 	ks_pool_close(&pool);
+
+	return status;
 }
 
 int main(int argc, char **argv)
@@ -252,6 +258,7 @@ int main(int argc, char **argv)
 
 	ttl = ks_env_cpu_count() * 5;
 	//ttl = 5;
+	ttl = MIN(MAX, ttl);
 
 
 	ok(qtest3() == KS_STATUS_SUCCESS);

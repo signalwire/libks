@@ -42,7 +42,7 @@ static inline void ks_ssl_lock_callback(int mode, int type, char *file, int line
 
 static inline unsigned long ks_ssl_thread_id(void)
 {
-	return ks_thread_self_id();
+	return (unsigned long)ks_thread_self_id();
 }
 
 KS_DECLARE(void) ks_ssl_init_skip(ks_bool_t skip)

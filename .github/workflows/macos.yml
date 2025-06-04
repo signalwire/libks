@@ -1,0 +1,56 @@
+name: MacOS Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - release
+  pull_request:
+    branches:
+      - master
+      - release
+
+jobs:
+  build:
+    name: Build libks MacOS
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          brew install ossp-uuid
+          brew reinstall openssl@3
+
+      - name: Configure with CMake
+        run: |
+          cmake . -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=./install
+
+      - name: Build
+        run: |
+          make
+
+      - name: Run tests
+        run: |
+          make CTEST_OUTPUT_ON_FAILURE=1 test
+
+      - name: Install to local folder
+        run: |
+          make install
+
+      # - name: Debug - List all files
+      #   run: |
+      #     find . -type f | sort
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: libks-macos-build
+          path: |
+            install/

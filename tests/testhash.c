@@ -79,7 +79,7 @@ static void *test2_thread(ks_thread_t *thread, void *data)
 
 			ks_hash_this(itt, &key, NULL, &val);
 
-			printf("%u ITT %s=%s\n", (int)ks_thread_self_id(), (char *)key, (char *)val);
+			printf("%"KS_PID_FMT" ITT %s=%s\n", ks_thread_self_id(), (char *)key, (char *)val);
 		}
 		ks_sleep(100000);
 	}
