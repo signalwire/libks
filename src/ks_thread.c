@@ -288,11 +288,7 @@ static ks_status_t __join_os_thread(ks_thread_t *thread) {
 }
 
 KS_DECLARE(ks_status_t) ks_thread_join(ks_thread_t *thread) {
-#ifdef KS_PLAT_MAC
 	ks_log(KS_LOG_DEBUG, "Join requested by thread: %"KS_PID_FMT" for thread address: %p, tid: %"KS_PID_FMT"\n", ks_thread_self_id(), (void *)&thread, thread->id);
-#else
-	ks_log(KS_LOG_DEBUG, "Join requested by thread: %"KS_PID_FMT" for thread address: %p, tid: %"KS_PID_FMT"\n", ks_thread_self_id(), (void *)&thread, thread->id);
-#endif
 
 	return __join_os_thread(thread);
 }
