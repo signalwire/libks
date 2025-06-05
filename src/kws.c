@@ -766,6 +766,14 @@ static int establish_client_logical_layer(kws_t *kws)
 	if (kws->ssl) {
 		strncpy(kws->cipher_name, SSL_get_cipher_name(kws->ssl), sizeof(kws->cipher_name) - 1);
 		ks_log(KS_LOG_INFO, "SSL negotiation succeeded, negotiated cipher is: %s\n", kws->cipher_name);
+
+		if (ks_json_get_object_bool(kws->params, "ssl_validate_certificate", KS_FALSE)) {
+			if (SSL_get_verify_result(kws->ssl) != X509_V_OK) {
+				ks_log(KS_LOG_ERROR, "SSL negotiation failed, invalid certificate\n");
+				return -1;
+			}
+		}
+
 	} else {
 		memset(kws->cipher_name, 0, sizeof(kws->cipher_name));
 	}
@@ -971,6 +979,7 @@ KS_DECLARE(ks_status_t) kws_init_ex(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl
 
 		if (cert) X509_free(cert);
 	}
+
 
 	*kwsP = kws;
 
@@ -1694,6 +1703,8 @@ KS_DECLARE(ks_status_t) kws_connect_ex(kws_t **kwsP, ks_json_t *params, kws_flag
 					ks_log(KS_LOG_ERROR, "Failed to initiate SSL context with ssl error [%lu].\n", ssl_ctx_error);
 					return KS_STATUS_FAIL;
 				}
+
+				SSL_CTX_set_default_verify_paths(ssl_ctx);
 
 				destroy_ssl_ctx++;
 			}
