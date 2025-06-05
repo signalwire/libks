@@ -770,6 +770,7 @@ static int establish_client_logical_layer(kws_t *kws)
 		if (ks_json_get_object_bool(kws->params, "ssl_validate_certificate", KS_FALSE)) {
 			if (SSL_get_verify_result(kws->ssl) != X509_V_OK) {
 				ks_log(KS_LOG_ERROR, "SSL negotiation failed, invalid certificate\n");
+
 				return -1;
 			}
 		}
@@ -979,7 +980,6 @@ KS_DECLARE(ks_status_t) kws_init_ex(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl
 
 		if (cert) X509_free(cert);
 	}
-
 
 	*kwsP = kws;
 
