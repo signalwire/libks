@@ -63,7 +63,7 @@ int main(int argc, char **argv)
 #ifdef KS_PLAT_MAC
 	/* the clock on osx seems to be particularly bad at being accurate, we need a bit more room for error*/
 	/* GHA macos arm runners seem too slow */
-	ok( diff > 1900 && diff < 10500 );
+	ok( diff > 1900 && diff < 12000 );
 #else
 	ok( diff > 1950 && diff < 2050 );
 #endif
