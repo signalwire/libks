@@ -255,6 +255,24 @@ KS_DECLARE(ks_socket_t) ks_socket_connect_ex(int type, int protocol, ks_sockaddr
 	return sock;
 }
 
+/* NONBLOCK + NODELAY + KEEPALIVE */
+KS_DECLARE(void) ks_socket_common_setup(ks_socket_t sock)
+{
+	if (sock == KS_SOCK_INVALID) {
+		return;
+	}
+
+	ks_socket_option(sock, KS_SO_NONBLOCK, KS_TRUE);
+	ks_socket_option(sock, TCP_NODELAY, KS_TRUE);
+	ks_socket_option(sock, SO_KEEPALIVE, KS_TRUE);
+#ifdef KS_KEEP_IDLE_INTVL
+#ifndef __APPLE__
+	ks_socket_option(sock, TCP_KEEPIDLE, 30);
+	ks_socket_option(sock, TCP_KEEPINTVL, 30);
+#endif
+#endif /* KS_KEEP_IDLE_INTVL */
+}
+
 KS_DECLARE(ks_status_t) ks_addr_bind(ks_socket_t server_sock, const ks_sockaddr_t *addr)
 {
 	ks_status_t status = KS_STATUS_SUCCESS;

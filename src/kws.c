@@ -653,19 +653,6 @@ KS_DECLARE(ks_ssize_t) kws_raw_write(kws_t *kws, void *data, ks_size_t bytes)
 	return r >= 0 ? wrote : r;
 }
 
-static void setup_socket(ks_socket_t sock)
-{
-	ks_socket_option(sock, KS_SO_NONBLOCK, KS_TRUE);
-	ks_socket_option(sock, TCP_NODELAY, KS_TRUE);
-	ks_socket_option(sock, SO_KEEPALIVE, KS_TRUE);
-#ifdef KS_KEEP_IDLE_INTVL
-#ifndef __APPLE__
-	ks_socket_option(sock, TCP_KEEPIDLE, 30);
-	ks_socket_option(sock, TCP_KEEPINTVL, 30);
-#endif
-#endif /* KS_KEEP_IDLE_INTVL */
-}
-
 static void restore_socket(ks_socket_t sock)
 {
 	ks_socket_option(sock, KS_SO_NONBLOCK, KS_FALSE);
@@ -952,7 +939,7 @@ KS_DECLARE(ks_status_t) kws_init_ex(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl
 
 	kws->secure = ssl_ctx ? 1 : 0;
 
-	setup_socket(sock);
+	ks_socket_common_setup(sock);
 
 	if (establish_logical_layer(kws) == -1) {
 		ks_log(KS_LOG_ERROR, "Failed to establish logical layer\n");
