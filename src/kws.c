@@ -768,11 +768,22 @@ static int establish_client_logical_layer(kws_t *kws)
 		ks_log(KS_LOG_INFO, "SSL negotiation succeeded, negotiated cipher is: %s\n", kws->cipher_name);
 
 		if (ks_json_get_object_bool(kws->params, "ssl_validate_certificate", KS_FALSE)) {
-			if (SSL_get_verify_result(kws->ssl) != X509_V_OK) {
-				ks_log(KS_LOG_ERROR, "SSL negotiation failed, invalid certificate\n");
+			X509 *cert = SSL_get_peer_certificate(kws->ssl);
+
+			if (!cert) {
+				ks_log(KS_LOG_ERROR, "SSL negotiation failed, no certificate\n");
 
 				return -1;
 			}
+
+			if (SSL_get_verify_result(kws->ssl) != X509_V_OK) {
+				ks_log(KS_LOG_ERROR, "SSL negotiation failed, invalid certificate\n");
+				X509_free(cert);
+
+				return -1;
+			}
+
+			X509_free(cert);
 		}
 
 	} else {
