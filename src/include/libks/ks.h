@@ -79,6 +79,7 @@ KS_END_EXTERN_C
 #include "libks/simclist.h"
 #include "libks/ks_ssl.h"
 #include "libks/kws.h"
+#include "libks/ks_tls.h"
 #include "libks/ks_uuid.h"
 #include "libks/ks_acl.h"
 #include "libks/ks_base64.h"
