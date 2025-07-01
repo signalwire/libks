@@ -62,6 +62,41 @@ static void schema_format_checker(const std::string &format, const std::string &
 	/* could extend to check more types */
 }
 
+class ks_error_handler : public nlohmann::json_schema::basic_error_handler
+{
+public:
+	struct validation_error {
+		std::string message;
+		std::string path;
+	};
+	
+	std::vector<validation_error> errors;
+	static const size_t MAX_ERRORS = 5;
+	
+	void error(const nlohmann::json::json_pointer &pointer, const nlohmann::json &instance, const std::string &message) override
+	{
+		// Stop collecting errors after reaching the limit
+		if (errors.size() >= MAX_ERRORS) {
+			return;
+		}
+		
+		validation_error err;
+		err.message = message;
+		err.path = pointer.to_string();
+		errors.push_back(err);
+		
+		// Add a truncation message if we hit the limit
+		if (errors.size() == MAX_ERRORS) {
+			validation_error truncated_err;
+			truncated_err.message = "Maximum error limit reached. Additional errors may exist.";
+			truncated_err.path = "";
+			errors.push_back(truncated_err);
+		}
+		
+		basic_error_handler::error(pointer, instance, message);
+	}
+};
+
 
 #else
 
@@ -208,8 +243,50 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_validate_string(ks_json_schem
 		// Parse the JSON string
 		nlohmann::json json_doc = nlohmann::json::parse(json_string);
 		
-		// Validate using json-schema-validator
-		schema->validator->validate(json_doc);
+		// Create error handler to collect detailed validation errors
+		ks_error_handler error_handler;
+		
+		// Validate using json-schema-validator with error handler
+		schema->validator->validate(json_doc, error_handler);
+		
+		// Check if validation failed
+		if (!error_handler.errors.empty()) {
+			if (errors) {
+				ks_json_schema_error_t *error_list = nullptr;
+				ks_json_schema_error_t *last_error = nullptr;
+
+				for (const auto& validation_error : error_handler.errors) {
+					auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
+					if (!error) {
+						ks_json_schema_error_free(&error_list);
+						return KS_JSON_SCHEMA_STATUS_MEMORY_ERROR;
+					}
+
+					error->message = strdup(validation_error.message.c_str());
+					error->path = strdup(validation_error.path.c_str());
+					error->next = nullptr;
+
+					if (!error->message || !error->path) {
+						free(error->message);
+						free(error->path);
+						free(error);
+						ks_json_schema_error_free(&error_list);
+						return KS_JSON_SCHEMA_STATUS_MEMORY_ERROR;
+					}
+
+					if (last_error) {
+						last_error->next = error;
+					} else {
+						error_list = error;
+					}
+					last_error = error;
+				}
+
+				*errors = error_list;
+			}
+			return KS_JSON_SCHEMA_STATUS_VALIDATION_FAILED;
+		}
+		
 		return KS_JSON_SCHEMA_STATUS_SUCCESS;
 	} catch (const nlohmann::json::parse_error& e) {
 		if (errors) {
@@ -224,7 +301,7 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_validate_string(ks_json_schem
 		}
 		return KS_JSON_SCHEMA_STATUS_INVALID_JSON;
 	} catch (const std::exception& e) {
-		// Validation error
+		// Other validation errors
 		if (errors) {
 			auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
 			if (error) {
@@ -263,11 +340,53 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_validate_json(ks_json_schema_
 			return KS_JSON_SCHEMA_STATUS_INVALID_JSON;
 		}
 		
-		// Validate using json-schema-validator
-		schema->validator->validate(json_doc);
+		// Create error handler to collect detailed validation errors
+		ks_error_handler error_handler;
+		
+		// Validate using json-schema-validator with error handler
+		schema->validator->validate(json_doc, error_handler);
+		
+		// Check if validation failed
+		if (!error_handler.errors.empty()) {
+			if (errors) {
+				ks_json_schema_error_t *error_list = nullptr;
+				ks_json_schema_error_t *last_error = nullptr;
+
+				for (const auto& validation_error : error_handler.errors) {
+					auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
+					if (!error) {
+						ks_json_schema_error_free(&error_list);
+						return KS_JSON_SCHEMA_STATUS_MEMORY_ERROR;
+					}
+
+					error->message = strdup(validation_error.message.c_str());
+					error->path = strdup(validation_error.path.c_str());
+					error->next = nullptr;
+
+					if (!error->message || !error->path) {
+						free(error->message);
+						free(error->path);
+						free(error);
+						ks_json_schema_error_free(&error_list);
+						return KS_JSON_SCHEMA_STATUS_MEMORY_ERROR;
+					}
+
+					if (last_error) {
+						last_error->next = error;
+					} else {
+						error_list = error;
+					}
+					last_error = error;
+				}
+
+				*errors = error_list;
+			}
+			return KS_JSON_SCHEMA_STATUS_VALIDATION_FAILED;
+		}
+		
 		return KS_JSON_SCHEMA_STATUS_SUCCESS;
 	} catch (const std::exception& e) {
-		// Validation error
+		// Other validation errors
 		if (errors) {
 			auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
 			if (error) {
