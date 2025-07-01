@@ -425,44 +425,24 @@ include(FindOpenSSL)
 find_package(OpenSSL REQUIRED Crypto SSL)
 
 if (NOT KS_PLAT_WIN AND WITH_VALIJSON)
-	# Find valijson for JSON schema validation
-	find_package(valijson QUIET)
-	if(valijson_FOUND)
-		message(STATUS "Found valijson via CMake config")
-	endif()
-
-	# Find RapidJSON for JSON schema validation (required if valijson is found)
-	# First try pkg-config for RapidJSON
-	find_package(PkgConfig QUIET)
-	if(PKG_CONFIG_FOUND)
-		pkg_check_modules(RAPIDJSON QUIET RapidJSON)
-	endif()
-
-	if(RAPIDJSON_FOUND)
-		message(STATUS "Found RapidJSON via pkg-config: ${RAPIDJSON_VERSION}")
-	endif()
-
-	if (valijson_FOUND AND RAPIDJSON_FOUND)
-		# Set C++ standard
+	# Find nlohmann_json_schema_validator
+	find_package(nlohmann_json_schema_validator QUIET)
+	if(nlohmann_json_schema_validator_FOUND)
+		message(STATUS "Found nlohmann_json_schema_validator via CMake config")
+		
+		# Set C++ standard (json-schema-validator requires C++11)
 		set(CMAKE_CXX_STANDARD 11)
 		set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 		# Compiler flags
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 
-		target_compile_definitions(ks2 PUBLIC -DHAVE_VALIJSON=1)
+		target_compile_definitions(ks2 PUBLIC -DHAVE_JSON_SCHEMA_VALIDATOR=1)
+		target_link_libraries(ks2 PRIVATE nlohmann_json_schema_validator)
 
-		# Add RapidJSON
-		if(RAPIDJSON_INCLUDE_DIRS)
-			target_include_directories(ks2 PRIVATE ${RAPIDJSON_INCLUDE_DIRS})
-		endif()
-		if(RAPIDJSON_CFLAGS_OTHER)
-			target_compile_options(ks2 PRIVATE ${RAPIDJSON_CFLAGS_OTHER})
-		endif()
-
-		target_link_libraries(ks2 PRIVATE valijson)
-
-		message(STATUS "JSON schema validation enabled")
+		message(STATUS "JSON schema validation enabled with json-schema-validator")
+	else()
+		message(WARNING "nlohmann_json_schema_validator not found - JSON schema validation will be disabled")
 	endif()
 else()
 	message(STATUS "JSON schema validation disabled (set WITH_VALIJSON=ON to enable)")

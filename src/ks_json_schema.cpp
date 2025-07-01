@@ -21,26 +21,21 @@
  */
 
 
-#ifdef HAVE_VALIJSON
+#ifdef HAVE_JSON_SCHEMA_VALIDATOR
 
 #include <memory>
 #include <string>
-#include <rapidjson/document.h>
-#include <rapidjson/stringbuffer.h>
-#include <rapidjson/writer.h>
-#include <valijson/adapters/rapidjson_adapter.hpp>
-#include <valijson/schema.hpp>
-#include <valijson/schema_parser.hpp>
-#include <valijson/validator.hpp>
-#include <valijson/validation_results.hpp>
+#include <sstream>
+#include <nlohmann/json.hpp>
+#include <nlohmann/json-schema.hpp>
 
 #include "libks/ks.h"
 
 struct ks_json_schema {
-	std::unique_ptr<valijson::Schema> schema;
+	std::unique_ptr<nlohmann::json_schema::json_validator> validator;
 };
 
-static bool cjson_to_rapidjson(const ks_json_t *cjson_obj, rapidjson::Document &doc)
+static bool cjson_to_nlohmann(const ks_json_t *cjson_obj, nlohmann::json &json_obj)
 {
 	if (!cjson_obj) {
 		return false;
@@ -51,10 +46,22 @@ static bool cjson_to_rapidjson(const ks_json_t *cjson_obj, rapidjson::Document &
 		return false;
 	}
 
-	bool result = !doc.Parse(json_string).HasParseError();
-	free(json_string);
-	return result;
+	try {
+		json_obj = nlohmann::json::parse(json_string);
+		free(json_string);
+		return true;
+	} catch (const std::exception&) {
+		free(json_string);
+		return false;
+	}
 }
+
+static void schema_format_checker(const std::string &format, const std::string &value)
+{
+	nlohmann::json_schema::default_string_format_check(format, value);
+	/* could extend to check more types */
+}
+
 
 #else
 
@@ -86,7 +93,7 @@ KS_DECLARE(const char *) ks_json_schema_status_string(ks_json_schema_status_t st
 	}
 }
 
-#ifdef HAVE_VALIJSON
+#ifdef HAVE_JSON_SCHEMA_VALIDATOR
 
 KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create(const char *schema_json, ks_json_schema_t **schema, ks_json_schema_error_t **errors)
 {
@@ -100,30 +107,30 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create(const char *schema_jso
 	}
 
 	try {
-		rapidjson::Document schema_doc;
-		if (schema_doc.Parse(schema_json).HasParseError()) {
-			if (errors) {
-				auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
-				if (error) {
-					error->message = strdup("JSON parse error in schema");
-					error->path = strdup("");
-					error->next = nullptr;
-					*errors = error;
-				}
-			}
-			return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
-		}
+		// Parse the schema JSON
+		nlohmann::json schema_json_obj = nlohmann::json::parse(schema_json);
 		
+		// Create validator with remote reference support
 		auto ks_schema = std::make_unique<ks_json_schema>();
-		ks_schema->schema = std::make_unique<valijson::Schema>();
-
-		valijson::SchemaParser parser;
-		valijson::adapters::RapidJsonAdapter adapter(schema_doc);
+		ks_schema->validator = std::make_unique<nlohmann::json_schema::json_validator>(nullptr, schema_format_checker);
 		
-		parser.populateSchema(adapter, *ks_schema->schema);
+		// Set schema with remote reference loading enabled - this will validate the schema
+		ks_schema->validator->set_root_schema(schema_json_obj);
 
 		*schema = ks_schema.release();
 		return KS_JSON_SCHEMA_STATUS_SUCCESS;
+	} catch (const nlohmann::json::parse_error& e) {
+		if (errors) {
+			auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
+			if (error) {
+				std::string msg = "JSON parse error in schema: " + std::string(e.what());
+				error->message = strdup(msg.c_str());
+				error->path = strdup("");
+				error->next = nullptr;
+				*errors = error;
+			}
+		}
+		return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
 	} catch (const std::exception& e) {
 		if (errors) {
 			auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
@@ -150,8 +157,8 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create_from_json(ks_json_t *s
 	}
 
 	try {
-		rapidjson::Document schema_doc;
-		if (!cjson_to_rapidjson(schema_json, schema_doc)) {
+		nlohmann::json schema_json_obj;
+		if (!cjson_to_nlohmann(schema_json, schema_json_obj)) {
 			if (errors) {
 				auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
 				if (error) {
@@ -164,13 +171,12 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create_from_json(ks_json_t *s
 			return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
 		}
 		
+		// Create validator with remote reference support
 		auto ks_schema = std::make_unique<ks_json_schema>();
-		ks_schema->schema = std::make_unique<valijson::Schema>();
-
-		valijson::SchemaParser parser;
-		valijson::adapters::RapidJsonAdapter adapter(schema_doc);
+		ks_schema->validator = std::make_unique<nlohmann::json_schema::json_validator>(nullptr, schema_format_checker);
 		
-		parser.populateSchema(adapter, *ks_schema->schema);
+		// Set schema with remote reference loading enabled - this will validate the schema
+		ks_schema->validator->set_root_schema(schema_json_obj);
 
 		*schema = ks_schema.release();
 		return KS_JSON_SCHEMA_STATUS_SUCCESS;
@@ -199,72 +205,36 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_validate_string(ks_json_schem
 	}
 
 	try {
-		rapidjson::Document json_doc;
-		if (json_doc.Parse(json_string).HasParseError()) {
-			return KS_JSON_SCHEMA_STATUS_INVALID_JSON;
-		}
+		// Parse the JSON string
+		nlohmann::json json_doc = nlohmann::json::parse(json_string);
 		
-		valijson::Validator validator;
-		valijson::ValidationResults results;
-		valijson::adapters::RapidJsonAdapter target(json_doc);
-
-		if (validator.validate(*schema->schema, target, &results)) {
-			return KS_JSON_SCHEMA_STATUS_SUCCESS;
-		}
-
+		// Validate using json-schema-validator
+		schema->validator->validate(json_doc);
+		return KS_JSON_SCHEMA_STATUS_SUCCESS;
+	} catch (const nlohmann::json::parse_error& e) {
 		if (errors) {
-			ks_json_schema_error_t *error_list = nullptr;
-			ks_json_schema_error_t *last_error = nullptr;
-
-			auto itr = results.begin();
-			while (itr != results.end()) {
-				auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
-				if (!error) {
-					ks_json_schema_error_free(&error_list);
-					return KS_JSON_SCHEMA_STATUS_MEMORY_ERROR;
-				}
-
-				std::string path_str;
-				for (auto path_itr = itr->context.begin(); path_itr != itr->context.end(); ++path_itr) {
-					if (path_itr != itr->context.begin()) {
-						path_str += ".";
-					}
-					path_str += *path_itr;
-				}
-
-				error->message = strdup(itr->description.c_str());
-				error->path = strdup(path_str.c_str());
+			auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
+			if (error) {
+				std::string msg = "JSON parse error: " + std::string(e.what());
+				error->message = strdup(msg.c_str());
+				error->path = strdup("");
 				error->next = nullptr;
-
-				if (!error->message || !error->path) {
-					free(error->message);
-					free(error->path);
-					free(error);
-					ks_json_schema_error_free(&error_list);
-					return KS_JSON_SCHEMA_STATUS_MEMORY_ERROR;
-				}
-
-				if (last_error) {
-					last_error->next = error;
-				} else {
-					error_list = error;
-				}
-				last_error = error;
-
-				++itr;
+				*errors = error;
 			}
-
-			*errors = error_list;
 		}
-
-		return KS_JSON_SCHEMA_STATUS_VALIDATION_FAILED;
+		return KS_JSON_SCHEMA_STATUS_INVALID_JSON;
 	} catch (const std::exception& e) {
-		// Check if it's a JSON parse error
-		std::string error_msg = e.what();
-		if (error_msg.find("parse") != std::string::npos) {
-			return KS_JSON_SCHEMA_STATUS_INVALID_JSON;
+		// Validation error
+		if (errors) {
+			auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
+			if (error) {
+				error->message = strdup(e.what());
+				error->path = strdup("");
+				error->next = nullptr;
+				*errors = error;
+			}
 		}
-		return KS_JSON_SCHEMA_STATUS_MEMORY_ERROR;
+		return KS_JSON_SCHEMA_STATUS_VALIDATION_FAILED;
 	}
 }
 
@@ -279,67 +249,35 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_validate_json(ks_json_schema_
 	}
 
 	try {
-		rapidjson::Document json_doc;
-		if (!cjson_to_rapidjson(json, json_doc)) {
+		nlohmann::json json_doc;
+		if (!cjson_to_nlohmann(json, json_doc)) {
+			if (errors) {
+				auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
+				if (error) {
+					error->message = strdup("Failed to convert JSON object");
+					error->path = strdup("");
+					error->next = nullptr;
+					*errors = error;
+				}
+			}
 			return KS_JSON_SCHEMA_STATUS_INVALID_JSON;
 		}
 		
-		valijson::Validator validator;
-		valijson::ValidationResults results;
-		valijson::adapters::RapidJsonAdapter target(json_doc);
-
-		if (validator.validate(*schema->schema, target, &results)) {
-			return KS_JSON_SCHEMA_STATUS_SUCCESS;
-		}
-
+		// Validate using json-schema-validator
+		schema->validator->validate(json_doc);
+		return KS_JSON_SCHEMA_STATUS_SUCCESS;
+	} catch (const std::exception& e) {
+		// Validation error
 		if (errors) {
-			ks_json_schema_error_t *error_list = nullptr;
-			ks_json_schema_error_t *last_error = nullptr;
-
-			auto itr = results.begin();
-			while (itr != results.end()) {
-				auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
-				if (!error) {
-					ks_json_schema_error_free(&error_list);
-					return KS_JSON_SCHEMA_STATUS_MEMORY_ERROR;
-				}
-
-				std::string path_str;
-				for (auto path_itr = itr->context.begin(); path_itr != itr->context.end(); ++path_itr) {
-					if (path_itr != itr->context.begin()) {
-						path_str += ".";
-					}
-					path_str += *path_itr;
-				}
-
-				error->message = strdup(itr->description.c_str());
-				error->path = strdup(path_str.c_str());
+			auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
+			if (error) {
+				error->message = strdup(e.what());
+				error->path = strdup("");
 				error->next = nullptr;
-
-				if (!error->message || !error->path) {
-					free(error->message);
-					free(error->path);
-					free(error);
-					ks_json_schema_error_free(&error_list);
-					return KS_JSON_SCHEMA_STATUS_MEMORY_ERROR;
-				}
-
-				if (last_error) {
-					last_error->next = error;
-				} else {
-					error_list = error;
-				}
-				last_error = error;
-
-				++itr;
+				*errors = error;
 			}
-
-			*errors = error_list;
 		}
-
 		return KS_JSON_SCHEMA_STATUS_VALIDATION_FAILED;
-	} catch (const std::exception&) {
-		return KS_JSON_SCHEMA_STATUS_MEMORY_ERROR;
 	}
 }
 

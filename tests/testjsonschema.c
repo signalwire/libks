@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 SignalWire, Inc
+ * Copyright (c) 2025 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,7 +26,7 @@
 #include <string.h>
 #include "tap.h"
 
-#ifdef HAVE_VALIJSON
+#ifdef HAVE_JSON_SCHEMA_VALIDATOR
 
 static void test_schema_creation(void)
 {
@@ -157,13 +157,13 @@ static void test_status_strings(void)
 	ok(strcmp(status_str, "Validation failed") == 0, "Validation failed status string should be correct");
 }
 
-#endif /* HAVE_VALIJSON */
+#endif /* HAVE_JSON_SCHEMA_VALIDATOR */
 
 int main(int argc, char **argv)
 {
 	ks_init();
 
-#ifdef HAVE_VALIJSON
+#ifdef HAVE_JSON_SCHEMA_VALIDATOR
 	plan(23);
 
 	test_schema_creation();
@@ -174,7 +174,7 @@ int main(int argc, char **argv)
 	test_status_strings();
 #else
 	plan(1);
-	ok(1, "# SKIP valijson not available, skipping JSON schema validation tests");
+	ok(1, "# SKIP json-schema-validator not available, skipping JSON schema validation tests");
 #endif
 
 	ks_shutdown();
