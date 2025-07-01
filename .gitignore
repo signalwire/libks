@@ -61,4 +61,5 @@ changelog.Debian.gz
 build-Win32/
 build-x64/
 !win/*
+tests/testjsonschema
 

@@ -7,6 +7,8 @@ option(KS_DEBUG_HANDLE "Track pool allocations and provide hooks for rendering t
 option(KS_STATIC "Build ks statically" OFF)
 option(WITH_KS_TEST "Enable KsTest c++ harness" OFF)
 option(WITH_LIBBACKTRACE "Enables linking to libbacktrace as an external project, used in abort areas in libks" OFF)
+option(WITH_VALIJSON "Enable valijson JSON schema validation" OFF)
+
 
 # Must include cotire before anything else for auto pch setup
 #include(cmake/cotire.cmake)
@@ -422,52 +424,40 @@ endif()
 include(FindOpenSSL)
 find_package(OpenSSL REQUIRED Crypto SSL)
 
-# Find valijson for JSON schema validation
-find_package(valijson QUIET)
-if(valijson_FOUND)
-	message(STATUS "Found valijson via CMake config")
-else()
-	# Fallback to manual detection
-	find_path(VALIJSON_INCLUDE_DIR
-		NAMES valijson/schema.hpp
-		PATHS /usr/include /usr/local/include
-	)
-	if(VALIJSON_INCLUDE_DIR)
-		set(valijson_FOUND TRUE)
-		message(STATUS "Found valijson headers at: ${VALIJSON_INCLUDE_DIR}")
-	else()
-		message(WARNING "valijson not found - JSON schema validation will be disabled")
+if (NOT KS_PLAT_WIN AND WITH_VALIJSON)
+	# Find valijson for JSON schema validation
+	find_package(valijson QUIET)
+	if(valijson_FOUND)
+		message(STATUS "Found valijson via CMake config")
 	endif()
-endif()
 
-# Find jsoncpp for JSON schema validation (required if valijson is found)
-if(valijson_FOUND)
+	# Find jsoncpp for JSON schema validation (required if valijson is found)
 	# First try pkg-config for jsoncpp
 	find_package(PkgConfig QUIET)
 	if(PKG_CONFIG_FOUND)
 		pkg_check_modules(JSONCPP QUIET jsoncpp)
 	endif()
-	
 	if(JSONCPP_FOUND)
 		message(STATUS "Found jsoncpp via pkg-config: ${JSONCPP_VERSION}")
-	else()
-		# Fallback to manual detection
-		find_path(JSONCPP_INCLUDE_DIR
-			NAMES json/json.h
-			PATHS /usr/include /usr/local/include
-		)
-		find_library(JSONCPP_LIBRARY
-			NAMES jsoncpp
-			PATHS /usr/lib /usr/local/lib /usr/lib/x86_64-linux-gnu
-		)
-		if(JSONCPP_INCLUDE_DIR AND JSONCPP_LIBRARY)
-			message(STATUS "Found jsoncpp headers at: ${JSONCPP_INCLUDE_DIR}")
-			message(STATUS "Found jsoncpp library at: ${JSONCPP_LIBRARY}")
-		else()
-			message(WARNING "jsoncpp not found - JSON schema validation will be disabled")
-			set(valijson_FOUND FALSE)
-		endif()
 	endif()
+
+	if (JSONCPP_FOUND AND valijson_FOUND)
+		# Set C++ standard
+		set(CMAKE_CXX_STANDARD 11)
+		set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+		# Compiler flags
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+
+		target_compile_definitions(ks2 PUBLIC -DHAVE_VALIJSON=1)
+
+		target_include_directories(ks2 PRIVATE ${JSONCPP_INCLUDE_DIRS})
+		target_link_libraries(ks2 PRIVATE valijson ${JSONCPP_LIBRARIES})
+
+		message(STATUS "JSON schema validation enabled")
+	endif()
+else()
+	message(STATUS "JSON schema validation disabled (set WITH_VALIJSON=ON to enable)")
 endif()
 
 if (NOT KS_PLAT_WIN)
@@ -540,11 +530,6 @@ endif()
 
 if (NOT KS_PLAT_WIN)
 	include(CheckCXXCompilerFlag)
-	CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
-	if(!COMPILER_SUPPORTS_CXX11)
-		message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
-	endif()
-	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall")
 
 	# All symbols are hidden by default, unless exposed explicitly
 	check_cxx_compiler_flag(-fvisibility=hidden COMPILER_HAS_HIDDEN_VISIBILITY)
@@ -604,46 +589,6 @@ target_include_directories(
 	ks2 PRIVATE
 	${OPENSSL_INCLUDE_DIR}
 )
-
-# Add valijson and nlohmann/json dependencies if available
-if(valijson_FOUND)
-	# Add valijson
-	if(TARGET valijson)
-		target_link_libraries(ks2 PRIVATE valijson)
-		message(STATUS "Linking valijson via CMake target")
-	elseif(VALIJSON_INCLUDE_DIR)
-		target_include_directories(ks2 PRIVATE ${VALIJSON_INCLUDE_DIR})
-		message(STATUS "Using valijson headers from: ${VALIJSON_INCLUDE_DIR}")
-	endif()
-
-	# Add jsoncpp
-	if(JSONCPP_FOUND)
-		if(JSONCPP_INCLUDE_DIRS)
-			target_include_directories(ks2 PRIVATE ${JSONCPP_INCLUDE_DIRS})
-		endif()
-		if(JSONCPP_LIBRARIES)
-			target_link_libraries(ks2 PRIVATE ${JSONCPP_LIBRARIES})
-		endif()
-		if(JSONCPP_CFLAGS_OTHER)
-			target_compile_options(ks2 PRIVATE ${JSONCPP_CFLAGS_OTHER})
-		endif()
-		message(STATUS "Using jsoncpp via pkg-config")
-	elseif(JSONCPP_INCLUDE_DIR AND JSONCPP_LIBRARY)
-		target_include_directories(ks2 PRIVATE ${JSONCPP_INCLUDE_DIR})
-		target_link_libraries(ks2 PRIVATE ${JSONCPP_LIBRARY})
-		message(STATUS "Using jsoncpp headers from: ${JSONCPP_INCLUDE_DIR}")
-		message(STATUS "Using jsoncpp library: ${JSONCPP_LIBRARY}")
-	endif()
-
-	option(ENABLE_VALIJSON_VALIDATION "Enable valijson JSON schema validation" ON)
-
-	if(ENABLE_VALIJSON_VALIDATION)
-		target_compile_definitions(ks2 PUBLIC -DHAVE_VALIJSON=1)
-		message(STATUS "JSON schema validation enabled")
-	else()
-		message(STATUS "JSON schema validation disabled (set ENABLE_VALIJSON_VALIDATION=ON to enable)")
-	endif()
-endif()
 
 # Setup a useful export file for inclusion in other projects
 export(TARGETS ks2

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2023 SignalWire, Inc
+ * Copyright (c) 2025 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,11 +20,51 @@
  * SOFTWARE.
  */
 
+
+#ifdef HAVE_VALIJSON
+
+#include <memory>
+#include <string>
+#include <json/json.h>
+#include <valijson/adapters/jsoncpp_adapter.hpp>
+#include <valijson/schema.hpp>
+#include <valijson/schema_parser.hpp>
+#include <valijson/validator.hpp>
+#include <valijson/validation_results.hpp>
+
 #include "libks/ks.h"
-#include "libks/ks_json_schema.h"
 
+struct ks_json_schema {
+	std::unique_ptr<valijson::Schema> schema;
+};
 
-extern "C" {
+static bool cjson_to_jsoncpp(const ks_json_t *cjson_obj, Json::Value &value)
+{
+	if (!cjson_obj) {
+		return false;
+	}
+
+	char *json_string = ks_json_print_unformatted(const_cast<ks_json_t*>(cjson_obj));
+	if (!json_string) {
+		return false;
+	}
+
+	Json::CharReaderBuilder builder;
+	std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
+	std::string parse_errors;
+
+	bool result = reader->parse(json_string, json_string + strlen(json_string), &value, &parse_errors);
+	free(json_string);
+	return result;
+}
+
+#else
+
+#include "libks/ks.h"
+
+#endif
+
+KS_BEGIN_EXTERN_C
 
 KS_DECLARE(const char *) ks_json_schema_status_string(ks_json_schema_status_t status)
 {
@@ -47,49 +87,8 @@ KS_DECLARE(const char *) ks_json_schema_status_string(ks_json_schema_status_t st
 			return "Unknown error";
 	}
 }
-}
 
 #ifdef HAVE_VALIJSON
-
-#include <valijson/adapters/jsoncpp_adapter.hpp>
-#include <valijson/utils/jsoncpp_utils.hpp>
-#include <valijson/schema.hpp>
-#include <valijson/schema_parser.hpp>
-
-using std::cerr;
-using std::endl;
-
-using valijson::Schema;
-using valijson::SchemaParser;
-using valijson::adapters::JsonCppAdapter;
-
-struct ks_json_schema {
-	std::unique_ptr<valijson::Schema> schema;
-};
-
-#if 0
-static bool cjson_to_jsoncpp(const ks_json_t *cjson_obj, Json::Value &value)
-{
-	if (!cjson_obj) {
-		return false;
-	}
-
-	char *json_string = ks_json_print_unformatted(const_cast<ks_json_t*>(cjson_obj));
-	if (!json_string) {
-		return false;
-	}
-
-	Json::CharReaderBuilder builder;
-	std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
-	std::string parse_errors;
-
-	bool result = reader->parse(json_string, json_string + strlen(json_string), &value, &parse_errors);
-	free(json_string);
-	return result;
-}
-#endif
-
-extern "C" {
 
 KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create(const char *schema_json, ks_json_schema_t **schema)
 {
@@ -128,13 +127,9 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create(const char *schema_jso
 		return KS_JSON_SCHEMA_STATUS_MEMORY_ERROR;
 	}
 }
+
 KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create_from_json(ks_json_t *schema_json, ks_json_schema_t **schema)
 {
-	(void)schema_json;
-	(void)schema;
-
-	return KS_JSON_SCHEMA_STATUS_UNAVAILABLE;
-#if 0
 	if (!schema_json || !schema) {
 		return KS_JSON_SCHEMA_STATUS_INVALID_PARAM;
 	}
@@ -160,13 +155,10 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create_from_json(ks_json_t *s
 	} catch (const std::exception&) {
 		return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
 	}
-#endif 
 }
 
 KS_DECLARE(ks_json_schema_status_t) ks_json_schema_validate_string(ks_json_schema_t *schema, const char *json_string, ks_json_schema_error_t **errors)
 {
-	return KS_JSON_SCHEMA_STATUS_UNAVAILABLE;
-#if 0
 	if (!schema || !json_string) {
 		return KS_JSON_SCHEMA_STATUS_INVALID_PARAM;
 	}
@@ -247,17 +239,10 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_validate_string(ks_json_schem
 		}
 		return KS_JSON_SCHEMA_STATUS_MEMORY_ERROR;
 	}
-#endif
 }
 
 KS_DECLARE(ks_json_schema_status_t) ks_json_schema_validate_json(ks_json_schema_t *schema, ks_json_t *json, ks_json_schema_error_t **errors)
 {
-	(void)schema;
-	(void)json;
-	(void)errors;
-
-	return KS_JSON_SCHEMA_STATUS_UNAVAILABLE;
-#if 0
 	if (!schema || !json) {
 		return KS_JSON_SCHEMA_STATUS_INVALID_PARAM;
 	}
@@ -329,7 +314,6 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_validate_json(ks_json_schema_
 	} catch (const std::exception&) {
 		return KS_JSON_SCHEMA_STATUS_MEMORY_ERROR;
 	}
-#endif
 }
 
 KS_DECLARE(void) ks_json_schema_destroy(ks_json_schema_t **schema)
@@ -342,29 +326,7 @@ KS_DECLARE(void) ks_json_schema_destroy(ks_json_schema_t **schema)
 	*schema = nullptr;
 }
 
-KS_DECLARE(void) ks_json_schema_error_free(ks_json_schema_error_t **errors)
-{
-	if (!errors || !*errors) {
-		return;
-	}
-
-	ks_json_schema_error_t *current = *errors;
-	while (current) {
-		ks_json_schema_error_t *next = current->next;
-		free(current->message);
-		free(current->path);
-		free(current);
-		current = next;
-	}
-
-	*errors = nullptr;
-}
-
-}
-
-#else /* !HAVE_VALIJSON */
-
-extern "C" {
+#else
 
 KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create(const char *schema_json, ks_json_schema_t **schema)
 {
@@ -401,14 +363,27 @@ KS_DECLARE(void) ks_json_schema_destroy(ks_json_schema_t **schema)
 	(void)schema;
 }
 
+#endif
+
 KS_DECLARE(void) ks_json_schema_error_free(ks_json_schema_error_t **errors)
 {
-	(void)errors;
+	if (!errors || !*errors) {
+		return;
+	}
+
+	ks_json_schema_error_t *current = *errors;
+	while (current) {
+		ks_json_schema_error_t *next = current->next;
+		free(current->message);
+		free(current->path);
+		free(current);
+		current = next;
+	}
+
+	*errors = nullptr;
 }
 
-}
-
-#endif /* HAVE_VALIJSON */
+KS_END_EXTERN_C
 
 /* For Emacs:
  * Local Variables:
