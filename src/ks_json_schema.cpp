@@ -25,8 +25,10 @@
 
 #include <memory>
 #include <string>
-#include <json/json.h>
-#include <valijson/adapters/jsoncpp_adapter.hpp>
+#include <rapidjson/document.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
+#include <valijson/adapters/rapidjson_adapter.hpp>
 #include <valijson/schema.hpp>
 #include <valijson/schema_parser.hpp>
 #include <valijson/validator.hpp>
@@ -38,7 +40,7 @@ struct ks_json_schema {
 	std::unique_ptr<valijson::Schema> schema;
 };
 
-static bool cjson_to_jsoncpp(const ks_json_t *cjson_obj, Json::Value &value)
+static bool cjson_to_rapidjson(const ks_json_t *cjson_obj, rapidjson::Document &doc)
 {
 	if (!cjson_obj) {
 		return false;
@@ -49,11 +51,7 @@ static bool cjson_to_jsoncpp(const ks_json_t *cjson_obj, Json::Value &value)
 		return false;
 	}
 
-	Json::CharReaderBuilder builder;
-	std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
-	std::string parse_errors;
-
-	bool result = reader->parse(json_string, json_string + strlen(json_string), &value, &parse_errors);
+	bool result = !doc.Parse(json_string).HasParseError();
 	free(json_string);
 	return result;
 }
@@ -90,21 +88,29 @@ KS_DECLARE(const char *) ks_json_schema_status_string(ks_json_schema_status_t st
 
 #ifdef HAVE_VALIJSON
 
-KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create(const char *schema_json, ks_json_schema_t **schema)
+KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create(const char *schema_json, ks_json_schema_t **schema, ks_json_schema_error_t **errors)
 {
 	if (!schema_json || !schema) {
 		return KS_JSON_SCHEMA_STATUS_INVALID_PARAM;
 	}
 
 	*schema = nullptr;
+	if (errors) {
+		*errors = nullptr;
+	}
 
 	try {
-		Json::Value schema_value;
-		Json::CharReaderBuilder builder;
-		std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
-		std::string parse_errors;
-
-		if (!reader->parse(schema_json, schema_json + strlen(schema_json), &schema_value, &parse_errors)) {
+		rapidjson::Document schema_doc;
+		if (schema_doc.Parse(schema_json).HasParseError()) {
+			if (errors) {
+				auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
+				if (error) {
+					error->message = strdup("JSON parse error in schema");
+					error->path = strdup("");
+					error->next = nullptr;
+					*errors = error;
+				}
+			}
 			return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
 		}
 		
@@ -112,28 +118,49 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create(const char *schema_jso
 		ks_schema->schema = std::make_unique<valijson::Schema>();
 
 		valijson::SchemaParser parser;
-		valijson::adapters::JsonCppAdapter adapter(schema_value);
+		valijson::adapters::RapidJsonAdapter adapter(schema_doc);
 		
 		parser.populateSchema(adapter, *ks_schema->schema);
 
 		*schema = ks_schema.release();
 		return KS_JSON_SCHEMA_STATUS_SUCCESS;
 	} catch (const std::exception& e) {
+		if (errors) {
+			auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
+			if (error) {
+				error->message = strdup(e.what());
+				error->path = strdup("");
+				error->next = nullptr;
+				*errors = error;
+			}
+		}
 		return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
 	}
 }
 
-KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create_from_json(ks_json_t *schema_json, ks_json_schema_t **schema)
+KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create_from_json(ks_json_t *schema_json, ks_json_schema_t **schema, ks_json_schema_error_t **errors)
 {
 	if (!schema_json || !schema) {
 		return KS_JSON_SCHEMA_STATUS_INVALID_PARAM;
 	}
 
 	*schema = nullptr;
+	if (errors) {
+		*errors = nullptr;
+	}
 
 	try {
-		Json::Value schema_value;
-		if (!cjson_to_jsoncpp(schema_json, schema_value)) {
+		rapidjson::Document schema_doc;
+		if (!cjson_to_rapidjson(schema_json, schema_doc)) {
+			if (errors) {
+				auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
+				if (error) {
+					error->message = strdup("Failed to convert JSON object to schema format");
+					error->path = strdup("");
+					error->next = nullptr;
+					*errors = error;
+				}
+			}
 			return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
 		}
 		
@@ -141,13 +168,22 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create_from_json(ks_json_t *s
 		ks_schema->schema = std::make_unique<valijson::Schema>();
 
 		valijson::SchemaParser parser;
-		valijson::adapters::JsonCppAdapter adapter(schema_value);
+		valijson::adapters::RapidJsonAdapter adapter(schema_doc);
 		
 		parser.populateSchema(adapter, *ks_schema->schema);
 
 		*schema = ks_schema.release();
 		return KS_JSON_SCHEMA_STATUS_SUCCESS;
-	} catch (const std::exception&) {
+	} catch (const std::exception& e) {
+		if (errors) {
+			auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
+			if (error) {
+				error->message = strdup(e.what());
+				error->path = strdup("");
+				error->next = nullptr;
+				*errors = error;
+			}
+		}
 		return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
 	}
 }
@@ -163,18 +199,14 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_validate_string(ks_json_schem
 	}
 
 	try {
-		Json::Value json_value;
-		Json::CharReaderBuilder builder;
-		std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
-		std::string parse_errors;
-
-		if (!reader->parse(json_string, json_string + strlen(json_string), &json_value, &parse_errors)) {
+		rapidjson::Document json_doc;
+		if (json_doc.Parse(json_string).HasParseError()) {
 			return KS_JSON_SCHEMA_STATUS_INVALID_JSON;
 		}
 		
 		valijson::Validator validator;
 		valijson::ValidationResults results;
-		valijson::adapters::JsonCppAdapter target(json_value);
+		valijson::adapters::RapidJsonAdapter target(json_doc);
 
 		if (validator.validate(*schema->schema, target, &results)) {
 			return KS_JSON_SCHEMA_STATUS_SUCCESS;
@@ -247,14 +279,14 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_validate_json(ks_json_schema_
 	}
 
 	try {
-		Json::Value json_value;
-		if (!cjson_to_jsoncpp(json, json_value)) {
+		rapidjson::Document json_doc;
+		if (!cjson_to_rapidjson(json, json_doc)) {
 			return KS_JSON_SCHEMA_STATUS_INVALID_JSON;
 		}
 		
 		valijson::Validator validator;
 		valijson::ValidationResults results;
-		valijson::adapters::JsonCppAdapter target(json_value);
+		valijson::adapters::RapidJsonAdapter target(json_doc);
 
 		if (validator.validate(*schema->schema, target, &results)) {
 			return KS_JSON_SCHEMA_STATUS_SUCCESS;
@@ -323,17 +355,19 @@ KS_DECLARE(void) ks_json_schema_destroy(ks_json_schema_t **schema)
 
 #else
 
-KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create(const char *schema_json, ks_json_schema_t **schema)
+KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create(const char *schema_json, ks_json_schema_t **schema, ks_json_schema_error_t **errors)
 {
 	(void)schema_json;
 	(void)schema;
+	(void)errors;
 	return KS_JSON_SCHEMA_STATUS_UNAVAILABLE;
 }
 
-KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create_from_json(ks_json_t *schema_json, ks_json_schema_t **schema)
+KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create_from_json(ks_json_t *schema_json, ks_json_schema_t **schema, ks_json_schema_error_t **errors)
 {
 	(void)schema_json;
 	(void)schema;
+	(void)errors;
 	return KS_JSON_SCHEMA_STATUS_UNAVAILABLE;
 }
 

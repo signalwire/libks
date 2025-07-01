@@ -431,17 +431,18 @@ if (NOT KS_PLAT_WIN AND WITH_VALIJSON)
 		message(STATUS "Found valijson via CMake config")
 	endif()
 
-	# Find jsoncpp for JSON schema validation (required if valijson is found)
-	# First try pkg-config for jsoncpp
+	# Find RapidJSON for JSON schema validation (required if valijson is found)
+	# First try pkg-config for RapidJSON
 	find_package(PkgConfig QUIET)
 	if(PKG_CONFIG_FOUND)
-		pkg_check_modules(JSONCPP QUIET jsoncpp)
-	endif()
-	if(JSONCPP_FOUND)
-		message(STATUS "Found jsoncpp via pkg-config: ${JSONCPP_VERSION}")
+		pkg_check_modules(RAPIDJSON QUIET RapidJSON)
 	endif()
 
-	if (JSONCPP_FOUND AND valijson_FOUND)
+	if(RAPIDJSON_FOUND)
+		message(STATUS "Found RapidJSON via pkg-config: ${RAPIDJSON_VERSION}")
+	endif()
+
+	if (valijson_FOUND AND RAPIDJSON_FOUND)
 		# Set C++ standard
 		set(CMAKE_CXX_STANDARD 11)
 		set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -451,8 +452,15 @@ if (NOT KS_PLAT_WIN AND WITH_VALIJSON)
 
 		target_compile_definitions(ks2 PUBLIC -DHAVE_VALIJSON=1)
 
-		target_include_directories(ks2 PRIVATE ${JSONCPP_INCLUDE_DIRS})
-		target_link_libraries(ks2 PRIVATE valijson ${JSONCPP_LIBRARIES})
+		# Add RapidJSON
+		if(RAPIDJSON_INCLUDE_DIRS)
+			target_include_directories(ks2 PRIVATE ${RAPIDJSON_INCLUDE_DIRS})
+		endif()
+		if(RAPIDJSON_CFLAGS_OTHER)
+			target_compile_options(ks2 PRIVATE ${RAPIDJSON_CFLAGS_OTHER})
+		endif()
+
+		target_link_libraries(ks2 PRIVATE valijson)
 
 		message(STATUS "JSON schema validation enabled")
 	endif()

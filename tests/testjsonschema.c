@@ -33,7 +33,7 @@ static void test_schema_creation(void)
 	ks_json_schema_t *schema = NULL;
 	const char *schema_json = "{\"type\": \"object\", \"properties\": {\"name\": {\"type\": \"string\"}}, \"required\": [\"name\"]}";
 	
-	ks_json_schema_status_t status = ks_json_schema_create(schema_json, &schema);
+	ks_json_schema_status_t status = ks_json_schema_create(schema_json, &schema, NULL);
 	ok(status == KS_JSON_SCHEMA_STATUS_SUCCESS, "Schema creation should succeed");
 	ok(schema != NULL, "Schema should not be NULL");
 	
@@ -46,11 +46,19 @@ static void test_schema_creation(void)
 static void test_invalid_schema(void)
 {
 	ks_json_schema_t *schema = NULL;
+	ks_json_schema_error_t *errors = NULL;
 	const char *invalid_schema = "{\"type\": \"invalid_type\"}";
 	
-	ks_json_schema_status_t status = ks_json_schema_create(invalid_schema, &schema);
+	ks_json_schema_status_t status = ks_json_schema_create(invalid_schema, &schema, &errors);
 	ok(status == KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA, "Invalid schema should fail");
 	ok(schema == NULL, "Schema should be NULL for invalid schema");
+	ok(errors != NULL, "Errors should be returned for invalid schema");
+	
+	if (errors) {
+		ok(errors->message != NULL, "Error message should not be NULL");
+		ks_json_schema_error_free(&errors);
+		ok(errors == NULL, "Errors should be NULL after free");
+	}
 }
 
 static void test_valid_json_validation(void)
@@ -60,7 +68,7 @@ static void test_valid_json_validation(void)
 	const char *valid_json = "{\"name\": \"John\", \"age\": 30}";
 	ks_json_schema_error_t *errors = NULL;
 	
-	ks_json_schema_status_t status = ks_json_schema_create(schema_json, &schema);
+	ks_json_schema_status_t status = ks_json_schema_create(schema_json, &schema, NULL);
 	ok(status == KS_JSON_SCHEMA_STATUS_SUCCESS, "Schema creation should succeed");
 	
 	if (schema) {
@@ -79,7 +87,7 @@ static void test_invalid_json_validation(void)
 	const char *invalid_json = "{\"age\": 30}"; // Missing required "name" field
 	ks_json_schema_error_t *errors = NULL;
 	
-	ks_json_schema_status_t status = ks_json_schema_create(schema_json, &schema);
+	ks_json_schema_status_t status = ks_json_schema_create(schema_json, &schema, NULL);
 	ok(status == KS_JSON_SCHEMA_STATUS_SUCCESS, "Schema creation should succeed");
 	
 	if (schema) {
@@ -116,7 +124,7 @@ static void test_json_object_validation(void)
 	ks_json_t *required_array = ks_json_add_array_to_object(schema_json_obj, "required");
 	ks_json_add_string_to_array(required_array, "name");
 	
-	ks_json_schema_status_t status = ks_json_schema_create_from_json(schema_json_obj, &schema);
+	ks_json_schema_status_t status = ks_json_schema_create_from_json(schema_json_obj, &schema, NULL);
 	ok(status == KS_JSON_SCHEMA_STATUS_SUCCESS, "Schema creation from JSON object should succeed");
 	
 	if (schema) {
@@ -156,7 +164,7 @@ int main(int argc, char **argv)
 	ks_init();
 
 #ifdef HAVE_VALIJSON
-	plan(20);
+	plan(23);
 
 	test_schema_creation();
 	test_invalid_schema();
