@@ -119,12 +119,7 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create(const char *schema_jso
 		*schema = ks_schema.release();
 		return KS_JSON_SCHEMA_STATUS_SUCCESS;
 	} catch (const std::exception& e) {
-		// Check if it's a JSON parse error
-		std::string error_msg = e.what();
-		if (error_msg.find("parse") != std::string::npos) {
-			return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
-		}
-		return KS_JSON_SCHEMA_STATUS_MEMORY_ERROR;
+		return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
 	}
 }
 

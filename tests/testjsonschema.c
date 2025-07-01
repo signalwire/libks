@@ -143,11 +143,7 @@ static void test_status_strings(void)
 	ok(strcmp(status_str, "Success") == 0, "Success status string should be correct");
 	
 	status_str = ks_json_schema_status_string(KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA);
-#ifdef HAVE_VALIJSON
 	ok(strcmp(status_str, "Invalid schema") == 0, "Invalid schema status string should be correct");
-#else
-	ok(strcmp(status_str, "Invalid schema (valijson not available)") == 0, "Invalid schema status string should be correct (valijson not available)");
-#endif
 	
 	status_str = ks_json_schema_status_string(KS_JSON_SCHEMA_STATUS_VALIDATION_FAILED);
 	ok(strcmp(status_str, "Validation failed") == 0, "Validation failed status string should be correct");
@@ -160,8 +156,8 @@ int main(int argc, char **argv)
 	ks_init();
 
 #ifdef HAVE_VALIJSON
-	plan(19);
-	
+	plan(20);
+
 	test_schema_creation();
 	test_invalid_schema();
 	test_valid_json_validation();
