@@ -32,11 +32,11 @@ static void test_schema_creation(void)
 {
 	ks_json_schema_t *schema = NULL;
 	const char *schema_json = "{\"type\": \"object\", \"properties\": {\"name\": {\"type\": \"string\"}}, \"required\": [\"name\"]}";
-	
+
 	ks_json_schema_status_t status = ks_json_schema_create(schema_json, &schema, NULL);
 	ok(status == KS_JSON_SCHEMA_STATUS_SUCCESS, "Schema creation should succeed");
 	ok(schema != NULL, "Schema should not be NULL");
-	
+
 	if (schema) {
 		ks_json_schema_destroy(&schema);
 		ok(schema == NULL, "Schema should be NULL after destroy");
@@ -48,12 +48,12 @@ static void test_invalid_schema(void)
 	ks_json_schema_t *schema = NULL;
 	ks_json_schema_error_t *errors = NULL;
 	const char *invalid_schema = "{\"type\": \"invalid_type\"}";
-	
+
 	ks_json_schema_status_t status = ks_json_schema_create(invalid_schema, &schema, &errors);
 	ok(status == KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA, "Invalid schema should fail");
 	ok(schema == NULL, "Schema should be NULL for invalid schema");
 	ok(errors != NULL, "Errors should be returned for invalid schema");
-	
+
 	if (errors) {
 		ok(errors->message != NULL, "Error message should not be NULL");
 		ks_json_schema_error_free(&errors);
@@ -67,15 +67,15 @@ static void test_valid_json_validation(void)
 	const char *schema_json = "{\"type\": \"object\", \"properties\": {\"name\": {\"type\": \"string\"}, \"age\": {\"type\": \"number\"}}, \"required\": [\"name\"]}";
 	const char *valid_json = "{\"name\": \"John\", \"age\": 30}";
 	ks_json_schema_error_t *errors = NULL;
-	
+
 	ks_json_schema_status_t status = ks_json_schema_create(schema_json, &schema, NULL);
 	ok(status == KS_JSON_SCHEMA_STATUS_SUCCESS, "Schema creation should succeed");
-	
+
 	if (schema) {
 		status = ks_json_schema_validate_string(schema, valid_json, &errors);
 		ok(status == KS_JSON_SCHEMA_STATUS_SUCCESS, "Valid JSON should pass validation");
 		ok(errors == NULL, "No errors should be returned for valid JSON");
-		
+
 		ks_json_schema_destroy(&schema);
 	}
 }
@@ -86,22 +86,22 @@ static void test_invalid_json_validation(void)
 	const char *schema_json = "{\"type\": \"object\", \"properties\": {\"name\": {\"type\": \"string\"}, \"age\": {\"type\": \"number\"}}, \"required\": [\"name\"]}";
 	const char *invalid_json = "{\"age\": 30}"; // Missing required "name" field
 	ks_json_schema_error_t *errors = NULL;
-	
+
 	ks_json_schema_status_t status = ks_json_schema_create(schema_json, &schema, NULL);
 	ok(status == KS_JSON_SCHEMA_STATUS_SUCCESS, "Schema creation should succeed");
-	
+
 	if (schema) {
 		status = ks_json_schema_validate_string(schema, invalid_json, &errors);
 		ok(status == KS_JSON_SCHEMA_STATUS_VALIDATION_FAILED, "Invalid JSON should fail validation");
 		ok(errors != NULL, "Errors should be returned for invalid JSON");
-		
+
 		if (errors) {
 			ok(errors->message != NULL, "Error message should not be NULL");
 			ok(errors->path != NULL, "Error path should not be NULL");
 			ks_json_schema_error_free(&errors);
 			ok(errors == NULL, "Errors should be NULL after free");
 		}
-		
+
 		ks_json_schema_destroy(&schema);
 	}
 }
@@ -112,34 +112,34 @@ static void test_json_object_validation(void)
 	ks_json_t *schema_json_obj = NULL;
 	ks_json_t *valid_json_obj = NULL;
 	ks_json_schema_error_t *errors = NULL;
-	
+
 	// Create schema JSON object
 	schema_json_obj = ks_json_create_object();
 	ks_json_add_string_to_object(schema_json_obj, "type", "object");
-	
+
 	ks_json_t *properties = ks_json_add_object_to_object(schema_json_obj, "properties");
 	ks_json_t *name_prop = ks_json_add_object_to_object(properties, "name");
 	ks_json_add_string_to_object(name_prop, "type", "string");
-	
+
 	ks_json_t *required_array = ks_json_add_array_to_object(schema_json_obj, "required");
 	ks_json_add_string_to_array(required_array, "name");
-	
+
 	ks_json_schema_status_t status = ks_json_schema_create_from_json(schema_json_obj, &schema, NULL);
 	ok(status == KS_JSON_SCHEMA_STATUS_SUCCESS, "Schema creation from JSON object should succeed");
-	
+
 	if (schema) {
 		// Create valid JSON object
 		valid_json_obj = ks_json_create_object();
 		ks_json_add_string_to_object(valid_json_obj, "name", "Alice");
-		
+
 		status = ks_json_schema_validate_json(schema, valid_json_obj, &errors);
 		ok(status == KS_JSON_SCHEMA_STATUS_SUCCESS, "Valid JSON object should pass validation");
 		ok(errors == NULL, "No errors should be returned for valid JSON object");
-		
+
 		ks_json_delete(&valid_json_obj);
 		ks_json_schema_destroy(&schema);
 	}
-	
+
 	ks_json_delete(&schema_json_obj);
 }
 
@@ -156,13 +156,13 @@ static void test_uri_reference_format(void)
 		"},"
 		"\"required\": [\"uri_field\"]"
 	"}";
-	
+
 	ks_json_schema_status_t status = ks_json_schema_create(schema_json, &schema, NULL);
 	ok(status == KS_JSON_SCHEMA_STATUS_SUCCESS, "Schema with uri-reference format should be created");
-	
+
 	if (schema) {
 		ks_json_schema_error_t *errors = NULL;
-		
+
 		// Test valid URI references
 		const char *valid_uris[] = {
 			"{\"uri_field\": \"https://example.com/path?query=value#fragment\"}",
@@ -176,7 +176,7 @@ static void test_uri_reference_format(void)
 			"{\"uri_field\": \"http://192.168.1.1:8080/path\"}",
 			"{\"uri_field\": \"urn:isbn:0451450523\"}"
 		};
-		
+
 		for (size_t i = 0; i < sizeof(valid_uris) / sizeof(valid_uris[0]); ++i) {
 			status = ks_json_schema_validate_string(schema, valid_uris[i], &errors);
 			ok(status == KS_JSON_SCHEMA_STATUS_SUCCESS, "Valid URI reference should pass validation");
@@ -185,7 +185,7 @@ static void test_uri_reference_format(void)
 				ks_json_schema_error_free(&errors);
 			}
 		}
-		
+
 		// Test invalid URI references
 		const char *invalid_uris[] = {
 			"{\"uri_field\": \"http://example.com/path with spaces\"}",
@@ -194,7 +194,7 @@ static void test_uri_reference_format(void)
 			"{\"uri_field\": \"http://example.com/<invalid>\"}",
 			"{\"uri_field\": \"http://example.com/\\\"invalid\\\"\"}"
 		};
-		
+
 		for (size_t i = 0; i < sizeof(invalid_uris) / sizeof(invalid_uris[0]); ++i) {
 			status = ks_json_schema_validate_string(schema, invalid_uris[i], &errors);
 			ok(status == KS_JSON_SCHEMA_STATUS_VALIDATION_FAILED, "Invalid URI reference should fail validation");
@@ -203,7 +203,7 @@ static void test_uri_reference_format(void)
 				ks_json_schema_error_free(&errors);
 			}
 		}
-		
+
 		ks_json_schema_destroy(&schema);
 	}
 }
@@ -211,13 +211,13 @@ static void test_uri_reference_format(void)
 static void test_status_strings(void)
 {
 	const char *status_str;
-	
+
 	status_str = ks_json_schema_status_string(KS_JSON_SCHEMA_STATUS_SUCCESS);
 	ok(strcmp(status_str, "Success") == 0, "Success status string should be correct");
-	
+
 	status_str = ks_json_schema_status_string(KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA);
 	ok(strcmp(status_str, "Invalid schema") == 0, "Invalid schema status string should be correct");
-	
+
 	status_str = ks_json_schema_status_string(KS_JSON_SCHEMA_STATUS_VALIDATION_FAILED);
 	ok(strcmp(status_str, "Validation failed") == 0, "Validation failed status string should be correct");
 }
@@ -244,6 +244,6 @@ int main(int argc, char **argv)
 #endif
 
 	ks_shutdown();
-	
+
 	done_testing();
 }

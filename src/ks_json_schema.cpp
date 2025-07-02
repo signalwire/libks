@@ -20,7 +20,6 @@
  * SOFTWARE.
  */
 
-
 #ifdef HAVE_JSON_SCHEMA_VALIDATOR
 
 #include <memory>
@@ -204,11 +203,9 @@ static const char* JSON_META_SCHEMA_DRAFT_07 = R"({
     "default": true
 })";
 
-
 struct ks_json_schema {
 	std::unique_ptr<nlohmann::json_schema::json_validator> validator;
 };
-
 
 // URI-reference format checker based on RFC 3986 Section 4
 static bool is_valid_uri_reference(const std::string &value)
@@ -216,19 +213,19 @@ static bool is_valid_uri_reference(const std::string &value)
 	// URI-reference = URI / relative-ref
 	// URI = scheme ":" hier-part [ "?" query ] [ "#" fragment ]
 	// relative-ref = relative-part [ "?" query ] [ "#" fragment ]
-	
+
 	if (value.empty()) {
 		return true; // Empty string is a valid relative reference
 	}
-	
+
 	// Basic character validation - URI-references should only contain:
 	// - Unreserved characters: ALPHA / DIGIT / "-" / "." / "_" / "~"
 	// - Reserved characters: ":" / "/" / "?" / "#" / "[" / "]" / "@" / "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
 	// - Percent-encoded characters: "%" HEXDIG HEXDIG
-	
+
 	for (size_t i = 0; i < value.length(); ++i) {
 		char c = value[i];
-		
+
 		// Check for percent-encoded sequences
 		if (c == '%') {
 			if (i + 2 >= value.length()) {
@@ -242,19 +239,19 @@ static bool is_valid_uri_reference(const std::string &value)
 			i += 2; // Skip the hex digits
 			continue;
 		}
-		
+
 		// Check for valid URI characters
-		if (std::isalnum(c) || 
+		if (std::isalnum(c) ||
 			c == '-' || c == '.' || c == '_' || c == '~' || // unreserved
 			c == ':' || c == '/' || c == '?' || c == '#' || c == '[' || c == ']' || c == '@' || // gen-delims
-			c == '!' || c == '$' || c == '&' || c == '\'' || c == '(' || c == ')' || 
+			c == '!' || c == '$' || c == '&' || c == '\'' || c == '(' || c == ')' ||
 			c == '*' || c == '+' || c == ',' || c == ';' || c == '=') { // sub-delims
 			continue;
 		}
-		
+
 		return false; // Invalid character
 	}
-	
+
 	// Additional validation: check for proper structure
 	// Look for scheme (if present): scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
 	size_t colon_pos = value.find(':');
@@ -281,7 +278,7 @@ static bool is_valid_uri_reference(const std::string &value)
 			}
 		}
 	}
-	
+
 	return true;
 }
 
@@ -312,11 +309,11 @@ static ks_json_schema_status_t ks_json_schema_create_internal(const char *schema
 	try {
 		// Parse the schema JSON
 		nlohmann::json schema_json_obj = nlohmann::json::parse(schema_json);
-		
+
 		// Create validator with remote reference support
 		auto ks_schema = std::make_unique<ks_json_schema>();
 		ks_schema->validator = std::make_unique<nlohmann::json_schema::json_validator>(nullptr, schema_format_checker);
-		
+
 		// Set schema with remote reference loading enabled - this will validate the schema
 		ks_schema->validator->set_root_schema(schema_json_obj);
 
@@ -325,7 +322,7 @@ static ks_json_schema_status_t ks_json_schema_create_internal(const char *schema
 			// Create a temporary meta-schema validator
 			ks_json_schema_t *meta_schema = nullptr;
 			ks_json_schema_error_t *meta_schema_errors = nullptr;
-			
+
 			// Create meta-schema validator WITHOUT meta-schema validation to prevent recursion
 			ks_json_schema_status_t meta_status = ks_json_schema_create_internal(JSON_META_SCHEMA_DRAFT_07, &meta_schema, &meta_schema_errors, false);
 			if (meta_status != KS_JSON_SCHEMA_STATUS_SUCCESS) {
@@ -337,14 +334,14 @@ static ks_json_schema_status_t ks_json_schema_create_internal(const char *schema
 				}
 				return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
 			}
-			
+
 			// Validate the user schema against the meta-schema
 			ks_json_schema_error_t *validation_errors = nullptr;
 			ks_json_schema_status_t validation_status = ks_json_schema_validate_string(meta_schema, schema_json, &validation_errors);
-			
+
 			// Clean up meta-schema validator
 			ks_json_schema_destroy(&meta_schema);
-			
+
 			// If validation failed, return the validation errors
 			if (validation_status != KS_JSON_SCHEMA_STATUS_SUCCESS) {
 				if (errors) {
@@ -401,22 +398,22 @@ public:
 		std::string message;
 		std::string path;
 	};
-	
+
 	std::vector<validation_error> errors;
 	static const size_t MAX_ERRORS = 5;
-	
+
 	void error(const nlohmann::json::json_pointer &pointer, const nlohmann::json &instance, const std::string &message) override
 	{
 		// Stop collecting errors after reaching the limit
 		if (errors.size() >= MAX_ERRORS) {
 			return;
 		}
-		
+
 		validation_error err;
 		err.message = message;
 		err.path = pointer.to_string();
 		errors.push_back(err);
-		
+
 		// Add a truncation message if we hit the limit
 		if (errors.size() == MAX_ERRORS) {
 			validation_error truncated_err;
@@ -424,11 +421,10 @@ public:
 			truncated_err.path = "";
 			errors.push_back(truncated_err);
 		}
-		
+
 		basic_error_handler::error(pointer, instance, message);
 	}
 };
-
 
 #else
 
@@ -491,10 +487,10 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create_from_json(ks_json_t *s
 
 	// Use the main schema creation function
 	ks_json_schema_status_t result = ks_json_schema_create(schema_string, schema, errors);
-	
+
 	// Clean up the allocated string
 	free(schema_string);
-	
+
 	return result;
 }
 
@@ -511,13 +507,13 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_validate_string(ks_json_schem
 	try {
 		// Parse the JSON string
 		nlohmann::json json_doc = nlohmann::json::parse(json_string);
-		
+
 		// Create error handler to collect detailed validation errors
 		ks_error_handler error_handler;
-		
+
 		// Validate using json-schema-validator with error handler
 		schema->validator->validate(json_doc, error_handler);
-		
+
 		// Check if validation failed
 		if (!error_handler.errors.empty()) {
 			if (errors) {
@@ -555,7 +551,7 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_validate_string(ks_json_schem
 			}
 			return KS_JSON_SCHEMA_STATUS_VALIDATION_FAILED;
 		}
-		
+
 		return KS_JSON_SCHEMA_STATUS_SUCCESS;
 	} catch (const nlohmann::json::parse_error& e) {
 		if (errors) {
@@ -607,10 +603,10 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_validate_json(ks_json_schema_
 
 	// Use the main validation function
 	ks_json_schema_status_t result = ks_json_schema_validate_string(schema, json_string, errors);
-	
+
 	// Clean up the allocated string
 	free(json_string);
-	
+
 	return result;
 }
 
