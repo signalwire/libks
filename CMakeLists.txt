@@ -7,7 +7,7 @@ option(KS_DEBUG_HANDLE "Track pool allocations and provide hooks for rendering t
 option(KS_STATIC "Build ks statically" OFF)
 option(WITH_KS_TEST "Enable KsTest c++ harness" OFF)
 option(WITH_LIBBACKTRACE "Enables linking to libbacktrace as an external project, used in abort areas in libks" OFF)
-option(WITH_VALIJSON "Enable valijson JSON schema validation" OFF)
+option(WITH_JSON_VALIDATION "Enable JSON schema validation" OFF)
 
 
 # Must include cotire before anything else for auto pch setup
@@ -424,7 +424,7 @@ endif()
 include(FindOpenSSL)
 find_package(OpenSSL REQUIRED Crypto SSL)
 
-if (NOT KS_PLAT_WIN AND WITH_VALIJSON)
+if (NOT KS_PLAT_WIN AND WITH_JSON_VALIDATION)
 	# Find nlohmann_json_schema_validator
 	find_package(nlohmann_json_schema_validator QUIET)
 	if(nlohmann_json_schema_validator_FOUND)
@@ -445,7 +445,7 @@ if (NOT KS_PLAT_WIN AND WITH_VALIJSON)
 		message(WARNING "nlohmann_json_schema_validator not found - JSON schema validation will be disabled")
 	endif()
 else()
-	message(STATUS "JSON schema validation disabled (set WITH_VALIJSON=ON to enable)")
+	message(STATUS "JSON schema validation disabled (set WITH_JSON_VALIDATION=ON to enable)")
 endif()
 
 if (NOT KS_PLAT_WIN)
