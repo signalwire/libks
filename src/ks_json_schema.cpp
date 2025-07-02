@@ -216,6 +216,103 @@ static void schema_format_checker(const std::string &format, const std::string &
 	/* could extend to check more types */
 }
 
+// Internal function to create schema without meta-schema validation (to avoid recursion)
+static ks_json_schema_status_t ks_json_schema_create_internal(const char *schema_json, ks_json_schema_t **schema, ks_json_schema_error_t **errors, bool validate_meta_schema)
+{
+	if (!schema_json || !schema) {
+		return KS_JSON_SCHEMA_STATUS_INVALID_PARAM;
+	}
+
+	*schema = nullptr;
+	if (errors) {
+		*errors = nullptr;
+	}
+
+	try {
+		// Parse the schema JSON
+		nlohmann::json schema_json_obj = nlohmann::json::parse(schema_json);
+		
+		// Create validator with remote reference support
+		auto ks_schema = std::make_unique<ks_json_schema>();
+		ks_schema->validator = std::make_unique<nlohmann::json_schema::json_validator>(nullptr, schema_format_checker);
+		
+		// Set schema with remote reference loading enabled - this will validate the schema
+		ks_schema->validator->set_root_schema(schema_json_obj);
+
+		// Validate against meta-schema only if requested (to avoid recursion)
+		if (validate_meta_schema) {
+			// Create a temporary meta-schema validator
+			ks_json_schema_t *meta_schema = nullptr;
+			ks_json_schema_error_t *meta_schema_errors = nullptr;
+			
+			// Create meta-schema validator WITHOUT meta-schema validation to prevent recursion
+			ks_json_schema_status_t meta_status = ks_json_schema_create_internal(JSON_META_SCHEMA_DRAFT_07, &meta_schema, &meta_schema_errors, false);
+			if (meta_status != KS_JSON_SCHEMA_STATUS_SUCCESS) {
+				// Meta-schema creation failed - this should never happen with valid meta-schema
+				if (errors && meta_schema_errors) {
+					*errors = meta_schema_errors;
+				} else if (meta_schema_errors) {
+					ks_json_schema_error_free(&meta_schema_errors);
+				}
+				return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
+			}
+			
+			// Validate the user schema against the meta-schema
+			ks_json_schema_error_t *validation_errors = nullptr;
+			ks_json_schema_status_t validation_status = ks_json_schema_validate_string(meta_schema, schema_json, &validation_errors);
+			
+			// Clean up meta-schema validator
+			ks_json_schema_destroy(&meta_schema);
+			
+			// If validation failed, return the validation errors
+			if (validation_status != KS_JSON_SCHEMA_STATUS_SUCCESS) {
+				if (errors) {
+					// Prefix error messages to indicate they're schema validation errors
+					ks_json_schema_error_t *current = validation_errors;
+					while (current) {
+						if (current->message) {
+							std::string new_msg = "Schema validation error: " + std::string(current->message);
+							free(current->message);
+							current->message = strdup(new_msg.c_str());
+						}
+						current = current->next;
+					}
+					*errors = validation_errors;
+				} else {
+					ks_json_schema_error_free(&validation_errors);
+				}
+				return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
+			}
+		}
+
+		*schema = ks_schema.release();
+		return KS_JSON_SCHEMA_STATUS_SUCCESS;
+	} catch (const nlohmann::json::parse_error& e) {
+		if (errors) {
+			auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
+			if (error) {
+				std::string msg = "JSON parse error in schema: " + std::string(e.what());
+				error->message = strdup(msg.c_str());
+				error->path = strdup("");
+				error->next = nullptr;
+				*errors = error;
+			}
+		}
+		return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
+	} catch (const std::exception& e) {
+		if (errors) {
+			auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
+			if (error) {
+				error->message = strdup(e.what());
+				error->path = strdup("");
+				error->next = nullptr;
+				*errors = error;
+			}
+		}
+		return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
+	}
+}
+
 class ks_error_handler : public nlohmann::json_schema::basic_error_handler
 {
 public:
@@ -286,118 +383,8 @@ KS_DECLARE(const char *) ks_json_schema_status_string(ks_json_schema_status_t st
 
 KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create(const char *schema_json, ks_json_schema_t **schema, ks_json_schema_error_t **errors)
 {
-	if (!schema_json || !schema) {
-		return KS_JSON_SCHEMA_STATUS_INVALID_PARAM;
-	}
-
-	*schema = nullptr;
-	if (errors) {
-		*errors = nullptr;
-	}
-
-	try {
-		// Parse the schema JSON
-		nlohmann::json schema_json_obj = nlohmann::json::parse(schema_json);
-		
-		// Create validator with remote reference support
-		auto ks_schema = std::make_unique<ks_json_schema>();
-		ks_schema->validator = std::make_unique<nlohmann::json_schema::json_validator>(nullptr, schema_format_checker);
-		
-		// Set schema with remote reference loading enabled - this will validate the schema
-		ks_schema->validator->set_root_schema(schema_json_obj);
-
-		// Validate the user schema against the JSON Schema Draft 07 meta-schema
-		try {
-			// Create a meta-schema validator
-			auto meta_validator = std::make_unique<nlohmann::json_schema::json_validator>(nullptr, schema_format_checker);
-			nlohmann::json meta_schema_json = nlohmann::json::parse(JSON_META_SCHEMA_DRAFT_07);
-			meta_validator->set_root_schema(meta_schema_json);
-			
-			// Create error handler for meta-schema validation
-			ks_error_handler meta_error_handler;
-			
-			// Validate the user schema against the meta-schema
-			meta_validator->validate(schema_json_obj, meta_error_handler);
-			
-			// If meta-schema validation failed, return errors
-			if (!meta_error_handler.errors.empty()) {
-				if (errors) {
-					ks_json_schema_error_t *error_list = nullptr;
-					ks_json_schema_error_t *last_error = nullptr;
-
-					for (const auto& validation_error : meta_error_handler.errors) {
-						auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
-						if (!error) {
-							ks_json_schema_error_free(&error_list);
-							return KS_JSON_SCHEMA_STATUS_MEMORY_ERROR;
-						}
-
-						std::string msg = "Schema validation error: " + validation_error.message;
-						error->message = strdup(msg.c_str());
-						error->path = strdup(validation_error.path.c_str());
-						error->next = nullptr;
-
-						if (!error->message || !error->path) {
-							free(error->message);
-							free(error->path);
-							free(error);
-							ks_json_schema_error_free(&error_list);
-							return KS_JSON_SCHEMA_STATUS_MEMORY_ERROR;
-						}
-
-						if (last_error) {
-							last_error->next = error;
-						} else {
-							error_list = error;
-						}
-						last_error = error;
-					}
-
-					*errors = error_list;
-				}
-				return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
-			}
-		} catch (const std::exception& e) {
-			// Meta-schema validation failed
-			if (errors) {
-				auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
-				if (error) {
-					std::string msg = "Meta-schema validation error: " + std::string(e.what());
-					error->message = strdup(msg.c_str());
-					error->path = strdup("");
-					error->next = nullptr;
-					*errors = error;
-				}
-			}
-			return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
-		}
-
-		*schema = ks_schema.release();
-		return KS_JSON_SCHEMA_STATUS_SUCCESS;
-	} catch (const nlohmann::json::parse_error& e) {
-		if (errors) {
-			auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
-			if (error) {
-				std::string msg = "JSON parse error in schema: " + std::string(e.what());
-				error->message = strdup(msg.c_str());
-				error->path = strdup("");
-				error->next = nullptr;
-				*errors = error;
-			}
-		}
-		return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
-	} catch (const std::exception& e) {
-		if (errors) {
-			auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
-			if (error) {
-				error->message = strdup(e.what());
-				error->path = strdup("");
-				error->next = nullptr;
-				*errors = error;
-			}
-		}
-		return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
-	}
+	// Call internal function with meta-schema validation enabled
+	return ks_json_schema_create_internal(schema_json, schema, errors, true);
 }
 
 KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create_from_json(ks_json_t *schema_json, ks_json_schema_t **schema, ks_json_schema_error_t **errors)
