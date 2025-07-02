@@ -22,43 +22,21 @@
 
 #pragma once
 
-#include "ks_json.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct ks_json_schema ks_json_schema_t;
+/**
+ * Initialize JSON schema subsystem - internal function called by ks_init()
+ * This function caches the JSON Schema Draft 07 meta-schema for performance
+ */
+KS_DECLARE(void) ks_json_schema_init(void);
 
-typedef enum {
-	KS_JSON_SCHEMA_STATUS_SUCCESS = 0,
-	KS_JSON_SCHEMA_STATUS_UNAVAILABLE,
-	KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA,
-	KS_JSON_SCHEMA_STATUS_INVALID_JSON,
-	KS_JSON_SCHEMA_STATUS_VALIDATION_FAILED,
-	KS_JSON_SCHEMA_STATUS_MEMORY_ERROR,
-	KS_JSON_SCHEMA_STATUS_INVALID_PARAM
-} ks_json_schema_status_t;
-
-typedef struct ks_json_schema_error {
-	char *message;
-	char *path;
-	struct ks_json_schema_error *next;
-} ks_json_schema_error_t;
-
-KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create(const char *schema_json, ks_json_schema_t **schema, ks_json_schema_error_t **errors);
-
-KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create_from_json(ks_json_t *schema_json, ks_json_schema_t **schema, ks_json_schema_error_t **errors);
-
-KS_DECLARE(ks_json_schema_status_t) ks_json_schema_validate_string(ks_json_schema_t *schema, const char *json_string, ks_json_schema_error_t **errors);
-
-KS_DECLARE(ks_json_schema_status_t) ks_json_schema_validate_json(ks_json_schema_t *schema, ks_json_t *json, ks_json_schema_error_t **errors);
-
-KS_DECLARE(void) ks_json_schema_destroy(ks_json_schema_t **schema);
-
-KS_DECLARE(void) ks_json_schema_error_free(ks_json_schema_error_t **errors);
-
-KS_DECLARE(const char *) ks_json_schema_status_string(ks_json_schema_status_t status);
+/**
+ * Shutdown JSON schema subsystem - internal function called by ks_shutdown()
+ * This function cleans up the cached meta-schema validator
+ */
+KS_DECLARE(void) ks_json_schema_shutdown(void);
 
 #ifdef __cplusplus
 }

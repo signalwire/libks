@@ -22,7 +22,7 @@
 
 #include "libks/ks.h"
 #include "libks/ks_atomic.h"
-#include "libks/ks_json_schema.h"
+#include "libks/internal/ks_json_schema.h"
 
 /* The one and only global pool */
 static ks_pool_t *g_pool;
