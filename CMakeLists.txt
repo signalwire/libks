@@ -8,6 +8,7 @@ option(KS_STATIC "Build ks statically" OFF)
 option(WITH_KS_TEST "Enable KsTest c++ harness" OFF)
 option(WITH_LIBBACKTRACE "Enables linking to libbacktrace as an external project, used in abort areas in libks" OFF)
 option(WITH_JSON_VALIDATION "Enable JSON schema validation" OFF)
+option(WITH_PACKAGING "Enable packaging" ON)
 
 
 # Must include cotire before anything else for auto pch setup
@@ -18,7 +19,7 @@ include(cmake/ksutil.cmake)
 ksutil_setup_platform()
 
 # Find stuff we need for packaging on UNIX
-if(KS_PLAT_LIN)
+if(KS_PLAT_LIN AND WITH_PACKAGING)
 	find_package(Git)
 	find_program(GZIP_CMD gzip)
 	find_program(DATE_CMD date)
@@ -106,7 +107,7 @@ if(KS_PLAT_LIN)
 endif()
 
 # Centos packaging
-if("${CMAKE_OS_NAME}" STREQUAL "Centos")
+if("${CMAKE_OS_NAME}" STREQUAL "Centos" AND WITH_PACKAGING)
 
 	# Enable component install
 	set(CPACK_RPM_COMPONENT_INSTALL ON)
@@ -195,7 +196,7 @@ if("${CMAKE_OS_NAME}" STREQUAL "Centos")
 endif()
 
 # Debian packaging
-if("${CMAKE_OS_NAME}" STREQUAL "Debian")
+if("${CMAKE_OS_NAME}" STREQUAL "Debian" AND WITH_PACKAGING)
 
 	# Find stuff we need for packaging on Debian
 	find_program(DPKG_CMD dpkg)
@@ -334,8 +335,10 @@ if("${CMAKE_OS_NAME}" STREQUAL "Debian")
 
 endif()
 
-# Enable packaging module
-include(CPack)
+if (WITH_PACKAGING)
+	# Enable packaging module
+	include(CPack)
+endif()
 
 # Include our libks cmake utils
 include(cmake/ksutil.cmake)

@@ -5,7 +5,7 @@ apt-get install -yq cmake uuid-dev libssl-dev colorized-logs git
 git config --global --add safe.directory `pwd`
 sed -i '/cotire/d' ./CMakeLists.txt
 mkdir -p scan-build
-scan-build-11 -o ./scan-build/ cmake . -DWITH_JSON_VALIDATION=on
+scan-build-11 -o ./scan-build/ cmake . -DWITH_JSON_VALIDATION=on -DWITH_PACKAGING=off
 mkdir -p tests/unit/logs
 make -j`nproc --all` |& tee ./unit-tests-build-result.txt
 exitstatus=${PIPESTATUS[0]}

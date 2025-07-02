@@ -1,7 +1,7 @@
 #!/bin/bash
 sed -i '/cotire/d' ./CMakeLists.txt
 mkdir -p scan-build
-scan-build-11 -o ./scan-build/ cmake . -DWITH_JSON_VALIDATION=on
+scan-build-11 -o ./scan-build/ cmake . -DWITH_JSON_VALIDATION=on -DWITH_PACKAGING=off
 scan-build-11 -o ./scan-build/ make -j`nproc --all` |& tee ./scan-build-result.txt
 exitstatus=${PIPESTATUS[0]}
 echo "*** Exit status is $exitstatus";
