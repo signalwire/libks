@@ -64,6 +64,7 @@ KS_END_EXTERN_C
 #include "libks/ks_printf.h"
 #include "libks/ks_json.h"
 #include "libks/ks_json_check.h"
+#include "libks/ks_json_schema.h"
 #include "libks/ks_pool.h"
 #include "libks/ks_threadmutex.h"
 #include "libks/ks_debug.h"

@@ -9,14 +9,16 @@ jobs:
   scan_build:
     runs-on: ubuntu-latest
     container:
-      image: debian:buster
+      image: debian:bullseye
     steps:
       - name: install deps
         run: |
-          apt-get update && apt-get install -yq build-essential autotools-dev lsb-release pkg-config automake autoconf libtool-bin clang-tools-7
-          apt-get install -yq cmake uuid-dev libssl-dev
+          apt-get update && apt-get install -yq build-essential autotools-dev lsb-release pkg-config automake autoconf libtool-bin clang-tools-11
+          apt-get install -yq cmake uuid-dev libssl-dev nlohmann-json3-dev git
       - name: Checkout
         uses: actions/checkout@v4
+      - name: build dependencies
+        run: ./build_dependencies.sh
       - run: pwd
       - id: scan_build
         run: ./scan_build.sh
@@ -57,7 +59,7 @@ jobs:
   run_tests:
     runs-on: ubuntu-latest
     container:
-      image: debian:buster
+      image: debian:bullseye
     steps:
       - name: Checkout
         uses: actions/checkout@v4

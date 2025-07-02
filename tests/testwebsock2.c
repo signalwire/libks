@@ -249,7 +249,6 @@ static void start_tcp_server_and_test_ws(char *ip)
 	ks_pool_t *pool;
 	int family = AF_INET;
 	ks_socket_t cl_sock = KS_SOCK_INVALID;
-	char buf[8192] = "";
 	struct tcp_data tcp_data = { 0 };
 	int sanity = 100;
 
