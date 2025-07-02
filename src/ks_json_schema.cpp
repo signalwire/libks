@@ -35,26 +35,6 @@ struct ks_json_schema {
 	std::unique_ptr<nlohmann::json_schema::json_validator> validator;
 };
 
-static bool cjson_to_nlohmann(const ks_json_t *cjson_obj, nlohmann::json &json_obj)
-{
-	if (!cjson_obj) {
-		return false;
-	}
-
-	char *json_string = ks_json_print_unformatted(const_cast<ks_json_t*>(cjson_obj));
-	if (!json_string) {
-		return false;
-	}
-
-	try {
-		json_obj = nlohmann::json::parse(json_string);
-		free(json_string);
-		return true;
-	} catch (const std::exception&) {
-		free(json_string);
-		return false;
-	}
-}
 
 static void schema_format_checker(const std::string &format, const std::string &value)
 {
@@ -186,40 +166,13 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create_from_json(ks_json_t *s
 		return KS_JSON_SCHEMA_STATUS_INVALID_PARAM;
 	}
 
-	*schema = nullptr;
-	if (errors) {
-		*errors = nullptr;
-	}
-
-	try {
-		nlohmann::json schema_json_obj;
-		if (!cjson_to_nlohmann(schema_json, schema_json_obj)) {
-			if (errors) {
-				auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
-				if (error) {
-					error->message = strdup("Failed to convert JSON object to schema format");
-					error->path = strdup("");
-					error->next = nullptr;
-					*errors = error;
-				}
-			}
-			return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
-		}
-		
-		// Create validator with remote reference support
-		auto ks_schema = std::make_unique<ks_json_schema>();
-		ks_schema->validator = std::make_unique<nlohmann::json_schema::json_validator>(nullptr, schema_format_checker);
-		
-		// Set schema with remote reference loading enabled - this will validate the schema
-		ks_schema->validator->set_root_schema(schema_json_obj);
-
-		*schema = ks_schema.release();
-		return KS_JSON_SCHEMA_STATUS_SUCCESS;
-	} catch (const std::exception& e) {
+	// Convert JSON object to string and delegate to ks_json_schema_create
+	char *schema_string = ks_json_print_unformatted(schema_json);
+	if (!schema_string) {
 		if (errors) {
 			auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
 			if (error) {
-				error->message = strdup(e.what());
+				error->message = strdup("Failed to serialize JSON object to string");
 				error->path = strdup("");
 				error->next = nullptr;
 				*errors = error;
@@ -227,6 +180,14 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create_from_json(ks_json_t *s
 		}
 		return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
 	}
+
+	// Use the main schema creation function
+	ks_json_schema_status_t result = ks_json_schema_create(schema_string, schema, errors);
+	
+	// Clean up the allocated string
+	free(schema_string);
+	
+	return result;
 }
 
 KS_DECLARE(ks_json_schema_status_t) ks_json_schema_validate_string(ks_json_schema_t *schema, const char *json_string, ks_json_schema_error_t **errors)
@@ -321,83 +282,28 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_validate_json(ks_json_schema_
 		return KS_JSON_SCHEMA_STATUS_INVALID_PARAM;
 	}
 
-	if (errors) {
-		*errors = nullptr;
-	}
-
-	try {
-		nlohmann::json json_doc;
-		if (!cjson_to_nlohmann(json, json_doc)) {
-			if (errors) {
-				auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
-				if (error) {
-					error->message = strdup("Failed to convert JSON object");
-					error->path = strdup("");
-					error->next = nullptr;
-					*errors = error;
-				}
-			}
-			return KS_JSON_SCHEMA_STATUS_INVALID_JSON;
-		}
-		
-		// Create error handler to collect detailed validation errors
-		ks_error_handler error_handler;
-		
-		// Validate using json-schema-validator with error handler
-		schema->validator->validate(json_doc, error_handler);
-		
-		// Check if validation failed
-		if (!error_handler.errors.empty()) {
-			if (errors) {
-				ks_json_schema_error_t *error_list = nullptr;
-				ks_json_schema_error_t *last_error = nullptr;
-
-				for (const auto& validation_error : error_handler.errors) {
-					auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
-					if (!error) {
-						ks_json_schema_error_free(&error_list);
-						return KS_JSON_SCHEMA_STATUS_MEMORY_ERROR;
-					}
-
-					error->message = strdup(validation_error.message.c_str());
-					error->path = strdup(validation_error.path.c_str());
-					error->next = nullptr;
-
-					if (!error->message || !error->path) {
-						free(error->message);
-						free(error->path);
-						free(error);
-						ks_json_schema_error_free(&error_list);
-						return KS_JSON_SCHEMA_STATUS_MEMORY_ERROR;
-					}
-
-					if (last_error) {
-						last_error->next = error;
-					} else {
-						error_list = error;
-					}
-					last_error = error;
-				}
-
-				*errors = error_list;
-			}
-			return KS_JSON_SCHEMA_STATUS_VALIDATION_FAILED;
-		}
-		
-		return KS_JSON_SCHEMA_STATUS_SUCCESS;
-	} catch (const std::exception& e) {
-		// Other validation errors
+	// Convert JSON object to string and delegate to ks_json_schema_validate_string
+	char *json_string = ks_json_print_unformatted(json);
+	if (!json_string) {
 		if (errors) {
 			auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
 			if (error) {
-				error->message = strdup(e.what());
+				error->message = strdup("Failed to serialize JSON object to string");
 				error->path = strdup("");
 				error->next = nullptr;
 				*errors = error;
 			}
 		}
-		return KS_JSON_SCHEMA_STATUS_VALIDATION_FAILED;
+		return KS_JSON_SCHEMA_STATUS_INVALID_JSON;
 	}
+
+	// Use the main validation function
+	ks_json_schema_status_t result = ks_json_schema_validate_string(schema, json_string, errors);
+	
+	// Clean up the allocated string
+	free(json_string);
+	
+	return result;
 }
 
 KS_DECLARE(void) ks_json_schema_destroy(ks_json_schema_t **schema)
