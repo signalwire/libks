@@ -1,6 +1,7 @@
 #!/bin/bash
-HAVE_GIT=$(git --version)
-if [ ${HAVE_GIT} -ne 0 ]; then
+git --version
+HAVE_GIT=$?
+if [[ ${HAVE_GIT} -ne 0 ]]; then
   apt update && apt install git
 fi
 git clone https://github.com/pboettch/json-schema-validator.git
