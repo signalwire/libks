@@ -143,6 +143,71 @@ static void test_json_object_validation(void)
 	ks_json_delete(&schema_json_obj);
 }
 
+static void test_uri_reference_format(void)
+{
+	ks_json_schema_t *schema = NULL;
+	const char *schema_json = "{"
+		"\"type\": \"object\","
+		"\"properties\": {"
+			"\"uri_field\": {"
+				"\"type\": \"string\","
+				"\"format\": \"uri-reference\""
+			"}"
+		"},"
+		"\"required\": [\"uri_field\"]"
+	"}";
+	
+	ks_json_schema_status_t status = ks_json_schema_create(schema_json, &schema, NULL);
+	ok(status == KS_JSON_SCHEMA_STATUS_SUCCESS, "Schema with uri-reference format should be created");
+	
+	if (schema) {
+		ks_json_schema_error_t *errors = NULL;
+		
+		// Test valid URI references
+		const char *valid_uris[] = {
+			"{\"uri_field\": \"https://example.com/path?query=value#fragment\"}",
+			"{\"uri_field\": \"/relative/path\"}",
+			"{\"uri_field\": \"../parent/path\"}",
+			"{\"uri_field\": \"?query=only\"}",
+			"{\"uri_field\": \"#fragment-only\"}",
+			"{\"uri_field\": \"mailto:user@example.com\"}",
+			"{\"uri_field\": \"\"}",
+			"{\"uri_field\": \"file:///path/to/file\"}",
+			"{\"uri_field\": \"http://192.168.1.1:8080/path\"}",
+			"{\"uri_field\": \"urn:isbn:0451450523\"}"
+		};
+		
+		for (size_t i = 0; i < sizeof(valid_uris) / sizeof(valid_uris[0]); ++i) {
+			status = ks_json_schema_validate_string(schema, valid_uris[i], &errors);
+			ok(status == KS_JSON_SCHEMA_STATUS_SUCCESS, "Valid URI reference should pass validation");
+			ok(errors == NULL, "No errors should be returned for valid URI reference");
+			if (errors) {
+				ks_json_schema_error_free(&errors);
+			}
+		}
+		
+		// Test invalid URI references
+		const char *invalid_uris[] = {
+			"{\"uri_field\": \"http://example.com/path with spaces\"}",
+			"{\"uri_field\": \"ht tp://invalid-scheme\"}",
+			"{\"uri_field\": \"http://example.com/%ZZ\"}",
+			"{\"uri_field\": \"http://example.com/<invalid>\"}",
+			"{\"uri_field\": \"http://example.com/\\\"invalid\\\"\"}"
+		};
+		
+		for (size_t i = 0; i < sizeof(invalid_uris) / sizeof(invalid_uris[0]); ++i) {
+			status = ks_json_schema_validate_string(schema, invalid_uris[i], &errors);
+			ok(status == KS_JSON_SCHEMA_STATUS_VALIDATION_FAILED, "Invalid URI reference should fail validation");
+			ok(errors != NULL, "Errors should be returned for invalid URI reference");
+			if (errors) {
+				ks_json_schema_error_free(&errors);
+			}
+		}
+		
+		ks_json_schema_destroy(&schema);
+	}
+}
+
 static void test_status_strings(void)
 {
 	const char *status_str;
@@ -164,13 +229,14 @@ int main(int argc, char **argv)
 	ks_init();
 
 #ifdef HAVE_JSON_SCHEMA_VALIDATOR
-	plan(23);
+	plan(54);
 
 	test_schema_creation();
 	test_invalid_schema();
 	test_valid_json_validation();
 	test_invalid_json_validation();
 	test_json_object_validation();
+	test_uri_reference_format();
 	test_status_strings();
 #else
 	plan(1);

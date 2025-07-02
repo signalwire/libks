@@ -210,10 +210,91 @@ struct ks_json_schema {
 };
 
 
+// URI-reference format checker based on RFC 3986 Section 4
+static bool is_valid_uri_reference(const std::string &value)
+{
+	// URI-reference = URI / relative-ref
+	// URI = scheme ":" hier-part [ "?" query ] [ "#" fragment ]
+	// relative-ref = relative-part [ "?" query ] [ "#" fragment ]
+	
+	if (value.empty()) {
+		return true; // Empty string is a valid relative reference
+	}
+	
+	// Basic character validation - URI-references should only contain:
+	// - Unreserved characters: ALPHA / DIGIT / "-" / "." / "_" / "~"
+	// - Reserved characters: ":" / "/" / "?" / "#" / "[" / "]" / "@" / "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
+	// - Percent-encoded characters: "%" HEXDIG HEXDIG
+	
+	for (size_t i = 0; i < value.length(); ++i) {
+		char c = value[i];
+		
+		// Check for percent-encoded sequences
+		if (c == '%') {
+			if (i + 2 >= value.length()) {
+				return false; // Incomplete percent encoding
+			}
+			char h1 = value[i + 1];
+			char h2 = value[i + 2];
+			if (!std::isxdigit(h1) || !std::isxdigit(h2)) {
+				return false; // Invalid hex digits
+			}
+			i += 2; // Skip the hex digits
+			continue;
+		}
+		
+		// Check for valid URI characters
+		if (std::isalnum(c) || 
+			c == '-' || c == '.' || c == '_' || c == '~' || // unreserved
+			c == ':' || c == '/' || c == '?' || c == '#' || c == '[' || c == ']' || c == '@' || // gen-delims
+			c == '!' || c == '$' || c == '&' || c == '\'' || c == '(' || c == ')' || 
+			c == '*' || c == '+' || c == ',' || c == ';' || c == '=') { // sub-delims
+			continue;
+		}
+		
+		return false; // Invalid character
+	}
+	
+	// Additional validation: check for proper structure
+	// Look for scheme (if present): scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
+	size_t colon_pos = value.find(':');
+	if (colon_pos != std::string::npos) {
+		// If there's a colon, validate the scheme part
+		std::string scheme = value.substr(0, colon_pos);
+		if (scheme.empty() || !std::isalpha(scheme[0])) {
+			// Could be a relative reference with colon in path, which is valid
+			// Only reject if it looks like an invalid scheme
+			bool has_slash_before_colon = false;
+			for (size_t j = 0; j < colon_pos; ++j) {
+				if (value[j] == '/') {
+					has_slash_before_colon = true;
+					break;
+				}
+			}
+			if (!has_slash_before_colon) {
+				// This looks like a scheme, validate it
+				for (char sc : scheme) {
+					if (!std::isalnum(sc) && sc != '+' && sc != '-' && sc != '.') {
+						return false;
+					}
+				}
+			}
+		}
+	}
+	
+	return true;
+}
+
 static void schema_format_checker(const std::string &format, const std::string &value)
 {
-	nlohmann::json_schema::default_string_format_check(format, value);
-	/* could extend to check more types */
+	if (format == "uri-reference") {
+		if (!is_valid_uri_reference(value)) {
+			throw std::invalid_argument("Invalid URI reference format");
+		}
+	} else {
+		// Use default format checker for other formats
+		nlohmann::json_schema::default_string_format_check(format, value);
+	}
 }
 
 // Internal function to create schema without meta-schema validation (to avoid recursion)
