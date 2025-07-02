@@ -1,7 +1,8 @@
 #!/bin/bash
 apt-get update && apt-get install -yq build-essential autotools-dev lsb-release pkg-config automake autoconf libtool-bin clang-tools-11
-apt-get install -yq cmake uuid-dev libssl-dev colorized-logs
+apt-get install -yq cmake uuid-dev libssl-dev colorized-logs git
 ./build_dependencies.sh
+git config --global --add safe.directory `pwd`
 sed -i '/cotire/d' ./CMakeLists.txt
 mkdir -p scan-build
 scan-build-11 -o ./scan-build/ cmake . -DWITH_JSON_VALIDATION=on
