@@ -9,7 +9,7 @@ jobs:
   scan_build:
     runs-on: ubuntu-latest
     container:
-      image: debian:buster
+      image: debian:bullseye
     steps:
       - name: install deps
         run: |
@@ -58,7 +58,7 @@ jobs:
   run_tests:
     runs-on: ubuntu-latest
     container:
-      image: debian:buster
+      image: debian:bullseye
     steps:
       - name: Checkout
         uses: actions/checkout@v4
