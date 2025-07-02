@@ -186,6 +186,12 @@ KS_BEGIN_EXTERN_C
 	typedef int ks_filehandle_t;
 #endif
 
+#if defined(_MSC_VER) && defined(_WIN32)
+#define KS_UNUSED
+#else
+#define KS_UNUSED __attribute__((unused))
+#endif
+
 #ifdef __WINDOWS__
 #if defined(KS_DECLARE_STATIC)
 #define KS_DECLARE(type)			type __stdcall

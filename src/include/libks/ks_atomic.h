@@ -46,17 +46,17 @@ static inline ks_size_t ks_atomic_decrement_size(volatile ks_size_t *value) { re
 
 #else // GCC/CLANG
 
-static inline uint32_t ks_atomic_increment_uint32(volatile uint32_t *value) { return __atomic_fetch_add(value, 1, __ATOMIC_SEQ_CST); }
+static inline uint32_t KS_UNUSED ks_atomic_increment_uint32(volatile uint32_t *value) { return __atomic_fetch_add(value, 1, __ATOMIC_SEQ_CST); }
 
-static inline uint64_t ks_atomic_increment_uint64(volatile uint64_t *value) { return __atomic_fetch_add(value, 1, __ATOMIC_SEQ_CST); }
+static inline uint64_t KS_UNUSED ks_atomic_increment_uint64(volatile uint64_t *value) { return __atomic_fetch_add(value, 1, __ATOMIC_SEQ_CST); }
 
-static inline ks_size_t ks_atomic_increment_size(volatile ks_size_t *value) { return __atomic_fetch_add(value, 1, __ATOMIC_SEQ_CST); }
+static inline ks_size_t KS_UNUSED ks_atomic_increment_size(volatile ks_size_t *value) { return __atomic_fetch_add(value, 1, __ATOMIC_SEQ_CST); }
 
-static inline uint32_t ks_atomic_decrement_uint32(volatile uint32_t *value) { return __atomic_fetch_add(value, -1, __ATOMIC_SEQ_CST); }
+static inline uint32_t KS_UNUSED ks_atomic_decrement_uint32(volatile uint32_t *value) { return __atomic_fetch_add(value, -1, __ATOMIC_SEQ_CST); }
 
-static inline uint64_t ks_atomic_decrement_uint64(volatile uint64_t *value) { return __atomic_fetch_add(value, -1, __ATOMIC_SEQ_CST); }
+static inline uint64_t KS_UNUSED ks_atomic_decrement_uint64(volatile uint64_t *value) { return __atomic_fetch_add(value, -1, __ATOMIC_SEQ_CST); }
 
-static inline ks_size_t ks_atomic_decrement_size(volatile ks_size_t *value) { return __atomic_fetch_add(value, -1, __ATOMIC_SEQ_CST); }
+static inline ks_size_t KS_UNUSED ks_atomic_decrement_size(volatile ks_size_t *value) { return __atomic_fetch_add(value, -1, __ATOMIC_SEQ_CST); }
 
 #endif
 

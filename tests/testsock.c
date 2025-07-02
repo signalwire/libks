@@ -354,7 +354,7 @@ static int test_udp(char *ip)
 	printf("UDP CLIENT SOCKET %d %s %d -> %s %d\n", (int)cl_sock, addr.host, addr.port, remote_addr.host, remote_addr.port);
 
 	bytes = strlen(__MSG);
-	if ((status = ks_socket_sendto(cl_sock, __MSG, &bytes, &remote_addr)) != KS_STATUS_SUCCESS) {
+	if (ks_socket_sendto(cl_sock, __MSG, &bytes, &remote_addr) != KS_STATUS_SUCCESS) {
 		printf("UDP CLIENT SENDTO ERR %s\n", strerror(ks_errno()));
 		r = 0; goto end;
 	}
