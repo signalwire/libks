@@ -4,7 +4,7 @@ apt-get install -yq cmake uuid-dev libssl-dev colorized-logs
 ./build_dependencies.sh
 sed -i '/cotire/d' ./CMakeLists.txt
 mkdir -p scan-build
-scan-build-11 -o ./scan-build/ cmake .
+scan-build-11 -o ./scan-build/ cmake . -DWITH_JSON_VALIDATION=on
 mkdir -p tests/unit/logs
 make -j`nproc --all` |& tee ./unit-tests-build-result.txt
 exitstatus=${PIPESTATUS[0]}
