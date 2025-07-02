@@ -122,7 +122,7 @@ KS_DECLARE(ks_pool_t *) ks_global_pool(void)
 
 		if (!g_pool) {
 
-			if ((status = ks_pool_open(&g_pool)) != KS_STATUS_SUCCESS) {
+			if (ks_pool_open(&g_pool) != KS_STATUS_SUCCESS) {
 				abort();
 			}
 

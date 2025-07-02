@@ -232,7 +232,7 @@ ks_status_t qtest3()
 	int *val = (int*)ks_pool_alloc(pool, sizeof(int));
 	int *tmp = NULL;
 
-	if ((status = ks_q_trypeek(q, (void **)&tmp)) != KS_STATUS_BREAK) return KS_STATUS_FAIL;
+	if (ks_q_trypeek(q, (void **)&tmp) != KS_STATUS_BREAK) return KS_STATUS_FAIL;
 	if ((status = ks_q_trypush(q, val)) != KS_STATUS_SUCCESS) return status;
 	if (ks_q_size(q) != 1) return KS_STATUS_FAIL;
 	if (ks_q_trypeek(q, (void **)&tmp) != KS_STATUS_SUCCESS) return KS_STATUS_FAIL;

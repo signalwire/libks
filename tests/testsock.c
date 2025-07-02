@@ -247,7 +247,6 @@ static void *udp_sock_server(ks_thread_t *thread, void *thread_data)
 {
 	struct udp_data *udp_data = (struct udp_data *) thread_data;
 	int family = AF_INET;
-	ks_status_t status;
 	ks_sockaddr_t addr, remote_addr = KS_SA_INIT;
 	char buf[8192] = "";
 	ks_size_t bytes;
@@ -277,7 +276,7 @@ static void *udp_sock_server(ks_thread_t *thread, void *thread_data)
 
 	printf("UDP SERVER SOCKET %d %s %d\n", (int)(udp_data->sv_sock), addr.host, addr.port);
 	bytes = sizeof(buf);
-	if ((status = ks_socket_recvfrom(udp_data->sv_sock, buf, &bytes, &remote_addr)) != KS_STATUS_SUCCESS) {
+	if (ks_socket_recvfrom(udp_data->sv_sock, buf, &bytes, &remote_addr) != KS_STATUS_SUCCESS) {
 		printf("UDP SERVER RECVFROM ERR %s\n", strerror(ks_errno()));
 		goto end;
 	}
@@ -292,7 +291,7 @@ static void *udp_sock_server(ks_thread_t *thread, void *thread_data)
 	ks_sleep(2000000);
 	printf("UDP SERVER RESPOND TO %d %s %d\n", (int)(udp_data->sv_sock), remote_addr.host, remote_addr.port);
 	bytes = strlen(buf);
-	if ((status = ks_socket_sendto(udp_data->sv_sock, buf, &bytes, &remote_addr)) != KS_STATUS_SUCCESS) {
+	if (ks_socket_sendto(udp_data->sv_sock, buf, &bytes, &remote_addr) != KS_STATUS_SUCCESS) {
 		printf("UDP SERVER SENDTO ERR %s\n", strerror(ks_errno()));
 		goto end;
 	}
