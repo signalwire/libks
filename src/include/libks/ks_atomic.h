@@ -69,7 +69,7 @@ typedef struct ks_spinlock_s
 #endif
 } ks_spinlock_t;
 
-static inline ks_bool_t ks_spinlock_try_acquire(const ks_spinlock_t *lock)
+static inline ks_bool_t KS_UNUSED ks_spinlock_try_acquire(const ks_spinlock_t *lock)
 {
 	if (ks_atomic_increment_uint32((volatile uint32_t *)&lock->count)) {
 		ks_atomic_decrement_uint32((volatile uint32_t *)&lock->count);
@@ -89,7 +89,7 @@ static inline ks_bool_t ks_spinlock_try_acquire(const ks_spinlock_t *lock)
 	return KS_TRUE;
 }
 
-static inline void ks_spinlock_acquire(const ks_spinlock_t *lock)
+static inline void KS_UNUSED ks_spinlock_acquire(const ks_spinlock_t *lock)
 {
 	uint64_t __wait_count = 0;
 	while (!ks_spinlock_try_acquire(lock)) {
@@ -112,7 +112,7 @@ static inline void ks_spinlock_acquire(const ks_spinlock_t *lock)
 #endif
 }
 
-static inline void ks_spinlock_release(const ks_spinlock_t *lock)
+static inline void KS_UNUSED ks_spinlock_release(const ks_spinlock_t *lock)
 {
 #if KS_DEBUG_SPINLOCK
 	printf("SPINLOCK RELEASE address: %p, count: %lu\n", (void *)lock, lock->count);
@@ -123,14 +123,14 @@ static inline void ks_spinlock_release(const ks_spinlock_t *lock)
 	ks_atomic_decrement_uint32(&((ks_spinlock_t *)lock)->count);
 }
 
-static inline void ks_spinlock_dispatch(const ks_spinlock_t *lock, ks_time_t sleep_delay)
+static inline void KS_UNUSED ks_spinlock_dispatch(const ks_spinlock_t *lock, ks_time_t sleep_delay)
 {
 	ks_spinlock_release(lock);
 	ks_sleep(sleep_delay);
 	ks_spinlock_acquire(lock);
 }
 
-static inline void ks_spinlock_dispatch_ms(const ks_spinlock_t *lock, ks_time_t sleep_delay)
+static inline void KS_UNUSED ks_spinlock_dispatch_ms(const ks_spinlock_t *lock, ks_time_t sleep_delay)
 {
 	ks_spinlock_release(lock);
 	ks_sleep_ms(sleep_delay);
