@@ -62,4 +62,4 @@ build-Win32/
 build-x64/
 !win/*
 tests/testjsonschema
-
+json-schema-validator
