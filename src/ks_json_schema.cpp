@@ -31,6 +31,180 @@
 
 #include "libks/ks.h"
 
+static const char* JSON_META_SCHEMA_DRAFT_07 = R"({
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "http://json-schema.org/draft-07/schema#",
+    "title": "Core schema meta-schema",
+    "definitions": {
+        "schemaArray": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#" }
+        },
+        "nonNegativeInteger": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "nonNegativeIntegerDefault0": {
+            "allOf": [
+                { "$ref": "#/definitions/nonNegativeInteger" },
+                { "default": 0 }
+            ]
+        },
+        "simpleTypes": {
+            "enum": [
+                "array",
+                "boolean",
+                "integer",
+                "null",
+                "number",
+                "object",
+                "string"
+            ]
+        },
+        "stringArray": {
+            "type": "array",
+            "items": { "type": "string" },
+            "uniqueItems": true,
+            "default": []
+        }
+    },
+    "type": ["object", "boolean"],
+    "properties": {
+        "$id": {
+            "type": "string",
+            "format": "uri-reference"
+        },
+        "$schema": {
+            "type": "string",
+            "format": "uri"
+        },
+        "$ref": {
+            "type": "string",
+            "format": "uri-reference"
+        },
+        "$comment": {
+            "type": "string"
+        },
+        "title": {
+            "type": "string"
+        },
+        "description": {
+            "type": "string"
+        },
+        "default": true,
+        "readOnly": {
+            "type": "boolean",
+            "default": false
+        },
+        "writeOnly": {
+            "type": "boolean",
+            "default": false
+        },
+        "examples": {
+            "type": "array",
+            "items": true
+        },
+        "multipleOf": {
+            "type": "number",
+            "exclusiveMinimum": 0
+        },
+        "maximum": {
+            "type": "number"
+        },
+        "exclusiveMaximum": {
+            "type": "number"
+        },
+        "minimum": {
+            "type": "number"
+        },
+        "exclusiveMinimum": {
+            "type": "number"
+        },
+        "maxLength": { "$ref": "#/definitions/nonNegativeInteger" },
+        "minLength": { "$ref": "#/definitions/nonNegativeIntegerDefault0" },
+        "pattern": {
+            "type": "string",
+            "format": "regex"
+        },
+        "additionalItems": { "$ref": "#" },
+        "items": {
+            "anyOf": [
+                { "$ref": "#" },
+                { "$ref": "#/definitions/schemaArray" }
+            ],
+            "default": true
+        },
+        "maxItems": { "$ref": "#/definitions/nonNegativeInteger" },
+        "minItems": { "$ref": "#/definitions/nonNegativeIntegerDefault0" },
+        "uniqueItems": {
+            "type": "boolean",
+            "default": false
+        },
+        "contains": { "$ref": "#" },
+        "maxProperties": { "$ref": "#/definitions/nonNegativeInteger" },
+        "minProperties": { "$ref": "#/definitions/nonNegativeIntegerDefault0" },
+        "required": { "$ref": "#/definitions/stringArray" },
+        "additionalProperties": { "$ref": "#" },
+        "definitions": {
+            "type": "object",
+            "additionalProperties": { "$ref": "#" },
+            "default": {}
+        },
+        "properties": {
+            "type": "object",
+            "additionalProperties": { "$ref": "#" },
+            "default": {}
+        },
+        "patternProperties": {
+            "type": "object",
+            "additionalProperties": { "$ref": "#" },
+            "propertyNames": { "format": "regex" },
+            "default": {}
+        },
+        "dependencies": {
+            "type": "object",
+            "additionalProperties": {
+                "anyOf": [
+                    { "$ref": "#" },
+                    { "$ref": "#/definitions/stringArray" }
+                ]
+            }
+        },
+        "propertyNames": { "$ref": "#" },
+        "const": true,
+        "enum": {
+            "type": "array",
+            "items": true,
+            "minItems": 1,
+            "uniqueItems": true
+        },
+        "type": {
+            "anyOf": [
+                { "$ref": "#/definitions/simpleTypes" },
+                {
+                    "type": "array",
+                    "items": { "$ref": "#/definitions/simpleTypes" },
+                    "minItems": 1,
+                    "uniqueItems": true
+                }
+            ]
+        },
+        "format": { "type": "string" },
+        "contentMediaType": { "type": "string" },
+        "contentEncoding": { "type": "string" },
+        "if": { "$ref": "#" },
+        "then": { "$ref": "#" },
+        "else": { "$ref": "#" },
+        "allOf": { "$ref": "#/definitions/schemaArray" },
+        "anyOf": { "$ref": "#/definitions/schemaArray" },
+        "oneOf": { "$ref": "#/definitions/schemaArray" },
+        "not": { "$ref": "#" }
+    },
+    "default": true
+})";
+
+
 struct ks_json_schema {
 	std::unique_ptr<nlohmann::json_schema::json_validator> validator;
 };
@@ -131,6 +305,72 @@ KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create(const char *schema_jso
 		
 		// Set schema with remote reference loading enabled - this will validate the schema
 		ks_schema->validator->set_root_schema(schema_json_obj);
+
+		// Validate the user schema against the JSON Schema Draft 07 meta-schema
+		try {
+			// Create a meta-schema validator
+			auto meta_validator = std::make_unique<nlohmann::json_schema::json_validator>(nullptr, schema_format_checker);
+			nlohmann::json meta_schema_json = nlohmann::json::parse(JSON_META_SCHEMA_DRAFT_07);
+			meta_validator->set_root_schema(meta_schema_json);
+			
+			// Create error handler for meta-schema validation
+			ks_error_handler meta_error_handler;
+			
+			// Validate the user schema against the meta-schema
+			meta_validator->validate(schema_json_obj, meta_error_handler);
+			
+			// If meta-schema validation failed, return errors
+			if (!meta_error_handler.errors.empty()) {
+				if (errors) {
+					ks_json_schema_error_t *error_list = nullptr;
+					ks_json_schema_error_t *last_error = nullptr;
+
+					for (const auto& validation_error : meta_error_handler.errors) {
+						auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
+						if (!error) {
+							ks_json_schema_error_free(&error_list);
+							return KS_JSON_SCHEMA_STATUS_MEMORY_ERROR;
+						}
+
+						std::string msg = "Schema validation error: " + validation_error.message;
+						error->message = strdup(msg.c_str());
+						error->path = strdup(validation_error.path.c_str());
+						error->next = nullptr;
+
+						if (!error->message || !error->path) {
+							free(error->message);
+							free(error->path);
+							free(error);
+							ks_json_schema_error_free(&error_list);
+							return KS_JSON_SCHEMA_STATUS_MEMORY_ERROR;
+						}
+
+						if (last_error) {
+							last_error->next = error;
+						} else {
+							error_list = error;
+						}
+						last_error = error;
+					}
+
+					*errors = error_list;
+				}
+				return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
+			}
+		} catch (const std::exception& e) {
+			// Meta-schema validation failed
+			if (errors) {
+				auto error = static_cast<ks_json_schema_error_t *>(malloc(sizeof(ks_json_schema_error_t)));
+				if (error) {
+					std::string msg = "Meta-schema validation error: " + std::string(e.what());
+					error->message = strdup(msg.c_str());
+					error->path = strdup("");
+					error->next = nullptr;
+					*errors = error;
+				}
+			}
+			return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
+		}
 
 		*schema = ks_schema.release();
 		return KS_JSON_SCHEMA_STATUS_SUCCESS;
