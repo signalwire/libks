@@ -22,6 +22,7 @@
 
 #include "libks/ks.h"
 #include "libks/ks_atomic.h"
+#include "libks/ks_json_schema.h"
 
 /* The one and only global pool */
 static ks_pool_t *g_pool;
@@ -61,6 +62,7 @@ KS_DECLARE(ks_status_t) ks_init(void)
 	srand(pid * (unsigned int)(intptr_t)&g_pool + (unsigned int)time(NULL));
 	ks_global_pool();
 	ks_ssl_init_ssl_locks();
+	ks_json_schema_init();
 
 #ifdef __WINDOWS__
 	WSADATA wsaData;
@@ -87,6 +89,7 @@ KS_DECLARE(ks_status_t) ks_shutdown(void)
 	if (--g_init_count != 0) goto done;
 
 	ks_dso_shutdown();
+	ks_json_schema_shutdown();
 
 #ifdef __WINDOWS__
 	WSACleanup();

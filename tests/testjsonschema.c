@@ -208,6 +208,33 @@ static void test_uri_reference_format(void)
 	}
 }
 
+static void test_meta_schema_caching(void)
+{
+	// Test that multiple schema creations work correctly (verifying meta-schema caching)
+	ks_json_schema_t *schema1 = NULL;
+	ks_json_schema_t *schema2 = NULL;
+	const char *schema_json1 = "{\"type\": \"string\"}";
+	const char *schema_json2 = "{\"type\": \"number\", \"minimum\": 0}";
+
+	ks_json_schema_status_t status1 = ks_json_schema_create(schema_json1, &schema1, NULL);
+	ok(status1 == KS_JSON_SCHEMA_STATUS_SUCCESS, "First schema creation should succeed");
+	ok(schema1 != NULL, "First schema should not be NULL");
+
+	ks_json_schema_status_t status2 = ks_json_schema_create(schema_json2, &schema2, NULL);
+	ok(status2 == KS_JSON_SCHEMA_STATUS_SUCCESS, "Second schema creation should succeed");
+	ok(schema2 != NULL, "Second schema should not be NULL");
+
+	// Clean up
+	if (schema1) {
+		ks_json_schema_destroy(&schema1);
+		ok(schema1 == NULL, "First schema should be NULL after destroy");
+	}
+	if (schema2) {
+		ks_json_schema_destroy(&schema2);
+		ok(schema2 == NULL, "Second schema should be NULL after destroy");
+	}
+}
+
 static void test_status_strings(void)
 {
 	const char *status_str;
@@ -226,10 +253,24 @@ static void test_status_strings(void)
 
 int main(int argc, char **argv)
 {
+#ifdef HAVE_JSON_SCHEMA_VALIDATOR
+	// Test that schema creation fails when ks_init() hasn't been called
+	ks_json_schema_t *schema = NULL;
+	ks_json_schema_error_t *errors = NULL;
+	const char *schema_json = "{\"type\": \"string\"}";
+
+	ks_json_schema_status_t status = ks_json_schema_create(schema_json, &schema, &errors);
+	ok(status == KS_JSON_SCHEMA_STATUS_UNAVAILABLE, "Schema creation should fail before ks_init()");
+	ok(schema == NULL, "Schema should be NULL when unavailable");
+	if (errors) {
+		ks_json_schema_error_free(&errors);
+	}
+#endif
+
 	ks_init();
 
 #ifdef HAVE_JSON_SCHEMA_VALIDATOR
-	plan(54);
+	plan(62);
 
 	test_schema_creation();
 	test_invalid_schema();
@@ -237,6 +278,7 @@ int main(int argc, char **argv)
 	test_invalid_json_validation();
 	test_json_object_validation();
 	test_uri_reference_format();
+	test_meta_schema_caching();
 	test_status_strings();
 #else
 	plan(1);

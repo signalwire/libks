@@ -207,6 +207,13 @@ struct ks_json_schema {
 	std::unique_ptr<nlohmann::json_schema::json_validator> validator;
 };
 
+// Global cached meta-schema validator
+static ks_json_schema_t *g_meta_schema_validator = nullptr;
+static bool g_json_schema_initialized = false;
+
+// Forward declaration of internal function
+static ks_json_schema_status_t ks_json_schema_create_internal(const char *schema_json, ks_json_schema_t **schema, ks_json_schema_error_t **errors, bool validate_meta_schema);
+
 // URI-reference format checker based on RFC 3986 Section 4
 static bool is_valid_uri_reference(const std::string &value)
 {
@@ -294,6 +301,43 @@ static void schema_format_checker(const std::string &format, const std::string &
 	}
 }
 
+// Initialize JSON schema subsystem - internal function
+static void ks_json_schema_init_internal(void)
+{
+	if (g_json_schema_initialized) {
+		return; // Already initialized
+	}
+
+	// Create and cache the meta-schema validator
+	ks_json_schema_error_t *errors = nullptr;
+	ks_json_schema_status_t status = ks_json_schema_create_internal(JSON_META_SCHEMA_DRAFT_07, &g_meta_schema_validator, &errors, false);
+
+	if (status != KS_JSON_SCHEMA_STATUS_SUCCESS) {
+		// This should never happen with a valid meta-schema, but handle gracefully
+		if (errors) {
+			ks_json_schema_error_free(&errors);
+		}
+		g_meta_schema_validator = nullptr;
+	}
+
+	g_json_schema_initialized = true;
+}
+
+// Cleanup JSON schema subsystem - internal function
+static void ks_json_schema_shutdown_internal(void)
+{
+	if (!g_json_schema_initialized) {
+		return; // Not initialized
+	}
+
+	if (g_meta_schema_validator) {
+		ks_json_schema_destroy(&g_meta_schema_validator);
+		g_meta_schema_validator = nullptr;
+	}
+
+	g_json_schema_initialized = false;
+}
+
 // Internal function to create schema without meta-schema validation (to avoid recursion)
 static ks_json_schema_status_t ks_json_schema_create_internal(const char *schema_json, ks_json_schema_t **schema, ks_json_schema_error_t **errors, bool validate_meta_schema)
 {
@@ -319,30 +363,16 @@ static ks_json_schema_status_t ks_json_schema_create_internal(const char *schema
 
 		// Validate against meta-schema only if requested (to avoid recursion)
 		if (validate_meta_schema) {
-			// Create a temporary meta-schema validator
-			ks_json_schema_t *meta_schema = nullptr;
-			ks_json_schema_error_t *meta_schema_errors = nullptr;
-
-			// Create meta-schema validator WITHOUT meta-schema validation to prevent recursion
-			ks_json_schema_status_t meta_status = ks_json_schema_create_internal(JSON_META_SCHEMA_DRAFT_07, &meta_schema, &meta_schema_errors, false);
-			if (meta_status != KS_JSON_SCHEMA_STATUS_SUCCESS) {
-				// Meta-schema creation failed - this should never happen with valid meta-schema
-				if (errors && meta_schema_errors) {
-					*errors = meta_schema_errors;
-				} else if (meta_schema_errors) {
-					ks_json_schema_error_free(&meta_schema_errors);
-				}
-				return KS_JSON_SCHEMA_STATUS_INVALID_SCHEMA;
+			// Check if JSON schema subsystem is properly initialized
+			if (!g_json_schema_initialized || !g_meta_schema_validator) {
+				// libks requires ks_init() to be called for proper operation
+				return KS_JSON_SCHEMA_STATUS_UNAVAILABLE;
 			}
 
-			// Validate the user schema against the meta-schema
+			// Use cached meta-schema validator
 			ks_json_schema_error_t *validation_errors = nullptr;
-			ks_json_schema_status_t validation_status = ks_json_schema_validate_string(meta_schema, schema_json, &validation_errors);
+			ks_json_schema_status_t validation_status = ks_json_schema_validate_string(g_meta_schema_validator, schema_json, &validation_errors);
 
-			// Clean up meta-schema validator
-			ks_json_schema_destroy(&meta_schema);
-
-			// If validation failed, return the validation errors
 			if (validation_status != KS_JSON_SCHEMA_STATUS_SUCCESS) {
 				if (errors) {
 					// Prefix error messages to indicate they're schema validation errors
@@ -457,6 +487,16 @@ KS_DECLARE(const char *) ks_json_schema_status_string(ks_json_schema_status_t st
 }
 
 #ifdef HAVE_JSON_SCHEMA_VALIDATOR
+
+KS_DECLARE(void) ks_json_schema_init(void)
+{
+	ks_json_schema_init_internal();
+}
+
+KS_DECLARE(void) ks_json_schema_shutdown(void)
+{
+	ks_json_schema_shutdown_internal();
+}
 
 KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create(const char *schema_json, ks_json_schema_t **schema, ks_json_schema_error_t **errors)
 {
@@ -621,6 +661,16 @@ KS_DECLARE(void) ks_json_schema_destroy(ks_json_schema_t **schema)
 }
 
 #else
+
+KS_DECLARE(void) ks_json_schema_init(void)
+{
+	// No-op when JSON schema validation is disabled
+}
+
+KS_DECLARE(void) ks_json_schema_shutdown(void)
+{
+	// No-op when JSON schema validation is disabled
+}
 
 KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create(const char *schema_json, ks_json_schema_t **schema, ks_json_schema_error_t **errors)
 {

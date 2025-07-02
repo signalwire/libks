@@ -46,6 +46,10 @@ typedef struct ks_json_schema_error {
 	struct ks_json_schema_error *next;
 } ks_json_schema_error_t;
 
+KS_DECLARE(void) ks_json_schema_init(void);
+
+KS_DECLARE(void) ks_json_schema_shutdown(void);
+
 KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create(const char *schema_json, ks_json_schema_t **schema, ks_json_schema_error_t **errors);
 
 KS_DECLARE(ks_json_schema_status_t) ks_json_schema_create_from_json(ks_json_t *schema_json, ks_json_schema_t **schema, ks_json_schema_error_t **errors);
