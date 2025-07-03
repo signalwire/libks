@@ -8,6 +8,7 @@ option(KS_STATIC "Build ks statically" OFF)
 option(WITH_KS_TEST "Enable KsTest c++ harness" OFF)
 option(WITH_LIBBACKTRACE "Enables linking to libbacktrace as an external project, used in abort areas in libks" OFF)
 option(WITH_JSON_VALIDATION "Enable JSON schema validation" OFF)
+option(WITH_JSON_SCHEMA_PURE "Enable pure C JSON schema validation" ON)
 option(WITH_PACKAGING "Enable packaging" ON)
 
 
@@ -352,6 +353,11 @@ file(GLOB_RECURSE KsDeps [LIST_DIRECTORIES false]
 	${CMAKE_CURRENT_LIST_DIR}/src/include/crypt/*.h
 )
 
+# Remove pure C JSON schema files if disabled
+if (NOT WITH_JSON_SCHEMA_PURE)
+	list(FILTER KsDeps EXCLUDE REGEX ".*ks_json_schema_pure\\.(c|h)$")
+endif()
+
 if (KS_PLAT_WIN)
 	source_group(TREE ${CMAKE_CURRENT_LIST_DIR} FILES ${KsDeps})
 endif()
@@ -449,6 +455,14 @@ if (NOT KS_PLAT_WIN AND WITH_JSON_VALIDATION)
 	endif()
 else()
 	message(STATUS "JSON schema validation disabled (set WITH_JSON_VALIDATION=ON to enable)")
+endif()
+
+# Enable pure C JSON schema validation if requested
+if (WITH_JSON_SCHEMA_PURE)
+	target_compile_definitions(ks2 PUBLIC -DHAVE_JSON_SCHEMA_PURE=1)
+	message(STATUS "Pure C JSON schema validation enabled")
+else()
+	message(STATUS "Pure C JSON schema validation disabled (set WITH_JSON_SCHEMA_PURE=ON to enable)")
 endif()
 
 if (NOT KS_PLAT_WIN)
