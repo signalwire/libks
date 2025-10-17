@@ -58,7 +58,9 @@ KS_BEGIN_EXTERN_C
 #endif
 #define _CRTDBG_MAP_ALLOC
 #else
+#ifndef __KS_FUNC__
 #define __KS_FUNC__ (const char *)__func__
+#endif
 #endif
 
 #ifndef _GNU_SOURCE
