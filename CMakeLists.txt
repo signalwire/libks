@@ -61,7 +61,6 @@ endif()
 # us to run the apps from the build dir without installing (come install time
 # the binary is re-linked with an rpath matching that of the install prefix)
 set(SKIP_BUILD_RPATH TRUE)
-set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 
 # Now detect a bunch of platform stuff
 include(CheckFunctionExists)
@@ -591,19 +590,9 @@ export(TARGETS ks2
 if (NOT KS_PLAT_WIN)
 
 	# Set install targets
-	install(TARGETS ks2 COMPONENT "runtime" EXPORT LibKS2Config DESTINATION lib)
+	install(TARGETS ks2 COMPONENT "runtime" EXPORT LibKS2Config DESTINATION ${LIB_INSTALL_DIR})
 	install(DIRECTORY src/include/libks COMPONENT "runtime" DESTINATION include/libks2 PATTERN src/include/libks/internal EXCLUDE)
-
-	# Set path for pkg-config based on ARCH and distro type
-	if("${CMAKE_OS_NAME}" STREQUAL "Centos") # pkg-config --variable pc_path pkg-config
-		if(${CPACK_SYSTEM_NAME} MATCHES "x86_64")
-			install(FILES ${PROJECT_BINARY_DIR}/libks2.pc COMPONENT "runtime" DESTINATION lib64/pkgconfig)
-		else()
-			install(FILES ${PROJECT_BINARY_DIR}/libks2.pc COMPONENT "runtime" DESTINATION lib/pkgconfig)
-		endif()
-	else()
-		install(FILES ${PROJECT_BINARY_DIR}/libks2.pc COMPONENT "runtime" DESTINATION lib/pkgconfig)
-	endif()
+	install(FILES ${PROJECT_BINARY_DIR}/libks2.pc COMPONENT "runtime" DESTINATION ${LIB_INSTALL_DIR}/pkgconfig)
 
 	install(FILES cmake/ksutil.cmake COMPONENT "runtime" DESTINATION include/libks2/libks/cmake)
 	install(FILES cmake/FindPCRE.cmake COMPONENT "runtime" DESTINATION include/libks2/libks/cmake)
@@ -632,6 +621,7 @@ if (NOT KS_PLAT_WIN)
 	# Name: @PACKAGE_NAME@
 	# Version: @PACKAGE_VERSION@
 	set(PC_PREFIX ${CMAKE_INSTALL_PREFIX})
+	set(PC_LIB_DIR ${LIB_INSTALL_DIR})
 	set(PACKAGE_VERSION ${PROJECT_VERSION})
 	get_property(PC_DEFINITIONS TARGET ks2 PROPERTY INTERFACE_COMPILE_DEFINITIONS)
 	configure_file("${CMAKE_CURRENT_LIST_DIR}/libks.pc.in" "${PROJECT_BINARY_DIR}/libks2.pc" @ONLY)
