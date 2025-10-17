@@ -1398,6 +1398,16 @@ success:
     item->type = kJSON_Array;
     item->child = head;
 
+    /* Set parent pointers for all children */
+    {
+        kJSON *child = head;
+        while (child != NULL)
+        {
+            child->parent = item;
+            child = child->next;
+        }
+    }
+
     input_buffer->offset++;
 
     return CJSON_TRUE;
@@ -1569,6 +1579,16 @@ success:
 
     item->type = kJSON_Object;
     item->child = head;
+
+    /* Set parent pointers for all children */
+    {
+        kJSON *child = head;
+        while (child != NULL)
+        {
+            child->parent = item;
+            child = child->next;
+        }
+    }
 
     input_buffer->offset++;
     return CJSON_TRUE;
@@ -1844,6 +1864,9 @@ static kJSON_bool add_item_to_array(kJSON *array, kJSON *item)
         }
         suffix_object(child, item);
     }
+
+    /* Set parent pointer */
+    item->parent = array;
 
     return CJSON_TRUE;
 }
