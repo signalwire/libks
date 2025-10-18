@@ -134,7 +134,12 @@ int test2(void)
 	}
 
 	for (i = 0; i < ttl; i++) {
-		ks_thread_destroy(&threads[i]);
+		ks_thread_request_stop(threads[i]);
+	}
+
+	for (i = 0; i < ttl; i++) {
+		ks_thread_join(threads[i]);
+		if (ks_thread_destroy(&threads[i]) != KS_STATUS_SUCCESS) return 0;
 	}
 
 
