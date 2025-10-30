@@ -43,7 +43,7 @@ if (KS_PLAT_WIN OR WITH_KS_TEST)
 endif()
 
 # Declare our project, libks2
-project(LibKS2 VERSION 2.0.7 LANGUAGES C CXX)
+project(LibKS2 VERSION 2.0.8 LANGUAGES C CXX)
 message("LibKS2 Version ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}")
 
 # Set package version
