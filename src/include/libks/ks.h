@@ -30,10 +30,10 @@
 #endif
 
 /* libks version as a string */
-#define KS_VERSION "2.0.7"
+#define KS_VERSION "2.0.8"
 
 /* libks version as a number */
-#define KS_VERSION_NUM 20007
+#define KS_VERSION_NUM 20008
 
 /* Use this to allow enabling TCP_KEEPIDLE and TCP_KEEPINTVL socket options */
 //#define KS_KEEP_IDLE_INTVL 1
@@ -64,6 +64,7 @@ KS_END_EXTERN_C
 #include "libks/ks_printf.h"
 #include "libks/ks_json.h"
 #include "libks/ks_json_check.h"
+#include "libks/ks_json_schema.h"
 #include "libks/ks_pool.h"
 #include "libks/ks_threadmutex.h"
 #include "libks/ks_debug.h"
@@ -79,6 +80,8 @@ KS_END_EXTERN_C
 #include "libks/simclist.h"
 #include "libks/ks_ssl.h"
 #include "libks/kws.h"
+#include "libks/ks_tls.h"
+#include "libks/ks_hep.h"
 #include "libks/ks_uuid.h"
 #include "libks/ks_acl.h"
 #include "libks/ks_base64.h"

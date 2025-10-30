@@ -653,19 +653,6 @@ KS_DECLARE(ks_ssize_t) kws_raw_write(kws_t *kws, void *data, ks_size_t bytes)
 	return r >= 0 ? wrote : r;
 }
 
-static void setup_socket(ks_socket_t sock)
-{
-	ks_socket_option(sock, KS_SO_NONBLOCK, KS_TRUE);
-	ks_socket_option(sock, TCP_NODELAY, KS_TRUE);
-	ks_socket_option(sock, SO_KEEPALIVE, KS_TRUE);
-#ifdef KS_KEEP_IDLE_INTVL
-#ifndef __APPLE__
-	ks_socket_option(sock, TCP_KEEPIDLE, 30);
-	ks_socket_option(sock, TCP_KEEPINTVL, 30);
-#endif
-#endif /* KS_KEEP_IDLE_INTVL */
-}
-
 static void restore_socket(ks_socket_t sock)
 {
 	ks_socket_option(sock, KS_SO_NONBLOCK, KS_FALSE);
@@ -766,6 +753,26 @@ static int establish_client_logical_layer(kws_t *kws)
 	if (kws->ssl) {
 		strncpy(kws->cipher_name, SSL_get_cipher_name(kws->ssl), sizeof(kws->cipher_name) - 1);
 		ks_log(KS_LOG_INFO, "SSL negotiation succeeded, negotiated cipher is: %s\n", kws->cipher_name);
+
+		if (ks_json_get_object_bool(kws->params, "ssl_validate_certificate", KS_FALSE)) {
+			X509 *cert = SSL_get_peer_certificate(kws->ssl);
+
+			if (!cert) {
+				ks_log(KS_LOG_ERROR, "SSL negotiation failed, no certificate\n");
+
+				return -1;
+			}
+
+			if (SSL_get_verify_result(kws->ssl) != X509_V_OK) {
+				ks_log(KS_LOG_ERROR, "SSL negotiation failed, invalid certificate\n");
+				X509_free(cert);
+
+				return -1;
+			}
+
+			X509_free(cert);
+		}
+
 	} else {
 		memset(kws->cipher_name, 0, sizeof(kws->cipher_name));
 	}
@@ -932,7 +939,7 @@ KS_DECLARE(ks_status_t) kws_init_ex(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl
 
 	kws->secure = ssl_ctx ? 1 : 0;
 
-	setup_socket(sock);
+	ks_socket_common_setup(sock);
 
 	if (establish_logical_layer(kws) == -1) {
 		ks_log(KS_LOG_ERROR, "Failed to establish logical layer\n");
@@ -1694,6 +1701,8 @@ KS_DECLARE(ks_status_t) kws_connect_ex(kws_t **kwsP, ks_json_t *params, kws_flag
 					ks_log(KS_LOG_ERROR, "Failed to initiate SSL context with ssl error [%lu].\n", ssl_ctx_error);
 					return KS_STATUS_FAIL;
 				}
+
+				SSL_CTX_set_default_verify_paths(ssl_ctx);
 
 				destroy_ssl_ctx++;
 			}

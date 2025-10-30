@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2023 SignalWire, Inc
+ * Copyright (c) 2025 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,53 +20,35 @@
  * SOFTWARE.
  */
 
-#include "libks/ks.h"
-#include "tap.h"
+#pragma once
 
-int main(int argc, char **argv)
-{
-	int64_t now, then;
-	int diff;
-	int i;
-
-	ks_init();
-
-	plan(2);
-
-	then = ks_time_now();
-
-	ks_sleep(2000000);
-
-	now = ks_time_now();
-
-	diff = (int)((now - then) / 1000);
-	printf("DIFF %ums\n", diff);
-
-#ifdef KS_PLAT_MAC
-	/* the clock on osx seems to be particularly bad at being accurate, we need a bit more room for error*/
-	ok(diff > 1990 && diff < 2200);
-#else
-	ok(diff > 1990 && diff < 2010);
+#ifdef __cplusplus
+extern "C" {
 #endif
 
-	then = ks_time_now();
+/**
+ * Initialize JSON schema subsystem - internal function called by ks_init()
+ * This function caches the JSON Schema Draft 07 meta-schema for performance
+ */
+KS_DECLARE(void) ks_json_schema_init(void);
 
-	for (i = 0; i < 100; i++) {
-		ks_sleep(20000);
-	}
+/**
+ * Shutdown JSON schema subsystem - internal function called by ks_shutdown()
+ * This function cleans up the cached meta-schema validator
+ */
+KS_DECLARE(void) ks_json_schema_shutdown(void);
 
-	now = ks_time_now();
-
-	diff = (int)((now - then) / 1000);
-	printf("DIFF %ums\n", diff);
-
-#ifdef KS_PLAT_MAC
-	/* the clock on osx seems to be particularly bad at being accurate, we need a bit more room for error*/
-	/* GHA macos arm runners seem too slow */
-	ok( diff > 1900 && diff < 12000 );
-#else
-	ok( diff > 1950 && diff < 2050 );
-#endif
-	ks_shutdown();
-	done_testing();
+#ifdef __cplusplus
 }
+#endif
+
+/* For Emacs:
+ * Local Variables:
+ * mode:c
+ * indent-tabs-mode:t
+ * tab-width:4
+ * c-basic-offset:4
+ * End:
+ * For VIM:
+ * vim:set softtabstop=4 shiftwidth=4 tabstop=4 noet:
+ */

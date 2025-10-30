@@ -43,15 +43,15 @@ typedef void *(*ks_thread_function_t) (ks_thread_t *, void *);
 #ifdef KS_PLAT_WIN
 	typedef void * ks_thread_os_handle_t;
 	typedef DWORD ks_pid_t;
-	#define KS_PID_FMT "8.8"PRIx32
+	#define KS_PID_FMT "8.8" PRIx32
 #elif defined(KS_PLAT_MAC)
 	typedef uint64_t ks_pid_t;
 	typedef pthread_t ks_thread_os_handle_t;
-	#define KS_PID_FMT "16.16"PRIx64
+	#define KS_PID_FMT "16.16" PRIx64
 #else
 	typedef pid_t ks_pid_t;
 	typedef pthread_t ks_thread_os_handle_t;
-	#define KS_PID_FMT "8.8"PRIX32
+	#define KS_PID_FMT "8.8" PRIX32
 #endif
 
 typedef enum {
