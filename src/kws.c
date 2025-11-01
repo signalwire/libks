@@ -55,8 +55,8 @@ struct kws_s {
 	ks_ssize_t datalen;
 	ks_ssize_t wdatalen;
 	char *payload;
-	ks_ssize_t plen;
-	ks_ssize_t rplen;
+	ks_ssize_t payload_len;
+	ks_ssize_t already_read_payload_len;
 	ks_ssize_t packetlen;
 	SSL *ssl;
 	int handshake;
@@ -1344,7 +1344,7 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 		{
 			/* Nominal case, debug output only */
 			ks_log(KS_LOG_DEBUG, "Read frame OPCODE = WSOC_CLOSE\n");
-			kws->plen = kws->buffer[1] & 0x7f;
+			kws->payload_len = kws->buffer[1] & 0x7f;
 			*data = (uint8_t *) &kws->buffer[2];
 			return kws_close(kws, WS_RECV_CLOSE);
 		}
@@ -1379,10 +1379,10 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 				}
 			}
 
-			kws->plen = kws->buffer[1] & 0x7f;
+			kws->payload_len = kws->buffer[1] & 0x7f;
 			kws->payload = &kws->buffer[2];
 
-			if (kws->plen == 127) {
+			if (kws->payload_len == 127) {
 				uint64_t *u64;
 				ks_ssize_t more = 0;
 
@@ -1400,8 +1400,8 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 
 				u64 = (uint64_t *) kws->payload;
 				kws->payload += 8;
-				kws->plen = (ks_ssize_t)ntoh64(*u64);
-			} else if (kws->plen == 126) {
+				kws->payload_len = (ks_ssize_t)ntoh64(*u64);
+			} else if (kws->payload_len == 126) {
 				uint16_t *u16;
 
 				need += 2;
@@ -1418,7 +1418,7 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 
 				u16 = (uint16_t *) kws->payload;
 				kws->payload += 2;
-				kws->plen = ntohs(*u16);
+				kws->payload_len = ntohs(*u16);
 			}
 
 			if (mask) {
@@ -1426,7 +1426,7 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 				kws->payload += 4;
 			}
 
-			need = (kws->plen - (kws->datalen - need));
+			need = (kws->payload_len - (kws->datalen - need));
 
 			if (need < 0) {
 				/* invalid read - protocol err .. */
@@ -1439,11 +1439,11 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 			blen = (int)(kws->body - kws->bbuffer);
 
 			/* The bbuffer for the body of the message should always be 1 larger than the total size (for null term) */
-			if (blen + kws->plen >= (ks_ssize_t)kws->bbuflen) {
+			if (blen + kws->payload_len >= (ks_ssize_t)kws->bbuflen) {
 				void *tmp;
 
-				/* must be a sum of the size already written to the body (blen) plus the size to be written (kws->plen) */
-				kws->bbuflen = blen + kws->plen; /* total size */
+				/* must be a sum of the size already written to the body (blen) plus the size to be written (kws->payload_len) */
+				kws->bbuflen = blen + kws->payload_len; /* total size */
 
 				/* and 1 more for NULL term */
 				kws->bbuflen++;
@@ -1465,17 +1465,17 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 				kws->body = kws->bbuffer + blen;
 			}
 
-			kws->rplen = kws->plen - need;
+			kws->already_read_payload_len = kws->payload_len - need;
 
-			if (kws->rplen) {
-				ks_assert((kws->body + kws->rplen) <= (kws->bbuffer + kws->bbuflen));
-				memcpy(kws->body, kws->payload, kws->rplen);
+			if (kws->already_read_payload_len) {
+				ks_assert((kws->body + kws->already_read_payload_len) <= (kws->bbuffer + kws->bbuflen));
+				memcpy(kws->body, kws->payload, kws->already_read_payload_len);
 			}
 
-			ks_assert((kws->body + kws->plen) <= (kws->bbuffer + kws->bbuflen));
+			ks_assert((kws->body + kws->payload_len) <= (kws->bbuffer + kws->bbuflen));
 
 			while(need) {
-				ks_ssize_t r = kws_string_read(kws, kws->body + kws->rplen, need + 1, WS_BLOCK);
+				ks_ssize_t r = kws_string_read(kws, kws->body + kws->already_read_payload_len, need + 1, WS_BLOCK);
 
 				if (r < 1) {
 					/* invalid read - protocol err .. */
@@ -1485,24 +1485,24 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 				}
 
 				kws->datalen += r;
-				kws->rplen += r;
+				kws->already_read_payload_len += r;
 				need -= r;
 			}
 
 			if (mask && maskp) {
 				ks_ssize_t i;
 
-				for (i = 0; i < kws->plen; i++) {
+				for (i = 0; i < kws->payload_len; i++) {
 					kws->body[i] ^= maskp[i % 4];
 				}
 			}
 
 			if (*oc == WSOC_TEXT) {
-				*(kws->body+kws->rplen) = '\0';
+				*(kws->body+kws->already_read_payload_len) = '\0';
 			}
 
-			kws->packetlen += kws->rplen;
-			kws->body += kws->rplen;
+			kws->packetlen += kws->already_read_payload_len;
+			kws->body += kws->already_read_payload_len;
 
 			if (frag) {
 				goto again;
