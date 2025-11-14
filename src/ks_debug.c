@@ -35,7 +35,7 @@ static int __full_callback(void *data __attribute__((unused)), uintptr_t pc, con
 		function == NULL ? "???" : function ,
 		function == NULL ? "???" : filename, lineno);
 
-	return strcmp(function, "main") == 0 ? 1 : 0;
+	return (function != NULL && strcmp(function, "main") == 0) ? 1 : 0;
 }
 
 static void __error_callback(void *data, const char *msg, int errnum)
