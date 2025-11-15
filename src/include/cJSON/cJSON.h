@@ -59,6 +59,8 @@ typedef struct kJSON
     struct kJSON *prev;
     /* An array or object item will have a child pointer pointing to a chain of the items in the array/object. */
     struct kJSON *child;
+    /* Parent pointer for JSON Pointer functionality */
+    struct kJSON *parent;
 
     /* The type of the item, as above. */
     kJSON_TYPES type;
