@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2023 SignalWire, Inc
+ * Copyright (c) 2018-2026 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -88,8 +88,11 @@ struct kws_s {
 	ks_json_t *params;
 
 	ks_ssize_t payload_size_max;
+
+	volatile int cancel;
 };
 
+#define KWS_CANCELLED(kws) ((kws)->cancel)
 
 
 static int cheezy_get_var(char *data, char *name, char *buf, ks_size_t buflen)
@@ -460,7 +463,7 @@ KS_DECLARE(ks_ssize_t) kws_raw_read(kws_t *kws, void *data, ks_size_t bytes, int
 				}
 			}
 
-		} while (r < 0 && SSL_ERROR_WANT_READ_WRITE(ssl_err) && kws->x < block_n);
+		} while (r < 0 && SSL_ERROR_WANT_READ_WRITE(ssl_err) && kws->x < block_n && !KWS_CANCELLED(kws));
 
 		goto end;
 	}
@@ -479,7 +482,7 @@ KS_DECLARE(ks_ssize_t) kws_raw_read(kws_t *kws, void *data, ks_size_t bytes, int
 				ks_sleep_ms(10);
 			}
 		}
-	} while (r == -1 && ks_errno_is_blocking(ks_errno()) && kws->x < block_n);
+	} while (r == -1 && ks_errno_is_blocking(ks_errno()) && kws->x < block_n && !KWS_CANCELLED(kws));
 
  end:
 
@@ -695,6 +698,12 @@ static int establish_client_logical_layer(kws_t *kws)
 		SSL_set_tlsext_host_name(kws->ssl, kws->req_host);
 
 		do {
+			if (KWS_CANCELLED(kws)) {
+				ks_log(KS_LOG_DEBUG, "SSL connect cancelled\n");
+
+				return -1;
+			}
+
 			ERR_clear_error();
 			code = SSL_connect(kws->ssl);
 
@@ -735,7 +744,7 @@ static int establish_client_logical_layer(kws_t *kws)
 		}
 	}
 
-	while (!kws->down && !kws->handshake) {
+	while (!kws->down && !kws->handshake && !KWS_CANCELLED(kws)) {
 		int r = ws_client_handshake(kws);
 
 		if (r < 0) {
@@ -747,6 +756,12 @@ static int establish_client_logical_layer(kws_t *kws)
 			return -2;
 		}
 
+	}
+
+	if (KWS_CANCELLED(kws)) {
+		ks_log(KS_LOG_DEBUG, "WebSocket handshake cancelled\n");
+
+		return -1;
 	}
 
 	kws->logical_established = 1;
@@ -995,6 +1010,13 @@ KS_DECLARE(void) kws_set_init_callback(kws_t *kws, kws_init_callback_t callback)
 	ks_assert(kws);
 
 	kws->init_callback = callback;
+}
+
+KS_DECLARE(void) kws_cancel(kws_t *kws)
+{
+	if (kws) {
+		kws->cancel = 1;
+	}
 }
 
 KS_DECLARE(ks_status_t) kws_create(kws_t **kwsP, ks_pool_t *pool)
