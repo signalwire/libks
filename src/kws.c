@@ -88,6 +88,7 @@ struct kws_s {
 	ks_json_t *params;
 
 	ks_ssize_t payload_size_max;
+	ks_mutex_t *write_mutex;
 };
 
 
@@ -895,6 +896,10 @@ KS_DECLARE(ks_status_t) kws_init_ex(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl
 	if (*kwsP) kws = *kwsP;
 	else kws = ks_pool_alloc(pool, sizeof(*kws));
 
+	if (!kws->write_mutex) {
+		ks_mutex_create(&kws->write_mutex, KS_MUTEX_FLAG_DEFAULT, pool);
+	}
+
 	kws->flags = flags;
 	kws->unprocessed_buffer_len = 0;
 	kws->unprocessed_position = NULL;
@@ -1002,6 +1007,7 @@ KS_DECLARE(ks_status_t) kws_create(kws_t **kwsP, ks_pool_t *pool)
 	kws_t *kws;
 
 	kws = ks_pool_alloc(pool, sizeof(*kws));
+	ks_mutex_create(&kws->write_mutex, KS_MUTEX_FLAG_DEFAULT, pool);
 	*kwsP = kws;
 
 	return KS_STATUS_SUCCESS;
@@ -1571,6 +1577,8 @@ KS_DECLARE(ks_ssize_t) kws_write_frame(kws_t *kws, kws_opcode_t oc, const void *
 		return -1;
 	}
 
+	ks_mutex_lock(kws->write_mutex);
+
 	//printf("WRITE[%ld]-----------------------------:\n[%s]\n-----------------------------------\n", bytes, (char *) data);
 
 	hdr[0] = (uint8_t)(oc | 0x80);
@@ -1629,6 +1637,8 @@ KS_DECLARE(ks_ssize_t) kws_write_frame(kws_t *kws, kws_opcode_t oc, const void *
 	}
 
 	raw_ret = kws_raw_write(kws, bp, (hlen + bytes));
+
+	ks_mutex_unlock(kws->write_mutex);
 
 	if (raw_ret <= 0 || raw_ret != (ks_ssize_t) (hlen + bytes)) {
 		return raw_ret;
