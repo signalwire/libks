@@ -984,7 +984,8 @@ KS_DECLARE(ks_status_t) kws_init_ex(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl
 	return KS_STATUS_SUCCESS;
 
  err:
-	kws_destroy(kwsP);
+	kws_destroy(&kws);
+	*kwsP = NULL;
 
 	return KS_STATUS_FAIL;
 }
