@@ -471,6 +471,7 @@ target_compile_definitions(ks2 PRIVATE
 	-DVERSION="${PROJECT_VERSION}"
 	-D_GNU_SOURCE=1
 	-DCJSON_HIDE_SYMBOLS=1
+	-DCJSON_NESTING_LIMIT=64
 )
 
 # Setup our public facing definitions
