@@ -692,6 +692,249 @@ static int test_keepalive(char *ip)
 	return r;
 }
 
+/*
+ * URI sanitization tests for kws_parse_header → clean_uri.
+ *
+ * Drives a parallel HTTP server that echoes request->uri (after
+ * kws_parse_header has normalized it) back to the client as the
+ * response body "URI=<value>". The client sends a table of probes
+ * over one keepalive connection and asserts on the echoed value.
+ */
+
+struct uri_case {
+	const char *send;
+	const char *expect;
+};
+
+static const struct uri_case g_uri_cases[] = {
+	/* /../ at root is clamped — cannot escape document root */
+	{ "/../../etc/passwd",            "/etc/passwd" },
+	{ "/foo/../../bar",               "/bar" },
+	/* dot and empty segments are collapsed */
+	{ "/./a",                         "/a" },
+	{ "//a//b",                       "/a/b" },
+	{ "/foo/.",                       "/foo" },
+	/* URL-encoded dots are NOT decoded; the literal %2E survives */
+	{ "/%2E%2E/%2E%2E/etc/passwd",    "/%2E%2E/%2E%2E/etc/passwd" },
+	{ NULL, NULL }
+};
+
+static void make_deep_uri(char *buf, size_t bufsz, int segments)
+{
+	size_t off = 0;
+	int i;
+	for (i = 0; i < segments && off + 2 < bufsz; i++) {
+		buf[off++] = '/';
+		buf[off++] = 'a';
+	}
+	buf[off] = '\0';
+}
+
+static void uri_sanitize_server_callback(ks_socket_t server_sock, ks_socket_t client_sock, ks_sockaddr_t *addr, void *user_data)
+{
+	struct tcp_data *tcp_data = (struct tcp_data *) user_data;
+	kws_t *kws = NULL;
+	kws_request_t *request = NULL;
+	int flags = KWS_BLOCK | KWS_STAY_OPEN | KWS_HTTP;
+	int keepalive = 0;
+
+	if (kws_init(&kws, client_sock, NULL, NULL, flags, tcp_data->pool) != KS_STATUS_SUCCESS) {
+		goto end;
+	}
+
+new_req:
+	if (kws_parse_header(kws, &request) != KS_STATUS_SUCCESS) {
+		/* Expected for the >=64-segment probe: clean_uri rejects, connection drops. */
+		goto end;
+	}
+
+	if (!strncmp(request->method, "GET", 3)) {
+		char body[2048];
+		char hdr[256];
+		int blen = ks_snprintf(body, sizeof(body), "URI=%s", request->uri);
+		ks_snprintf(hdr, sizeof(hdr),
+			"HTTP/1.1 200 OK\r\n"
+			"Content-Length: %d\r\n"
+			"Content-Type: text/plain\r\n"
+			"Connection: keep-alive\r\n"
+			"Server: libks-uri-test\r\n\r\n",
+			blen);
+		kws_raw_write(kws, hdr, strlen(hdr));
+		kws_raw_write(kws, body, blen);
+	}
+
+end:
+	if (request) {
+		keepalive = request->keepalive;
+		kws_request_free(&request);
+	}
+
+	if (keepalive) {
+		int pflags = kws_wait_sock(kws, 1000, KS_POLL_READ);
+		if (pflags > 0 && (pflags & KS_POLL_READ)) {
+			if (kws_keepalive(kws) == KS_STATUS_SUCCESS) {
+				goto new_req;
+			}
+		}
+	}
+
+	ks_socket_close(&client_sock);
+	kws_destroy(&kws);
+}
+
+static void *uri_sanitize_tcp_sock_server(ks_thread_t *thread, void *thread_data)
+{
+	struct tcp_data *tcp_data = (struct tcp_data *) thread_data;
+
+	tcp_data->ready = 1;
+	ks_listen_sock(tcp_data->sock, &tcp_data->addr, 0, uri_sanitize_server_callback, tcp_data);
+
+	return NULL;
+}
+
+static int extract_echoed_uri(const char *response, ks_size_t response_len, char *out, size_t outsz)
+{
+	const char *body;
+
+	if (response_len == 0) return 0;
+
+	body = strstr(response, "\r\n\r\n");
+	if (!body) return 0;
+	body += 4;
+
+	if (strncmp(body, "URI=", 4) != 0) return 0;
+	body += 4;
+
+	ks_snprintf(out, outsz, "%s", body);
+	return 1;
+}
+
+static int test_uri_sanitize(char *ip)
+{
+	ks_thread_t *thread_p = NULL;
+	ks_pool_t *pool;
+	ks_sockaddr_t addr;
+	int family = AF_INET;
+	ks_socket_t cl_sock = KS_SOCK_INVALID;
+	struct tcp_data tcp_data = { 0 };
+	int r = 1, sanity = 100;
+	int i;
+
+	ks_pool_open(&pool);
+	tcp_data.pool = pool;
+
+	if (strchr(ip, ':')) family = AF_INET6;
+
+	if (ks_addr_set(&tcp_data.addr, ip, tcp_port, family) != KS_STATUS_SUCCESS) {
+		r = 0;
+		printf("URI CLIENT Can't set ADDR\n");
+		goto end;
+	}
+
+	if ((tcp_data.sock = socket(family, SOCK_STREAM, IPPROTO_TCP)) == KS_SOCK_INVALID) {
+		r = 0;
+		printf("URI CLIENT Can't create sock family %d\n", family);
+		goto end;
+	}
+
+	ks_socket_option(tcp_data.sock, SO_REUSEADDR, KS_TRUE);
+	ks_socket_option(tcp_data.sock, TCP_NODELAY, KS_TRUE);
+	tcp_data.ip = ip;
+
+	ks_thread_create(&thread_p, uri_sanitize_tcp_sock_server, &tcp_data, pool);
+
+	while (!tcp_data.ready && --sanity > 0) {
+		ks_sleep(10000);
+	}
+
+	ks_addr_set(&addr, ip, tcp_port, family);
+	cl_sock = ks_socket_connect(SOCK_STREAM, IPPROTO_TCP, &addr);
+
+	for (i = 0; g_uri_cases[i].send; i++) {
+		char req[2048];
+		char response[4096] = { 0 };
+		char echoed[1024] = { 0 };
+		ks_size_t len;
+		const char *send_uri = g_uri_cases[i].send;
+		const char *expect = g_uri_cases[i].expect;
+
+		ks_snprintf(req, sizeof(req),
+			"GET %s HTTP/1.1\r\n"
+			"HOST: localhost\r\n"
+			"Connection: keep-alive\r\n\r\n",
+			send_uri);
+
+		len = strlen(req);
+		ks_socket_send(cl_sock, req, &len);
+		ks_sleep_ms(200);
+
+		len = sizeof(response) - 1;
+		if (ks_socket_recv(cl_sock, response, &len) != KS_STATUS_SUCCESS || len == 0) {
+			printf("URI sanitize [fail]: %s -> no response\n", send_uri);
+			r = 0;
+			continue;
+		}
+		response[len] = '\0';
+
+		if (!extract_echoed_uri(response, len, echoed, sizeof(echoed))) {
+			printf("URI sanitize [fail]: %s -> response missing URI= marker\n", send_uri);
+			r = 0;
+			continue;
+		}
+
+		printf("URI sanitize: %-40s -> %-40s (expect %s)\n", send_uri, echoed, expect);
+
+		if (strcmp(echoed, expect) != 0) {
+			printf("URI sanitize [fail]: %s -> got %s, expected %s\n", send_uri, echoed, expect);
+			r = 0;
+		}
+	}
+
+	/* Deep-URI probe: >64 segments must hit clean_uri's reject branch. Server
+	   closes without responding; client recv should not yield a body. */
+	{
+		char deep[2048];
+		char req[4096];
+		char buf[1024];
+		ks_size_t len;
+		ks_status_t recv_status;
+
+		make_deep_uri(deep, sizeof(deep), 70);
+		ks_snprintf(req, sizeof(req),
+			"GET %s HTTP/1.1\r\n"
+			"HOST: localhost\r\n"
+			"Connection: keep-alive\r\n\r\n",
+			deep);
+		len = strlen(req);
+		ks_socket_send(cl_sock, req, &len);
+		ks_sleep_ms(200);
+
+		len = sizeof(buf);
+		recv_status = ks_socket_recv(cl_sock, buf, &len);
+		if (recv_status == KS_STATUS_SUCCESS && len > 0) {
+			printf("URI sanitize [fail]: deep URI got %zu-byte response\n", (size_t)len);
+			r = 0;
+		} else {
+			printf("URI sanitize: deep URI correctly rejected (status %d)\n", (int)recv_status);
+		}
+	}
+
+end:
+	if (tcp_data.sock != KS_SOCK_INVALID) {
+		ks_socket_shutdown(tcp_data.sock, 2);
+		ks_socket_close(&tcp_data.sock);
+	}
+
+	if (thread_p) {
+		ks_thread_join(thread_p);
+	}
+
+	ks_socket_close(&cl_sock);
+	ks_pool_close(&pool);
+
+	return r;
+}
+
 int main(void)
 {
 	int have_v4 = 0, have_v6 = 0;
@@ -704,7 +947,7 @@ int main(void)
 	have_v4 = ks_zstr_buf(v4) ? 0 : 1;
 	// have_v6 = ks_zstr_buf(v6) ? 0 : 1;
 
-	plan((have_v4 * 5) + (have_v6 * 4) + 1);
+	plan((have_v4 * 6) + (have_v6 * 4) + 1);
 
 	ok(have_v4 || have_v6);
 
@@ -718,6 +961,7 @@ int main(void)
 		ok(test_post(v4));
 		ok(test_keepalive(v4));
 		ok(test_post_json_read_buffer(v4));
+		ok(test_uri_sanitize(v4));
 	}
 
 	if (have_v6) {
