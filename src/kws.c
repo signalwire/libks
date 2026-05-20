@@ -1807,10 +1807,11 @@ static ks_status_t clean_uri(char *uri)
 	int argc;
 	char *argv[64];
 	int last, i, len, uri_len = 0;
+	const unsigned int max_segments = sizeof(argv) / sizeof(argv[0]);
 
-	argc = ks_separate_string(uri, '/', argv, sizeof(argv) / sizeof(argv[0]));
+	argc = ks_separate_string(uri, '/', argv, max_segments);
 
-	if (argc == sizeof(argv)) { /* too deep */
+	if ((unsigned int)argc == max_segments) { /* too deep */
 		return KS_STATUS_FAIL;
 	}
 

@@ -43,7 +43,7 @@ if (KS_PLAT_WIN OR WITH_KS_TEST)
 endif()
 
 # Declare our project, libks2
-project(LibKS2 VERSION 2.0.10 LANGUAGES C CXX)
+project(LibKS2 VERSION 2.0.11 LANGUAGES C CXX)
 message("LibKS2 Version ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}")
 
 # Set package version
@@ -471,6 +471,7 @@ target_compile_definitions(ks2 PRIVATE
 	-DVERSION="${PROJECT_VERSION}"
 	-D_GNU_SOURCE=1
 	-DCJSON_HIDE_SYMBOLS=1
+	-DCJSON_NESTING_LIMIT=64
 )
 
 # Setup our public facing definitions
