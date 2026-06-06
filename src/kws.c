@@ -941,9 +941,53 @@ KS_DECLARE(ks_status_t) kws_init_ex(kws_t **kwsP, ks_socket_t sock, SSL_CTX *ssl
 
 	ks_socket_common_setup(sock);
 
-	if (establish_logical_layer(kws) == -1) {
-		ks_log(KS_LOG_ERROR, "Failed to establish logical layer\n");
-		goto err;
+	{
+		/* Optional bound on the TLS + WS-upgrade handshake. The socket is
+		 * blocking by default, so without this a stalled upgrade (peer
+		 * completes the TCP+TLS but never returns the HTTP 101) hangs here
+		 * forever -- kws_connect's timeout only covers the TCP connect, not
+		 * the handshake reads. When the caller passes "ws_handshake_timeout_ms"
+		 * in params we drive the same resumable handshake state machine that
+		 * kws_read_frame re-drives, but non-blocking against a wall-clock
+		 * deadline, then restore blocking semantics for steady-state reads.
+		 * Absent / 0 = unchanged blocking behavior. */
+		uint32_t hs_timeout_ms = (uint32_t)ks_json_get_object_number_int(params, "ws_handshake_timeout_ms", 0);
+		int ll;
+
+		if (hs_timeout_ms > 0) {
+			int saved_block = kws->block;
+			ks_time_t deadline = ks_time_now() + ((ks_time_t)hs_timeout_ms * KS_USEC_PER_MSEC);
+
+			ks_socket_option(kws->sock, KS_SO_NONBLOCK, KS_TRUE);
+			kws->block = 0;
+
+			while ((ll = establish_logical_layer(kws)) == -2) {
+				ks_time_t now = ks_time_now();
+				int64_t remaining_ms;
+
+				if (now >= deadline) {
+					ks_log(KS_LOG_ERROR, "WS handshake timed out after %u ms\n", hs_timeout_ms);
+					ll = -1;
+					break;
+				}
+
+				remaining_ms = (deadline - now) / KS_USEC_PER_MSEC;
+				if (remaining_ms <= 0) remaining_ms = 1;
+				if (remaining_ms > 100) remaining_ms = 100;
+
+				kws_wait_sock(kws, (uint32_t)remaining_ms, KS_POLL_READ | KS_POLL_WRITE);
+			}
+
+			kws->block = saved_block;
+			ks_socket_option(kws->sock, KS_SO_NONBLOCK, KS_FALSE);
+		} else {
+			ll = establish_logical_layer(kws);
+		}
+
+		if (ll == -1) {
+			ks_log(KS_LOG_ERROR, "Failed to establish logical layer\n");
+			goto err;
+		}
 	}
 
 	if (kws->down) {
