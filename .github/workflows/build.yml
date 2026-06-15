@@ -45,7 +45,7 @@ jobs:
       META_FILE_PATH_PREFIX: /var/www/libks/public/${{ github.ref_name == 'release' && 'release' || 'unstable' }}/${{ github.ref_name }}/${{ github.run_id }}-${{ github.run_number }}
       PLATFORM: ${{ matrix.platform.name }}
       TARGET_ARTIFACT_NAME: ${{ matrix.os }}-${{ matrix.version }}-${{ matrix.platform.name }}-public-${{ github.ref_name == 'release' && 'release' || 'unstable' }}-artifact
-      UPLOAD_BUILD_ARTIFACTS: ${{ github.event_name != 'pull_request' }}
+      UPLOAD_BUILD_ARTIFACTS: ${{ github.event_name != 'pull_request' && github.repository == 'signalwire/libks' }}
     secrets:
       GH_BOT_DEPLOY_TOKEN: ${{ secrets.PAT }}
       HOSTNAME: ${{ secrets.HOSTNAME }}
