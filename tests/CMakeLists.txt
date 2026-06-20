@@ -16,3 +16,7 @@ ksutil_add_test(string)
 ksutil_add_test(log)
 ksutil_add_test(json)
 ksutil_add_test(jsonschema)
+
+if (WITH_JSON_SCHEMA_PURE)
+	ksutil_add_test(jsonschemapure)
+endif()
