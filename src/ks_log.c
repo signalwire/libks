@@ -324,6 +324,7 @@ static void default_logger(const char *file, const char *func, int line, int lev
 		if (len > 0) {
 			ks_mutex_lock(g_log_mutex);
 			ks_size_t total = len;
+			if (total > sizeof(buf)) total = sizeof(buf); /* len is capped in ks_log_format_output; prove it for the static analyzer */
 		
 			//fprintf(stdout, "[%s] %s:%d %s() %s", LEVEL_NAMES[level], fp, line, func, data);
 #if KS_PLAT_WIN

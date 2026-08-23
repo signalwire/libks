@@ -1713,7 +1713,6 @@ KS_DECLARE(ks_status_t) kws_connect_ex(kws_t **kwsP, ks_json_t *params, kws_flag
 	ks_sockaddr_t addr = { 0 };
 	ks_socket_t cl_sock = KS_SOCK_INVALID;
 	int family = AF_INET;
-	const char *ip = "127.0.0.1";
 	ks_port_t port = 443;
 	// char buf[50] = "";
 	const char *url = ks_json_get_object_string(params, "url", NULL);
