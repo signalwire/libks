@@ -815,7 +815,7 @@ static int apply_patch(kJSON *object, const kJSON *patch, const kJSON_bool case_
     {
         if (opcode == REMOVE)
         {
-            static const kJSON invalid = { NULL, NULL, NULL, kJSON_Invalid, NULL, 0, 0, NULL};
+            static const kJSON invalid = { NULL, NULL, NULL, NULL, kJSON_Invalid, NULL, 0, 0, NULL};
 
             overwrite_item(object, invalid);
 

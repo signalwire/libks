@@ -451,6 +451,325 @@ KS_DECLARE(ks_json_t *) ks_json_enum_next(ks_json_t *item)
 	return item->next;
 }
 
+static char *ks_json_pointer_unescape(const char *token)
+{
+	char *result;
+	const char *src;
+	char *dst;
+	size_t len;
+
+	if (!token) return NULL;
+
+	len = strlen(token);
+	result = malloc(len + 1);
+	if (!result) return NULL;
+
+	src = token;
+	dst = result;
+
+	while (*src) {
+		if (*src == '~') {
+			if (*(src + 1) == '0') {
+				*dst++ = '~';
+				src += 2;
+			} else if (*(src + 1) == '1') {
+				*dst++ = '/';
+				src += 2;
+			} else {
+				*dst++ = *src++;
+			}
+		} else {
+			*dst++ = *src++;
+		}
+	}
+	*dst = '\0';
+
+	return result;
+}
+
+static char *ks_json_pointer_escape(const char *token)
+{
+	char *result;
+	const char *src;
+	char *dst;
+	size_t len, escaped_len;
+
+	if (!token) return NULL;
+
+	len = strlen(token);
+	escaped_len = len;
+
+	for (src = token; *src; src++) {
+		if (*src == '~' || *src == '/') {
+			escaped_len++;
+		}
+	}
+
+	result = malloc(escaped_len + 1);
+	if (!result) return NULL;
+
+	src = token;
+	dst = result;
+
+	while (*src) {
+		if (*src == '~') {
+			*dst++ = '~';
+			*dst++ = '0';
+		} else if (*src == '/') {
+			*dst++ = '~';
+			*dst++ = '1';
+		} else {
+			*dst++ = *src;
+		}
+		src++;
+	}
+	*dst = '\0';
+
+	return result;
+}
+
+static ks_bool_t ks_json_build_pointer_path(ks_json_t *root, ks_json_t *target, char **result)
+{
+	ks_json_t *child;
+	int index;
+	char *escaped_key;
+	char *child_path;
+	char *temp_result;
+
+	if (!root || !target || !result) return KS_FALSE;
+
+	if (root == target) {
+		*result = strdup("");
+		return *result != NULL;
+	}
+
+	if (ks_json_type_is_object(root)) {
+		child = ks_json_enum_child(root);
+		while (child) {
+			if (child == target) {
+				escaped_key = ks_json_pointer_escape(child->string);
+				if (!escaped_key) return KS_FALSE;
+				*result = malloc(strlen(escaped_key) + 2);
+				if (!*result) {
+					free(escaped_key);
+					return KS_FALSE;
+				}
+				sprintf(*result, "/%s", escaped_key);
+				free(escaped_key);
+				return KS_TRUE;
+			}
+
+			if (ks_json_build_pointer_path(child, target, &child_path)) {
+				escaped_key = ks_json_pointer_escape(child->string);
+				if (!escaped_key) {
+					free(child_path);
+					return KS_FALSE;
+				}
+				*result = malloc(strlen(escaped_key) + strlen(child_path) + 2);
+				if (!*result) {
+					free(escaped_key);
+					free(child_path);
+					return KS_FALSE;
+				}
+				sprintf(*result, "/%s%s", escaped_key, child_path);
+				free(escaped_key);
+				free(child_path);
+				return KS_TRUE;
+			}
+			child = ks_json_enum_next(child);
+		}
+	} else if (ks_json_type_is_array(root)) {
+		child = ks_json_enum_child(root);
+		index = 0;
+		while (child) {
+			if (child == target) {
+				*result = malloc(16);
+				if (!*result) return KS_FALSE;
+				sprintf(*result, "/%d", index);
+				return KS_TRUE;
+			}
+
+			if (ks_json_build_pointer_path(child, target, &child_path)) {
+				*result = malloc(strlen(child_path) + 16);
+				if (!*result) {
+					free(child_path);
+					return KS_FALSE;
+				}
+				sprintf(*result, "/%d%s", index, child_path);
+				free(child_path);
+				return KS_TRUE;
+			}
+			child = ks_json_enum_next(child);
+			index++;
+		}
+	}
+
+	return KS_FALSE;
+}
+
+KS_DECLARE(char *) ks_json_get_json_pointer(ks_json_t *json)
+{
+	ks_json_t *current = json;
+	char **path_parts = NULL;
+	int path_count = 0;
+	char *result = NULL;
+	int i;
+
+	if (!json) return NULL;
+
+	while (current && current->parent) {
+		char **new_path = realloc(path_parts, (path_count + 1) * sizeof(char *));
+		if (!new_path) {
+			if (path_parts) {
+				for (i = 0; i < path_count; i++) {
+					free(path_parts[i]);
+				}
+				free(path_parts);
+			}
+			return NULL;
+		}
+		path_parts = new_path;
+
+		if (ks_json_type_is_array(current->parent)) {
+			ks_json_t *sibling = ks_json_enum_child(current->parent);
+			int index = 0;
+			while (sibling && sibling != current) {
+				sibling = ks_json_enum_next(sibling);
+				index++;
+			}
+			
+			path_parts[path_count] = malloc(16);
+			if (!path_parts[path_count]) {
+				for (i = 0; i < path_count; i++) {
+					free(path_parts[i]);
+				}
+				free(path_parts);
+				return NULL;
+			}
+			sprintf(path_parts[path_count], "%d", index);
+		} else if (current->string) {
+			path_parts[path_count] = ks_json_pointer_escape(current->string);
+			if (!path_parts[path_count]) {
+				for (i = 0; i < path_count; i++) {
+					free(path_parts[i]);
+				}
+				free(path_parts);
+				return NULL;
+			}
+		} else {
+			for (i = 0; i < path_count; i++) {
+				free(path_parts[i]);
+			}
+			free(path_parts);
+			return NULL;
+		}
+		path_count++;
+
+		current = current->parent;
+	}
+
+	if (path_count == 0) {
+		result = strdup("");
+	} else {
+		size_t total_len = 1;
+		for (i = path_count - 1; i >= 0; i--) {
+			total_len += 1 + strlen(path_parts[i]);
+		}
+
+		result = malloc(total_len);
+		if (result) {
+			result[0] = '\0';
+			for (i = path_count - 1; i >= 0; i--) {
+				strcat(result, "/");
+				strcat(result, path_parts[i]);
+			}
+		}
+	}
+
+	for (i = 0; i < path_count; i++) {
+		free(path_parts[i]);
+	}
+	free(path_parts);
+
+	return result;
+}
+
+KS_DECLARE(ks_json_t *) ks_json_pointer_get_item(ks_json_t *json, const char *json_pointer)
+{
+	ks_json_t *current = json;
+	const char *ptr = json_pointer;
+	char *token;
+	char *unescaped_token;
+	const char *next_slash;
+	size_t token_len;
+
+	if (!json || !json_pointer) return NULL;
+
+	if (*json_pointer == '\0') {
+		return json;
+	}
+
+	if (*ptr != '/') {
+		return NULL;
+	}
+
+	ptr++;
+
+	while (*ptr) {
+		next_slash = strchr(ptr, '/');
+		if (next_slash) {
+			token_len = next_slash - ptr;
+		} else {
+			token_len = strlen(ptr);
+		}
+
+		token = malloc(token_len + 1);
+		if (!token) return NULL;
+
+		strncpy(token, ptr, token_len);
+		token[token_len] = '\0';
+
+		unescaped_token = ks_json_pointer_unescape(token);
+		free(token);
+		if (!unescaped_token) return NULL;
+
+		if (ks_json_type_is_object(current)) {
+			current = ks_json_get_object_item(current, unescaped_token);
+		} else if (ks_json_type_is_array(current)) {
+			if (strcmp(unescaped_token, "-") == 0) {
+				free(unescaped_token);
+				return NULL;
+			}
+
+			char *endptr;
+			long index = strtol(unescaped_token, &endptr, 10);
+			if (*endptr != '\0' || index < 0) {
+				free(unescaped_token);
+				return NULL;
+			}
+
+			current = ks_json_get_array_item(current, (int)index);
+		} else {
+			free(unescaped_token);
+			return NULL;
+		}
+
+		free(unescaped_token);
+
+		if (!current) {
+			return NULL;
+		}
+
+		if (next_slash) {
+			ptr = next_slash + 1;
+		} else {
+			break;
+		}
+	}
+
+	return current;
+}
+
 /* For Emacs:
  * Local Variables:
  * mode:c

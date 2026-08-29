@@ -115,6 +115,9 @@ KS_DECLARE(ks_bool_t) ks_json_type_is_bool(ks_json_t *item);
 KS_DECLARE(ks_json_t *) ks_json_enum_child(ks_json_t *item);
 KS_DECLARE(ks_json_t *) ks_json_enum_next(ks_json_t *item);
 
+KS_DECLARE(char *) ks_json_get_json_pointer(ks_json_t *json);
+KS_DECLARE(ks_json_t *) ks_json_pointer_get_item(ks_json_t *json, const char *json_pointer);
+
 #define KS_JSON_ARRAY_FOREACH(element, array) for(element = ks_json_enum_child((array))	\
 			; element != NULL; element = ks_json_enum_next(element))
 
