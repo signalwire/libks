@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2023 SignalWire, Inc
+ * Copyright (c) 2018-2026 SignalWire, Inc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -104,6 +104,16 @@ KS_DECLARE(ks_ssize_t) kws_close(kws_t *kws, int16_t reason);
 KS_DECLARE(ks_status_t) kws_create(kws_t **kwsP, ks_pool_t *pool);
 KS_DECLARE(void) kws_destroy(kws_t **kwsP);
 KS_DECLARE(void) kws_set_init_callback(kws_t *kws, kws_init_callback_t callback);
+/**
+ * @brief Cancel pending blocking operations on a websocket.
+ *
+ * Sets the cancel flag so that any in-progress or subsequent blocking
+ * connect, handshake, or read operation will return with an error.
+ * Safe to call from any thread. Passing NULL is a no-op.
+ *
+ * @param kws Pointer to the websocket object, or NULL.
+ */
+KS_DECLARE(void) kws_cancel(kws_t *kws);
 KS_DECLARE(ks_status_t) kws_connect(kws_t **kwsP, ks_json_t *params, kws_flag_t flags, ks_pool_t *pool);
 KS_DECLARE(ks_status_t) kws_connect_ex(kws_t **kwsP, ks_json_t *params, kws_flag_t flags, ks_pool_t *pool, SSL_CTX *ssl_ctx, uint32_t timeout_ms);
 KS_DECLARE(ks_status_t) kws_get_buffer(kws_t *kws, char **bufP, ks_size_t *buflen);
