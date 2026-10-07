@@ -1257,22 +1257,37 @@ KS_DECLARE(ks_ssize_t) kws_close(kws_t *kws, int16_t reason)
 #endif
 #endif
 
+/* Network byte order is big-endian. Both directions are built byte by byte,
+ * which needs no idea of the host's byte order. The __BYTE_ORDER ==
+ * __BIG_ENDIAN test this replaces compared two names macOS does not define
+ * (0 == 0), so there 64-bit frame lengths went out and came in unswapped. */
 uint64_t hton64(uint64_t val)
 {
-#if __BYTE_ORDER == __BIG_ENDIAN
-	return (val);
-#else
-	return bswap_64(val);
-#endif
+	uint8_t b[8];
+	uint64_t out;
+	int i;
+
+	for (i = 7; i >= 0; i--) {
+		b[i] = (uint8_t)(val & 0xff);
+		val >>= 8;
+	}
+	memcpy(&out, b, sizeof(out));
+
+	return out;
 }
 
 uint64_t ntoh64(uint64_t val)
 {
-#if __BYTE_ORDER == __BIG_ENDIAN
-	return (val);
-#else
-	return bswap_64(val);
-#endif
+	uint8_t b[8];
+	uint64_t out = 0;
+	int i;
+
+	memcpy(b, &val, sizeof(b));
+	for (i = 0; i < 8; i++) {
+		out = (out << 8) | b[i];
+	}
+
+	return out;
 }
 
 KS_DECLARE(ks_bool_t) kws_certified_client(kws_t *kws)
@@ -1428,7 +1443,7 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 			kws->payload = &kws->buffer[2];
 
 			if (kws->plen == 127) {
-				uint64_t *u64;
+				uint64_t u64;
 				ks_ssize_t more = 0;
 
 				need += 8;
@@ -1443,9 +1458,23 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 					}
 				}
 
-				u64 = (uint64_t *) kws->payload;
+				/* Copied out, not dereferenced in place: the length sits two bytes
+				 * into the buffer, and a uint64_t loaded from there is misaligned
+				 * (undefined behaviour; UBSan flags it on the first such frame). */
+				memcpy(&u64, kws->payload, sizeof(u64));
 				kws->payload += 8;
-				kws->plen = (ks_ssize_t)ntoh64(*u64);
+
+				/* Checked before it is narrowed to ks_ssize_t. RFC 6455 requires
+				 * the top bit of a 64-bit length to be 0, and a length that does
+				 * not fit a ks_ssize_t (32 bits on Win32) cannot be read either:
+				 * narrowed, it would pass for a shorter frame — or, negative, for
+				 * a short one with bytes to hand back below. */
+				if (ntoh64(u64) > (uint64_t)(((size_t)-1) >> 1)) {
+					ks_log(KS_LOG_ERROR, "Read frame error because the 64-bit payload length is out of range\n");
+					*oc = WSOC_CLOSE;
+					return kws_close(kws, WS_NONE);
+				}
+				kws->plen = (ks_ssize_t)ntoh64(u64);
 			} else if (kws->plen == 126) {
 				uint16_t *u16;
 
@@ -1474,10 +1503,23 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 			need = (kws->plen - (kws->datalen - need));
 
 			if (need < 0) {
-				/* invalid read - protocol err .. */
-				ks_log(KS_LOG_ERROR, "Read frame error because need = %ld\n", need);
-				*oc = WSOC_CLOSE;
-				return kws_close(kws, WS_NONE);
+				/* The first read takes up to 9 bytes before the frame's length is
+				 * known. A frame shorter than that (an empty PING or PONG, a tiny
+				 * text frame) with the next frame already waiting leaves the start
+				 * of the next frame here. Those bytes are not this frame's: hand
+				 * them back to be read first. If this read came out of the
+				 * unprocessed bytes (frames that arrived with the handshake), they
+				 * go back in front of what remains there. Either way they sit past
+				 * the end of this frame, which is not touched again. */
+				ks_size_t excess = (ks_size_t)(-need);
+				char *src = kws->buffer + kws->datalen - excess;
+				char *dst = kws->unprocessed_buffer_len > 0 ? kws->unprocessed_position - excess : src;
+
+				memmove(dst, src, excess);
+				kws->unprocessed_position = dst;
+				kws->unprocessed_buffer_len += excess;
+				kws->datalen -= (ks_ssize_t)excess;
+				need = 0;
 			}
 
 			/* size already written to the body */
@@ -1631,13 +1673,13 @@ KS_DECLARE(ks_ssize_t) kws_write_frame(kws_t *kws, kws_opcode_t oc, const void *
 		*u16 = htons((uint16_t) bytes);
 
 	} else {
-		uint64_t *u64;
+		uint64_t u64 = hton64(bytes);
 
 		hdr[1] = 127;
 		hlen += 8;
 
-		u64 = (uint64_t *) &hdr[2];
-		*u64 = hton64(bytes);
+		/* Copied in: two bytes into the header, a uint64_t store is misaligned. */
+		memcpy(&hdr[2], &u64, sizeof(u64));
 	}
 
 	if (kws->write_buffer_len < (hlen + bytes + 1 + mask * 4)) {
@@ -1824,9 +1866,19 @@ KS_DECLARE(int) kws_wait_sock(kws_t *kws, uint32_t ms, ks_poll_t flags)
 {
 	if (kws->sock == KS_SOCK_INVALID) return KS_POLL_ERROR;
 
-	if (kws->unprocessed_buffer_len > 0) return KS_POLL_READ;
+	/* Bytes already taken off the socket into our own buffers (handshake
+	 * leftovers, the rest of a TLS record) are readable now. They answer for READ
+	 * only, and only when READ was asked. Whether the socket can be written is
+	 * still the socket's to say: polled without waiting, since there is data
+	 * ready, and added only when WRITE was asked — a READ (or READ|ERROR) poll
+	 * gets exactly READ, as it always has. Answering READ alone told a caller
+	 * asking whether it could write that the socket was readable, for as long as
+	 * those bytes went unread. */
+	if ((flags & KS_POLL_READ) && (kws->unprocessed_buffer_len > 0 || (kws->ssl && SSL_pending(kws->ssl) > 0))) {
+		int w = (flags & KS_POLL_WRITE) ? ks_wait_sock(kws->sock, 0, KS_POLL_WRITE) : 0;
 
-	if (kws->ssl && SSL_pending(kws->ssl) > 0) return KS_POLL_READ;
+		return KS_POLL_READ | ((w > 0 && (w & KS_POLL_WRITE)) ? KS_POLL_WRITE : 0);
+	}
 
 	return ks_wait_sock(kws->sock, ms, flags);
 }
