@@ -1257,22 +1257,37 @@ KS_DECLARE(ks_ssize_t) kws_close(kws_t *kws, int16_t reason)
 #endif
 #endif
 
+/* Network byte order is big-endian. Both directions are built byte by byte,
+ * which needs no idea of the host's byte order. The __BYTE_ORDER ==
+ * __BIG_ENDIAN test this replaces compared two names macOS does not define
+ * (0 == 0), so there 64-bit frame lengths went out and came in unswapped. */
 uint64_t hton64(uint64_t val)
 {
-#if __BYTE_ORDER == __BIG_ENDIAN
-	return (val);
-#else
-	return bswap_64(val);
-#endif
+	uint8_t b[8];
+	uint64_t out;
+	int i;
+
+	for (i = 7; i >= 0; i--) {
+		b[i] = (uint8_t)(val & 0xff);
+		val >>= 8;
+	}
+	memcpy(&out, b, sizeof(out));
+
+	return out;
 }
 
 uint64_t ntoh64(uint64_t val)
 {
-#if __BYTE_ORDER == __BIG_ENDIAN
-	return (val);
-#else
-	return bswap_64(val);
-#endif
+	uint8_t b[8];
+	uint64_t out = 0;
+	int i;
+
+	memcpy(b, &val, sizeof(b));
+	for (i = 0; i < 8; i++) {
+		out = (out << 8) | b[i];
+	}
+
+	return out;
 }
 
 KS_DECLARE(ks_bool_t) kws_certified_client(kws_t *kws)
@@ -1658,13 +1673,13 @@ KS_DECLARE(ks_ssize_t) kws_write_frame(kws_t *kws, kws_opcode_t oc, const void *
 		*u16 = htons((uint16_t) bytes);
 
 	} else {
-		uint64_t *u64;
+		uint64_t u64 = hton64(bytes);
 
 		hdr[1] = 127;
 		hlen += 8;
 
-		u64 = (uint64_t *) &hdr[2];
-		*u64 = hton64(bytes);
+		/* Copied in: two bytes into the header, a uint64_t store is misaligned. */
+		memcpy(&hdr[2], &u64, sizeof(u64));
 	}
 
 	if (kws->write_buffer_len < (hlen + bytes + 1 + mask * 4)) {

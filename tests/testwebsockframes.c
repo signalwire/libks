@@ -56,6 +56,9 @@
 /* Unmasked server frames: an empty PING, TEXT "hello", an empty PONG, BINARY {1, 2}. */
 static const uint8_t FRAMES[] = { 0x89, 0x00, 0x81, 0x05, 'h', 'e', 'l', 'l', 'o', 0x8A, 0x00, 0x82, 0x02, 0x01, 0x02 };
 
+/* Long enough to need the 64-bit length form (over 65535 bytes). */
+#define LONG_LEN 70000
+
 /* A BINARY frame whose 64-bit length has its top bit set, with one payload byte
  * behind it: a build that narrowed the length to 32 bits before checking it
  * would read that byte as a one-byte frame instead of closing. */
@@ -66,6 +69,9 @@ struct frames_srv {
 	int with_handshake;      /* the frames go out in the same send as the 101 */
 	const uint8_t *frames;
 	ks_size_t frames_len;
+	int read_header;         /* read the client's first frame header instead of sending */
+	uint8_t header[10];      /* ... and what it was */
+	volatile int header_in;  /* set once header[] holds it */
 	volatile int client_up;  /* the client has finished its handshake */
 	volatile int done;       /* the client has finished reading */
 };
@@ -122,7 +128,21 @@ static void frames_serve(struct frames_srv *srv, ks_socket_t client_sock)
 		"Sec-WebSocket-Accept: %s\r\n"
 		"\r\n", (char *)accept);
 
-	if (srv->with_handshake) {
+	if (srv->read_header) {
+		ks_size_t have = 0;
+
+		send_all(client_sock, out, n);
+		while (have < sizeof(srv->header)) {
+			ks_size_t bytes = sizeof(srv->header) - have;
+
+			if (ks_wait_sock(client_sock, 2000, KS_POLL_READ) <= 0 ||
+				ks_socket_recv(client_sock, (char *)srv->header + have, &bytes) != KS_STATUS_SUCCESS || bytes == 0) {
+				goto end;
+			}
+			have += bytes;
+		}
+		srv->header_in = 1;
+	} else if (srv->with_handshake) {
 		memcpy(out + n, srv->frames, srv->frames_len);
 		send_all(client_sock, out, n + srv->frames_len);
 	} else {
@@ -194,7 +214,7 @@ static int expect_frame(kws_t *kws, kws_opcode_t want_oc, const void *want, ks_s
 	return 1;
 }
 
-enum { CASE_SHORT_FRAMES, CASE_BAD_LENGTH, CASE_WRITABLE };
+enum { CASE_SHORT_FRAMES, CASE_BAD_LENGTH, CASE_WRITABLE, CASE_LONG_READ, CASE_LONG_WRITE };
 
 static int test_frames(const char *ip, int with_handshake, int which)
 {
@@ -205,12 +225,34 @@ static int test_frames(const char *ip, int with_handshake, int which)
 	struct frames_srv srv = { 0 };
 	kws_t *kws = NULL;
 	int r = 0;
+	uint8_t *long_frame = NULL;
 	static const uint8_t two[] = { 0x01, 0x02 };
 
 	ks_pool_open(&pool);
 	srv.with_handshake = with_handshake;
 	srv.frames = which == CASE_BAD_LENGTH ? BAD_LENGTH : FRAMES;
 	srv.frames_len = which == CASE_BAD_LENGTH ? sizeof(BAD_LENGTH) : sizeof(FRAMES);
+	srv.read_header = which == CASE_LONG_WRITE;
+
+	if (which == CASE_LONG_READ || which == CASE_LONG_WRITE) {
+		ks_size_t i;
+
+		/* A BINARY frame with a 64-bit length, big-endian on the wire as RFC
+		 * 6455 has it, then a payload whose every byte can be checked. */
+		if (!(long_frame = malloc(10 + LONG_LEN))) {
+			goto end;
+		}
+		long_frame[0] = 0x82;
+		long_frame[1] = 0x7F;
+		for (i = 0; i < 8; i++) {
+			long_frame[2 + i] = (uint8_t)(((uint64_t)LONG_LEN >> (8 * (7 - i))) & 0xff);
+		}
+		for (i = 0; i < LONG_LEN; i++) {
+			long_frame[10 + i] = (uint8_t)(i * 7 + 3);
+		}
+		srv.frames = long_frame;
+		srv.frames_len = 10 + LONG_LEN;
+	}
 
 	if (ks_addr_set(&addr, ip, FRAMES_PORT, AF_INET) != KS_STATUS_SUCCESS ||
 		(srv.sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == KS_SOCK_INVALID) {
@@ -243,12 +285,33 @@ static int test_frames(const char *ip, int with_handshake, int which)
 			diag("frames did not arrive with the handshake response");
 			goto end;
 		}
-	} else if (!wait_for_bytes(cl_sock, srv.frames_len)) {
+	} else if (which != CASE_LONG_READ && which != CASE_LONG_WRITE && !wait_for_bytes(cl_sock, srv.frames_len)) {
 		diag("frames did not arrive");
 		goto end;
 	}
 
-	if (which == CASE_WRITABLE) {
+	if (which == CASE_LONG_READ) {
+		/* The 64-bit length read back as sent, and the payload whole. */
+		r = expect_frame(kws, WSOC_BINARY, long_frame + 10, LONG_LEN);
+	} else if (which == CASE_LONG_WRITE) {
+		/* The 64-bit length written big-endian, whatever the host's order. */
+		int sanity;
+
+		if (kws_write_frame(kws, WSOC_BINARY, long_frame + 10, LONG_LEN) != LONG_LEN) {
+			diag("long write failed");
+			goto end;
+		}
+		for (sanity = 200; !srv.header_in && sanity > 0; sanity--) {
+			ks_sleep_ms(10);
+		}
+		r = srv.header_in && srv.header[0] == 0x82 && (srv.header[1] & 0x7F) == 0x7F &&
+			!memcmp(srv.header + 2, long_frame + 2, 8);
+		if (!r) {
+			diag("long write: header %02x %02x, length bytes %02x%02x%02x%02x%02x%02x%02x%02x",
+				srv.header[0], srv.header[1], srv.header[2], srv.header[3], srv.header[4],
+				srv.header[5], srv.header[6], srv.header[7], srv.header[8], srv.header[9]);
+		}
+	} else if (which == CASE_WRITABLE) {
 		/* Bytes held inside kws make the socket readable without asking it;
 		 * whether it can be written is still the socket's to answer. */
 		int w = kws_wait_sock(kws, 0, KS_POLL_WRITE);
@@ -291,6 +354,7 @@ static int test_frames(const char *ip, int with_handshake, int which)
 	}
 	ks_socket_close(&cl_sock);
 	ks_pool_close(&pool);
+	free(long_frame);
 
 	return r;
 }
@@ -302,12 +366,14 @@ int main(void)
 
 	ks_init();
 
-	plan(4);
+	plan(6);
 
 	ok(test_frames("127.0.0.1", 0, CASE_SHORT_FRAMES), "short frames arriving together after the handshake are each read whole");
 	ok(test_frames("127.0.0.1", 1, CASE_SHORT_FRAMES), "short frames arriving with the handshake response are each read whole");
 	ok(test_frames("127.0.0.1", 0, CASE_BAD_LENGTH), "a 64-bit length of 2^63 or more closes the connection");
 	ok(test_frames("127.0.0.1", 1, CASE_WRITABLE), "a socket with bytes held in kws still answers whether it can be written");
+	ok(test_frames("127.0.0.1", 0, CASE_LONG_READ), "a frame with a 64-bit length is read whole, its length taken big-endian");
+	ok(test_frames("127.0.0.1", 0, CASE_LONG_WRITE), "a frame with a 64-bit length is written with it big-endian");
 
 	ks_shutdown();
 
