@@ -234,12 +234,12 @@ static int test_frames(const char *ip, int with_handshake, int which)
 	srv.client_up = 1;
 
 	if (with_handshake) {
-		/* They came in the handshake read, so kws holds them: nothing may be
-		 * left on the socket, or this case did not exercise that path. (The
-		 * server sent the response and the frames in one send on loopback,
-		 * which arrives as one unit.) */
-		ks_sleep_ms(50);
-		if (ks_wait_sock(cl_sock, 0, KS_POLL_READ) > 0) {
+		/* The case's precondition, checked directly: the frames came in the
+		 * handshake read, so kws reports data while the socket itself has none.
+		 * Otherwise this run did not exercise the unprocessed-buffer path (the
+		 * server sends the response and the frames in one send, which loopback
+		 * delivers whole, but TCP does not promise it). */
+		if (!(kws_wait_sock(kws, 0, KS_POLL_READ) & KS_POLL_READ) || ks_wait_sock(cl_sock, 0, KS_POLL_READ) > 0) {
 			diag("frames did not arrive with the handshake response");
 			goto end;
 		}
