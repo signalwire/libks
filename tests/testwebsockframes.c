@@ -39,6 +39,10 @@
  * Handing bytes back must not turn a malformed length into a valid-looking
  * over-read: a 64-bit length of 2^63 or more is a protocol error (RFC 6455:
  * its top bit must be 0), and the connection is closed, never read past.
+ *
+ * And bytes held inside kws must not hide the socket's other conditions:
+ * kws_wait_sock answered READ alone whenever it held any, so a caller asking
+ * whether it could write was told the socket was readable.
  */
 
 #include "libks/ks.h"
@@ -190,7 +194,7 @@ static int expect_frame(kws_t *kws, kws_opcode_t want_oc, const void *want, ks_s
 	return 1;
 }
 
-enum { CASE_SHORT_FRAMES, CASE_BAD_LENGTH };
+enum { CASE_SHORT_FRAMES, CASE_BAD_LENGTH, CASE_WRITABLE };
 
 static int test_frames(const char *ip, int with_handshake, int which)
 {
@@ -244,7 +248,17 @@ static int test_frames(const char *ip, int with_handshake, int which)
 		goto end;
 	}
 
-	if (which == CASE_BAD_LENGTH) {
+	if (which == CASE_WRITABLE) {
+		/* Bytes held inside kws make the socket readable without asking it;
+		 * whether it can be written is still the socket's to answer. */
+		int w = kws_wait_sock(kws, 0, KS_POLL_WRITE);
+		int rw = kws_wait_sock(kws, 0, KS_POLL_READ | KS_POLL_WRITE);
+
+		r = (w & KS_POLL_WRITE) && (rw & KS_POLL_READ) && (rw & KS_POLL_WRITE);
+		if (!r) {
+			diag("buffered bytes: WRITE asked -> %d, READ|WRITE asked -> %d", w, rw);
+		}
+	} else if (which == CASE_BAD_LENGTH) {
 		kws_opcode_t oc = WSOC_INVALID;
 		uint8_t *data = NULL;
 		ks_ssize_t got = kws_read_frame(kws, &oc, &data);
@@ -285,11 +299,12 @@ int main(void)
 {
 	ks_init();
 
-	plan(3);
+	plan(4);
 
 	ok(test_frames("127.0.0.1", 0, CASE_SHORT_FRAMES), "short frames arriving together after the handshake are each read whole");
 	ok(test_frames("127.0.0.1", 1, CASE_SHORT_FRAMES), "short frames arriving with the handshake response are each read whole");
 	ok(test_frames("127.0.0.1", 0, CASE_BAD_LENGTH), "a 64-bit length of 2^63 or more closes the connection");
+	ok(test_frames("127.0.0.1", 1, CASE_WRITABLE), "a socket with bytes held in kws still answers whether it can be written");
 
 	ks_shutdown();
 

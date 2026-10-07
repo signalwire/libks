@@ -1848,9 +1848,19 @@ KS_DECLARE(int) kws_wait_sock(kws_t *kws, uint32_t ms, ks_poll_t flags)
 {
 	if (kws->sock == KS_SOCK_INVALID) return KS_POLL_ERROR;
 
-	if (kws->unprocessed_buffer_len > 0) return KS_POLL_READ;
+	/* Bytes already taken off the socket into our own buffers (handshake
+	 * leftovers, the rest of a TLS record) are readable now. They answer for READ
+	 * only, and only when READ was asked. Whether the socket can be written is
+	 * still the socket's to say: polled without waiting, since there is data
+	 * ready, and added only when WRITE was asked — a READ (or READ|ERROR) poll
+	 * gets exactly READ, as it always has. Answering READ alone told a caller
+	 * asking whether it could write that the socket was readable, for as long as
+	 * those bytes went unread. */
+	if ((flags & KS_POLL_READ) && (kws->unprocessed_buffer_len > 0 || (kws->ssl && SSL_pending(kws->ssl) > 0))) {
+		int w = (flags & KS_POLL_WRITE) ? ks_wait_sock(kws->sock, 0, KS_POLL_WRITE) : 0;
 
-	if (kws->ssl && SSL_pending(kws->ssl) > 0) return KS_POLL_READ;
+		return KS_POLL_READ | ((w > 0 && (w & KS_POLL_WRITE)) ? KS_POLL_WRITE : 0);
+	}
 
 	return ks_wait_sock(kws->sock, ms, flags);
 }
