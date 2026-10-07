@@ -161,7 +161,11 @@ KS_BEGIN_EXTERN_C
 	#include <Rpc.h>
 	typedef UUID ks_uuid_t;
 #else
+	#ifdef KS_PLAT_FBSD
+	#include <uuid.h>
+	#else
 	#include <uuid/uuid.h>
+	#endif
 
 	/* Use a structure rather then uuids char array, that way
 	 * we can return it by value*/
