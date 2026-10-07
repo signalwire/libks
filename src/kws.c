@@ -1445,6 +1445,17 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 
 				u64 = (uint64_t *) kws->payload;
 				kws->payload += 8;
+
+				/* Checked before it is narrowed to ks_ssize_t. RFC 6455 requires
+				 * the top bit of a 64-bit length to be 0, and a length that does
+				 * not fit a ks_ssize_t (32 bits on Win32) cannot be read either:
+				 * narrowed, it would pass for a shorter frame — or, negative, for
+				 * a short one with bytes to hand back below. */
+				if (ntoh64(*u64) > (uint64_t)(((size_t)-1) >> 1)) {
+					ks_log(KS_LOG_ERROR, "Read frame error because the 64-bit payload length is out of range\n");
+					*oc = WSOC_CLOSE;
+					return kws_close(kws, WS_NONE);
+				}
 				kws->plen = (ks_ssize_t)ntoh64(*u64);
 			} else if (kws->plen == 126) {
 				uint16_t *u16;
@@ -1474,10 +1485,23 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 			need = (kws->plen - (kws->datalen - need));
 
 			if (need < 0) {
-				/* invalid read - protocol err .. */
-				ks_log(KS_LOG_ERROR, "Read frame error because need = %ld\n", need);
-				*oc = WSOC_CLOSE;
-				return kws_close(kws, WS_NONE);
+				/* The first read takes up to 9 bytes before the frame's length is
+				 * known. A frame shorter than that (an empty PING or PONG, a tiny
+				 * text frame) with the next frame already waiting leaves the start
+				 * of the next frame here. Those bytes are not this frame's: hand
+				 * them back to be read first. If this read came out of the
+				 * unprocessed bytes (frames that arrived with the handshake), they
+				 * go back in front of what remains there. Either way they sit past
+				 * the end of this frame, which is not touched again. */
+				ks_size_t excess = (ks_size_t)(-need);
+				char *src = kws->buffer + kws->datalen - excess;
+				char *dst = kws->unprocessed_buffer_len > 0 ? kws->unprocessed_position - excess : src;
+
+				memmove(dst, src, excess);
+				kws->unprocessed_position = dst;
+				kws->unprocessed_buffer_len += excess;
+				kws->datalen -= (ks_ssize_t)excess;
+				need = 0;
 			}
 
 			/* size already written to the body */
