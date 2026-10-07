@@ -1428,7 +1428,7 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 			kws->payload = &kws->buffer[2];
 
 			if (kws->plen == 127) {
-				uint64_t *u64;
+				uint64_t u64;
 				ks_ssize_t more = 0;
 
 				need += 8;
@@ -1443,7 +1443,10 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 					}
 				}
 
-				u64 = (uint64_t *) kws->payload;
+				/* Copied out, not dereferenced in place: the length sits two bytes
+				 * into the buffer, and a uint64_t loaded from there is misaligned
+				 * (undefined behaviour; UBSan flags it on the first such frame). */
+				memcpy(&u64, kws->payload, sizeof(u64));
 				kws->payload += 8;
 
 				/* Checked before it is narrowed to ks_ssize_t. RFC 6455 requires
@@ -1451,12 +1454,12 @@ KS_DECLARE(ks_ssize_t) kws_read_frame(kws_t *kws, kws_opcode_t *oc, uint8_t **da
 				 * not fit a ks_ssize_t (32 bits on Win32) cannot be read either:
 				 * narrowed, it would pass for a shorter frame — or, negative, for
 				 * a short one with bytes to hand back below. */
-				if (ntoh64(*u64) > (uint64_t)(((size_t)-1) >> 1)) {
+				if (ntoh64(u64) > (uint64_t)(((size_t)-1) >> 1)) {
 					ks_log(KS_LOG_ERROR, "Read frame error because the 64-bit payload length is out of range\n");
 					*oc = WSOC_CLOSE;
 					return kws_close(kws, WS_NONE);
 				}
-				kws->plen = (ks_ssize_t)ntoh64(*u64);
+				kws->plen = (ks_ssize_t)ntoh64(u64);
 			} else if (kws->plen == 126) {
 				uint16_t *u16;
 

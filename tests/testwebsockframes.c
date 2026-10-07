@@ -297,6 +297,9 @@ static int test_frames(const char *ip, int with_handshake, int which)
 
 int main(void)
 {
+	/* Unbuffered, so a crash still leaves the cases that ran in the log. */
+	setvbuf(stdout, NULL, _IONBF, 0);
+
 	ks_init();
 
 	plan(4);
