@@ -63,3 +63,4 @@ build-x64/
 !win/*
 tests/testjsonschema
 json-schema-validator
+.DS_Store
