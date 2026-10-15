@@ -45,6 +45,8 @@ static const uint16_t KS_HEPV3_GENERIC_TYPE_ID_TIMESTAMP_USEC = 0x000a;
 static const uint16_t KS_HEPV3_GENERIC_TYPE_ID_PROTO_TYPE     = 0x000b;  /* SIP/RTP/H323... */
 static const uint16_t KS_HEPV3_GENERIC_TYPE_ID_AGENT_ID       = 0x000c;
 static const uint16_t KS_HEPV3_GENERIC_TYPE_ID_PAYLOAD        = 0x000f;
+static const uint16_t KS_HEPV3_GENERIC_TYPE_ID_CORRELATION_ID = 0x0011;
+static const uint16_t KS_HEPV3_GENERIC_TYPE_ID_NODE_NAME      = 0x0013;
 
 /* The total length field is two octets */
 static const size_t KS_HEPV3_MAX_PACKET_LEN = 0xffff;
@@ -79,14 +81,40 @@ static void ks_hepv3_parse_ip(int family, const char *ip, void *out, size_t out_
 	memcpy(out, addr, out_len);
 }
 
+/**
+ * Measures an optional string chunk value.
+ * @param value  string, may be NULL
+ * @param what   name used in log messages
+ * @return value length, 0 when the chunk is not sent
+ */
+static size_t ks_hepv3_string_len(const char *value, const char *what)
+{
+	size_t len;
+
+	if (!value || !*value) {
+		return 0;
+	}
+
+	len = strnlen(value, KS_HEPV3_MAX_STRING_CHUNK_LEN + 1);
+	if (len > KS_HEPV3_MAX_STRING_CHUNK_LEN) {
+		ks_log(KS_LOG_DEBUG, "hepv3: %s longer than %zu octets, chunk not sent.\n", what, KS_HEPV3_MAX_STRING_CHUNK_LEN);
+
+		return 0;
+	}
+
+	return len;
+}
+
 KS_DECLARE(ks_size_t) ks_hepv3_capture_create(const ks_hepv3_capture_params_t *hep_params, char **out_buffer)
 {
 	ks_hepv3_generic_t hg = {{{0}}};
 	ks_hepv3_chunk_ip4_t src_ip4 = {{0}}, dst_ip4 = {{0}};
 	ks_hepv3_chunk_ip6_t src_ip6 = {{0}}, dst_ip6 = {{0}};
-	ks_hepv3_chunk_t payload_chunk;
+	ks_hepv3_chunk_t correlation_id_chunk, node_name_chunk, payload_chunk;
 
 	size_t buflen = 0, iplen = 0, total_len = 0, head_len = 0, payload_len = 0;
+	size_t correlation_id_len = 0, correlation_id_chunk_len = 0;
+	size_t node_name_len = 0, node_name_chunk_len = 0;
 	ks_time_t now_usec = 0, now_sec = 0;
 
 	uint8_t is_send;
@@ -201,8 +229,28 @@ KS_DECLARE(ks_size_t) ks_hepv3_capture_create(const ks_hepv3_capture_params_t *h
 		iplen = sizeof(dst_ip6) + sizeof(src_ip6);
 	}
 
-	/* Everything but the payload data */
-	head_len = sizeof(ks_hepv3_generic_t) + iplen + sizeof(ks_hepv3_chunk_t);
+	/* Correlation id */
+	correlation_id_len = ks_hepv3_string_len(hep_params->correlation_id, "Correlation id");
+	if (correlation_id_len) {
+		correlation_id_chunk_len = sizeof(correlation_id_chunk) + correlation_id_len;
+
+		correlation_id_chunk.vendor_id = htons(KS_HEPV3_VENDOR_ID_GENERIC);
+		correlation_id_chunk.type_id = htons(KS_HEPV3_GENERIC_TYPE_ID_CORRELATION_ID);
+		correlation_id_chunk.length = htons((uint16_t)correlation_id_chunk_len);
+	}
+
+	/* Node name */
+	node_name_len = ks_hepv3_string_len(hep_params->node_name, "Node name");
+	if (node_name_len) {
+		node_name_chunk_len = sizeof(node_name_chunk) + node_name_len;
+
+		node_name_chunk.vendor_id = htons(KS_HEPV3_VENDOR_ID_GENERIC);
+		node_name_chunk.type_id = htons(KS_HEPV3_GENERIC_TYPE_ID_NODE_NAME);
+		node_name_chunk.length = htons((uint16_t)node_name_chunk_len);
+	}
+
+	/* Everything but the payload data; the string length cap keeps it far below the packet limit */
+	head_len = sizeof(ks_hepv3_generic_t) + iplen + correlation_id_chunk_len + node_name_chunk_len + sizeof(ks_hepv3_chunk_t);
 
 	if (hep_params->payload_size > KS_HEPV3_MAX_PACKET_LEN - head_len) {
 		payload_len = KS_HEPV3_MAX_PACKET_LEN - head_len;
@@ -250,6 +298,22 @@ KS_DECLARE(ks_size_t) ks_hepv3_capture_create(const ks_hepv3_capture_params_t *h
 
 		memcpy(*out_buffer + buflen, &dst_ip6, sizeof(ks_hepv3_chunk_ip6_t));
 		buflen += sizeof(ks_hepv3_chunk_ip6_t);
+	}
+
+	if (correlation_id_len) {
+		memcpy(*out_buffer + buflen, &correlation_id_chunk, sizeof(ks_hepv3_chunk_t));
+		buflen += sizeof(ks_hepv3_chunk_t);
+
+		memcpy(*out_buffer + buflen, hep_params->correlation_id, correlation_id_len);
+		buflen += correlation_id_len;
+	}
+
+	if (node_name_len) {
+		memcpy(*out_buffer + buflen, &node_name_chunk, sizeof(ks_hepv3_chunk_t));
+		buflen += sizeof(ks_hepv3_chunk_t);
+
+		memcpy(*out_buffer + buflen, hep_params->node_name, node_name_len);
+		buflen += node_name_len;
 	}
 
 	/* Payload chunk (header) */

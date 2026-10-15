@@ -43,6 +43,8 @@ typedef struct {
 } chunk_t;
 
 static const char PAYLOAD[] = "{\"jsonrpc\":\"2.0\",\"method\":\"verto.invite\"}";
+static const char CORRELATION_ID[] = "9b2c6d1e-3f4a-4b5c-8d6e-7f8091a2b3c4";
+static const char NODE_NAME[] = "switch-node-01";
 
 /* Captured with KS_HEPV3_DIR_SEND, 192.0.2.10:8082 -> 198.51.100.7:51234, timestamp data zeroed */
 static const unsigned char GOLDEN_V4[] = {
@@ -72,6 +74,8 @@ static const unsigned char GOLDEN_V6[] = {
 	0x74, 0x65, 0x22, 0x7d,
 };
 
+static const uint16_t BASE_TYPES_V4[] = { 0x01, 0x02, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x03, 0x04 };
+
 static uint16_t get16(const unsigned char *p)
 {
 	return (uint16_t)((p[0] << 8) | p[1]);
@@ -99,6 +103,12 @@ static void params_v6(ks_hepv3_capture_params_t *p)
 	p->local_ip = "2001:db8::10";
 	p->remote_ip = "2001:db8::7";
 	p->direction = KS_HEPV3_DIR_RECV;
+}
+
+static void set_strings(ks_hepv3_capture_params_t *p, const char *correlation_id, const char *node_name)
+{
+	p->correlation_id = correlation_id;
+	p->node_name = node_name;
 }
 
 /**
@@ -184,6 +194,127 @@ static void test_golden(void)
 	cmp_ok((int)len, "==", (int)sizeof(GOLDEN_V6), "v6 packet length matches the reference packet");
 	cmp_mem(out, GOLDEN_V6, sizeof(GOLDEN_V6), "v6 packet bytes match the reference packet");
 	free(out);
+
+	params_v4(&p);
+	set_strings(&p, "", "");
+	len = create(&p, &out);
+	ok(len == sizeof(GOLDEN_V4) && !memcmp(out, GOLDEN_V4, len), "empty strings match the plain packet");
+	free(out);
+}
+
+static void test_string_chunks(void)
+{
+	ks_hepv3_capture_params_t p;
+	chunk_t chunks[MAX_CHUNKS];
+	const chunk_t *c;
+	char *out = NULL;
+	ks_size_t len;
+	int n, i, types_ok = 1;
+	size_t extra = (6 + strlen(CORRELATION_ID)) + (6 + strlen(NODE_NAME));
+
+	params_v4(&p);
+	set_strings(&p, CORRELATION_ID, NODE_NAME);
+	len = create(&p, &out);
+	if (!out) {
+		fail("packet with string chunks built");
+
+		return;
+	}
+
+	cmp_ok((int)len, "==", (int)(sizeof(GOLDEN_V4) + extra), "packet is the reference packet plus both string chunks");
+
+	n = parse_packet(out, len, chunks);
+	cmp_ok(n, "==", 13, "13 chunks tile the packet and match the total length");
+
+	for (i = 0; i < 10 && i < n; i++) {
+		types_ok &= (chunks[i].vendor_id == 0 && chunks[i].type_id == BASE_TYPES_V4[i]);
+	}
+	ok(types_ok, "fixed chunks keep their order");
+	ok(n == 13 && chunks[10].type_id == 0x0011 && chunks[11].type_id == 0x0013 && chunks[12].type_id == 0x000f,
+	   "correlation id, node name, then payload");
+	/* The fixed and address chunks: past the 6 octet header (its length field differs), before the payload chunk */
+	cmp_mem(out + 6, GOLDEN_V4 + 6, HEAD_LEN_V4 - 6 - 6, "chunks before the string chunks match the reference packet");
+
+	c = find_chunk(chunks, n, 0x0011);
+	ok(c && c->length == 6 + strlen(CORRELATION_ID) && c->data_len == strlen(CORRELATION_ID) &&
+	   !memcmp(c->data, CORRELATION_ID, c->data_len), "correlation id chunk carries the string without NUL");
+
+	c = find_chunk(chunks, n, 0x0013);
+	ok(c && c->length == 6 + strlen(NODE_NAME) && !memcmp(c->data, NODE_NAME, c->data_len),
+	   "node name chunk carries the string without NUL");
+
+	c = find_chunk(chunks, n, 0x000f);
+	ok(c && c->data_len == sizeof(PAYLOAD) - 1 && !memcmp(c->data, PAYLOAD, c->data_len), "payload intact");
+	free(out);
+
+	set_strings(&p, NULL, NODE_NAME);
+	len = create(&p, &out);
+	n = parse_packet(out, len, chunks);
+	ok(n == 12 && !find_chunk(chunks, n, 0x0011) && find_chunk(chunks, n, 0x0013), "node name alone");
+	free(out);
+
+	set_strings(&p, CORRELATION_ID, NULL);
+	len = create(&p, &out);
+	n = parse_packet(out, len, chunks);
+	ok(n == 12 && find_chunk(chunks, n, 0x0011) && !find_chunk(chunks, n, 0x0013), "correlation id alone");
+	free(out);
+
+	params_v6(&p);
+	set_strings(&p, CORRELATION_ID, NODE_NAME);
+	len = create(&p, &out);
+	n = parse_packet(out, len, chunks);
+	ok(n == 13 && len == sizeof(GOLDEN_V6) + extra && find_chunk(chunks, n, 0x0011) && find_chunk(chunks, n, 0x0013),
+	   "v6 packet carries both string chunks");
+	free(out);
+}
+
+static void test_string_cap(void)
+{
+	ks_hepv3_capture_params_t p;
+	chunk_t chunks[MAX_CHUNKS];
+	const chunk_t *c;
+	char *at_cap, *over_cap;
+	char *out = NULL;
+	ks_size_t len;
+	int n;
+
+	at_cap = malloc(KS_HEPV3_MAX_STRING_CHUNK_LEN + 2);
+	over_cap = malloc(KS_HEPV3_MAX_STRING_CHUNK_LEN + 2);
+	if (!at_cap || !over_cap) {
+		fail("string cap buffers allocated");
+		free(at_cap);
+		free(over_cap);
+
+		return;
+	}
+
+	memset(at_cap, 'a', KS_HEPV3_MAX_STRING_CHUNK_LEN);
+	at_cap[KS_HEPV3_MAX_STRING_CHUNK_LEN] = '\0';
+	memset(over_cap, 'b', KS_HEPV3_MAX_STRING_CHUNK_LEN + 1);
+	over_cap[KS_HEPV3_MAX_STRING_CHUNK_LEN + 1] = '\0';
+
+	params_v4(&p);
+
+	set_strings(&p, at_cap, NULL);
+	len = create(&p, &out);
+	n = parse_packet(out, len, chunks);
+	c = find_chunk(chunks, n, 0x0011);
+	ok(c && c->data_len == KS_HEPV3_MAX_STRING_CHUNK_LEN, "correlation id at the cap is sent whole");
+	free(out);
+
+	set_strings(&p, over_cap, over_cap);
+	len = create(&p, &out);
+	ok(len == sizeof(GOLDEN_V4) && !memcmp(out, GOLDEN_V4, len), "strings over the cap are not sent");
+	free(out);
+
+	set_strings(&p, over_cap, NODE_NAME);
+	len = create(&p, &out);
+	n = parse_packet(out, len, chunks);
+	ok(n == 12 && !find_chunk(chunks, n, 0x0011) && find_chunk(chunks, n, 0x0013), "an oversized value does not affect the other chunk");
+	free(out);
+
+	free(at_cap);
+	free(over_cap);
 }
 
 /**
@@ -217,7 +348,7 @@ static void check_clamp(ks_hepv3_capture_params_t *p, const char *payload, size_
 static void test_clamp(void)
 {
 	ks_hepv3_capture_params_t p;
-	char *payload;
+	char *payload, *max_strings;
 	size_t big = 70000, head, i;
 
 	if (!(payload = malloc(big))) {
@@ -242,6 +373,27 @@ static void test_clamp(void)
 	check_clamp(&p, payload, MAX_PACKET - head, head, MAX_PACKET, "v6 exactly at the limit");
 	check_clamp(&p, payload, MAX_PACKET - head + 1, head, MAX_PACKET, "v6 one above the limit is truncated");
 
+	/* String chunks count against the limit */
+	set_strings(&p, CORRELATION_ID, NODE_NAME);
+	head = HEAD_LEN_V6 + 6 + strlen(CORRELATION_ID) + 6 + strlen(NODE_NAME);
+	check_clamp(&p, payload, MAX_PACKET - head, head, MAX_PACKET, "v6 with strings exactly at the limit");
+	check_clamp(&p, payload, MAX_PACKET - head + 1, head, MAX_PACKET, "v6 with strings one above the limit is truncated");
+	check_clamp(&p, payload, big, head, MAX_PACKET, "v6 with strings far above the limit is truncated");
+
+	if (!(max_strings = malloc(KS_HEPV3_MAX_STRING_CHUNK_LEN + 1))) {
+		fail("strings at the cap allocated");
+		free(payload);
+
+		return;
+	}
+
+	memset(max_strings, 'n', KS_HEPV3_MAX_STRING_CHUNK_LEN);
+	max_strings[KS_HEPV3_MAX_STRING_CHUNK_LEN] = '\0';
+	set_strings(&p, max_strings, max_strings);
+	head = HEAD_LEN_V6 + 2 * (6 + KS_HEPV3_MAX_STRING_CHUNK_LEN);
+	check_clamp(&p, payload, big, head, MAX_PACKET, "v6 with strings at the cap is truncated");
+
+	free(max_strings);
 	free(payload);
 }
 
@@ -312,6 +464,8 @@ int main(int argc, char **argv)
 	plan(NO_PLAN);
 
 	test_golden();
+	test_string_chunks();
+	test_string_cap();
 	test_clamp();
 	test_addresses();
 	test_empty_payload();
