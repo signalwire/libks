@@ -59,6 +59,14 @@ typedef struct ks_hepv3_socket_s ks_hepv3_socket_t;
 KS_DECLARE(ks_status_t) ks_hepv3_socket_init(ks_hepv3_socket_params_t *params, ks_hepv3_socket_t **out_hep_socketP);
 KS_DECLARE(void) ks_hepv3_socket_destroy(ks_hepv3_socket_t **hep_socketP);
 KS_DECLARE(ks_status_t) ks_hepv3_socket_write(ks_hepv3_socket_t *hepv3_socket, void *data, ks_size_t *bytes);
+
+/**
+ * Builds a HEPv3 packet. A payload that does not fit the 65535 octet packet is truncated.
+ * A NULL or unparsable local_ip / remote_ip is sent as the unspecified address.
+ * @param hep_params  capture parameters, payload must not be empty
+ * @param out_buffer  receives the packet, to be released with free()
+ * @return packet length, 0 on error
+ */
 KS_DECLARE(ks_size_t) ks_hepv3_capture_create(const ks_hepv3_capture_params_t *hep_params, char **out_buffer);
 
 KS_END_EXTERN_C
