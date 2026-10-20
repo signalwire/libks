@@ -43,6 +43,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <ctype.h>
+#include <float.h>
 
 #ifdef ENABLE_LOCALES
 #include <locale.h>
@@ -58,8 +59,31 @@
 #include "cJSON.h"
 
 /* define our own boolean type */
-#define CJSON_TRUE ((kJSON_bool)1)
-#define CJSON_FALSE ((kJSON_bool)0)
+#ifdef true
+#undef true
+#endif
+#define true ((kJSON_bool)1)
+
+#ifdef false
+#undef false
+#endif
+#define false ((kJSON_bool)0)
+
+/* define isnan and isinf for ANSI C, if in C99 or above, isnan and isinf has been defined in math.h */
+#ifndef isinf
+#define isinf(d) (isnan((d - d)) && !isnan(d))
+#endif
+#ifndef isnan
+#define isnan(d) (d != d)
+#endif
+
+#ifndef NAN
+#ifdef _WIN32
+#define NAN sqrt(-1.0)
+#else
+#define NAN 0.0/0.0
+#endif
+#endif
 
 typedef struct {
     const unsigned char *json;
@@ -72,17 +96,29 @@ CJSON_PUBLIC(const char *) kJSON_GetErrorPtr(void)
     return (const char*) (global_error.json + global_error.position);
 }
 
-CJSON_PUBLIC(char *) kJSON_GetStringValue(kJSON *item) {
-    if (!kJSON_IsString(item)) {
+CJSON_PUBLIC(char *) kJSON_GetStringValue(const kJSON * const item)
+{
+    if (!kJSON_IsString(item))
+    {
         return NULL;
     }
 
     return item->valuestring;
 }
 
+CJSON_PUBLIC(double) kJSON_GetNumberValue(const kJSON * const item)
+{
+    if (!kJSON_IsNumber(item))
+    {
+        return (double) NAN;
+    }
+
+    return item->valuedouble;
+}
+
 /* This is a safeguard to prevent copy-pasters from using incompatible C and header files */
-#if (CJSON_VERSION_MAJOR != 1) || (CJSON_VERSION_MINOR != 7) || (CJSON_VERSION_PATCH != 6)
-    #error cJSON.h and cJSON.c have different versions. Make sure that both have the same.
+#if (CJSON_VERSION_MAJOR != 1) || (CJSON_VERSION_MINOR != 7) || (CJSON_VERSION_PATCH != 19)
+    #error kJSON.h and kJSON.c have different versions. Make sure that both have the same.
 #endif
 
 CJSON_PUBLIC(const char*) kJSON_Version(void)
@@ -119,22 +155,22 @@ static int case_insensitive_strcmp(const unsigned char *string1, const unsigned 
 
 typedef struct internal_hooks
 {
-    void *(*allocate)(size_t size);
-    void (*deallocate)(void *pointer);
-    void *(*reallocate)(void *pointer, size_t size);
+    void *(CJSON_CDECL *allocate)(size_t size);
+    void (CJSON_CDECL *deallocate)(void *pointer);
+    void *(CJSON_CDECL *reallocate)(void *pointer, size_t size);
 } internal_hooks;
 
 #if defined(_MSC_VER)
-/* work around MSVC error C2322: '...' address of dillimport '...' is not static */
-static void *internal_malloc(size_t size)
+/* work around MSVC error C2322: '...' address of dllimport '...' is not static */
+static void * CJSON_CDECL internal_malloc(size_t size)
 {
-	return calloc(1, size);
+    return malloc(size);
 }
-static void internal_free(void *pointer)
+static void CJSON_CDECL internal_free(void *pointer)
 {
     free(pointer);
 }
-static void *internal_realloc(void *pointer, size_t size)
+static void * CJSON_CDECL internal_realloc(void *pointer, size_t size)
 {
     return realloc(pointer, size);
 }
@@ -143,6 +179,9 @@ static void *internal_realloc(void *pointer, size_t size)
 #define internal_free free
 #define internal_realloc realloc
 #endif
+
+/* strlen of character literals resolved at compile time */
+#define static_strlen(string_literal) (sizeof(string_literal) - sizeof(""))
 
 static internal_hooks global_hooks = { internal_malloc, internal_free, internal_realloc };
 
@@ -178,19 +217,35 @@ CJSON_PUBLIC(void) kJSON_InitHooks(kJSON_Hooks* hooks)
         return;
     }
 
-	global_hooks.allocate = hooks->malloc_fn;
-	global_hooks.deallocate = hooks->free_fn;
-	global_hooks.reallocate = hooks->realloc_fn;
+    global_hooks.allocate = malloc;
+    if (hooks->malloc_fn != NULL)
+    {
+        global_hooks.allocate = hooks->malloc_fn;
+    }
+
+    global_hooks.deallocate = free;
+    if (hooks->free_fn != NULL)
+    {
+        global_hooks.deallocate = hooks->free_fn;
+    }
+
+    /* use realloc only if both free and malloc are used */
+    global_hooks.reallocate = NULL;
+    if ((global_hooks.allocate == malloc) && (global_hooks.deallocate == free))
+    {
+        global_hooks.reallocate = realloc;
+    }
 }
 
 /* Internal constructor. */
 static kJSON *kJSON_New_Item(const internal_hooks * const hooks)
 {
-    kJSON *node = (kJSON*)hooks->allocate(sizeof(kJSON));
+    kJSON* node = (kJSON*)hooks->allocate(sizeof(kJSON));
     if (node)
     {
         memset(node, '\0', sizeof(kJSON));
     }
+
     return node;
 }
 
@@ -208,10 +263,12 @@ CJSON_PUBLIC(void) kJSON_Delete(kJSON *item)
         if (!(item->type & kJSON_IsReference) && (item->valuestring != NULL))
         {
             global_hooks.deallocate(item->valuestring);
+            item->valuestring = NULL;
         }
         if (!(item->type & kJSON_StringIsConst) && (item->string != NULL))
         {
             global_hooks.deallocate(item->string);
+            item->string = NULL;
         }
         global_hooks.deallocate(item);
         item = next;
@@ -251,19 +308,21 @@ static kJSON_bool parse_number(kJSON * const item, parse_buffer * const input_bu
 {
     double number = 0;
     unsigned char *after_end = NULL;
-    unsigned char number_c_string[64];
+    unsigned char *number_c_string;
     unsigned char decimal_point = get_decimal_point();
     size_t i = 0;
+    size_t number_string_length = 0;
+    kJSON_bool has_decimal_point = false;
 
     if ((input_buffer == NULL) || (input_buffer->content == NULL))
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     /* copy the number into a temporary buffer and replace '.' with the decimal point
      * of the current locale (for strtod)
      * This also takes care of '\0' not necessarily being available for marking the end of the input */
-    for (i = 0; (i < (sizeof(number_c_string) - 1)) && can_access_at_index(input_buffer, i); i++)
+    for (i = 0; can_access_at_index(input_buffer, i); i++)
     {
         switch (buffer_at_offset(input_buffer)[i])
         {
@@ -281,11 +340,12 @@ static kJSON_bool parse_number(kJSON * const item, parse_buffer * const input_bu
             case '-':
             case 'e':
             case 'E':
-                number_c_string[i] = buffer_at_offset(input_buffer)[i];
+                number_string_length++;
                 break;
 
             case '.':
-                number_c_string[i] = decimal_point;
+                number_string_length++;
+                has_decimal_point = true;
                 break;
 
             default:
@@ -293,12 +353,34 @@ static kJSON_bool parse_number(kJSON * const item, parse_buffer * const input_bu
         }
     }
 loop_end:
-    number_c_string[i] = '\0';
+    /* malloc for temporary buffer, add 1 for '\0' */
+    number_c_string = (unsigned char *) input_buffer->hooks.allocate(number_string_length + 1);
+    if (number_c_string == NULL)
+    {
+        return false; /* allocation failure */
+    }
+
+    memcpy(number_c_string, buffer_at_offset(input_buffer), number_string_length);
+    number_c_string[number_string_length] = '\0';
+
+    if (has_decimal_point)
+    {
+        for (i = 0; i < number_string_length; i++)
+        {
+            if (number_c_string[i] == '.')
+            {
+                /* replace '.' with the decimal point of the current locale (for strtod) */
+                number_c_string[i] = decimal_point;
+            }
+        }
+    }
 
     number = strtod((const char*)number_c_string, (char**)&after_end);
     if (number_c_string == after_end)
     {
-        return CJSON_FALSE; /* parse_error */
+        /* free the temporary buffer */
+        input_buffer->hooks.deallocate(number_c_string);
+        return false; /* parse_error */
     }
 
     item->valuedouble = number;
@@ -308,7 +390,7 @@ loop_end:
     {
         item->valueint = INT_MAX;
     }
-    else if (number <= INT_MIN)
+    else if (number <= (double)INT_MIN)
     {
         item->valueint = INT_MIN;
     }
@@ -320,7 +402,9 @@ loop_end:
     item->type = kJSON_Number;
 
     input_buffer->offset += (size_t)(after_end - number_c_string);
-    return CJSON_TRUE;
+    /* free the temporary buffer */
+    input_buffer->hooks.deallocate(number_c_string);
+    return true;
 }
 
 /* don't ask me, but the original kJSON_SetNumberValue returns an integer or double */
@@ -330,7 +414,7 @@ CJSON_PUBLIC(double) kJSON_SetNumberHelper(kJSON *object, double number)
     {
         object->valueint = INT_MAX;
     }
-    else if (number <= INT_MIN)
+    else if (number <= (double)INT_MIN)
     {
         object->valueint = INT_MIN;
     }
@@ -340,6 +424,50 @@ CJSON_PUBLIC(double) kJSON_SetNumberHelper(kJSON *object, double number)
     }
 
     return object->valuedouble = number;
+}
+
+/* Note: when passing a NULL valuestring, kJSON_SetValuestring treats this as an error and return NULL */
+CJSON_PUBLIC(char*) kJSON_SetValuestring(kJSON *object, const char *valuestring)
+{
+    char *copy = NULL;
+    size_t v1_len;
+    size_t v2_len;
+    /* if object's type is not kJSON_String or is kJSON_IsReference, it should not set valuestring */
+    if ((object == NULL) || !(object->type & kJSON_String) || (object->type & kJSON_IsReference))
+    {
+        return NULL;
+    }
+    /* return NULL if the object is corrupted or valuestring is NULL */
+    if (object->valuestring == NULL || valuestring == NULL)
+    {
+        return NULL;
+    }
+
+    v1_len = strlen(valuestring);
+    v2_len = strlen(object->valuestring);
+
+    if (v1_len <= v2_len)
+    {
+        /* strcpy does not handle overlapping string: [X1, X2] [Y1, Y2] => X2 < Y1 or Y2 < X1 */
+        if (!( valuestring + v1_len < object->valuestring || object->valuestring + v2_len < valuestring ))
+        {
+            return NULL;
+        }
+        strcpy(object->valuestring, valuestring);
+        return object->valuestring;
+    }
+    copy = (char*) kJSON_strdup((const unsigned char*)valuestring, &global_hooks);
+    if (copy == NULL)
+    {
+        return NULL;
+    }
+    if (object->valuestring != NULL)
+    {
+        kJSON_free(object->valuestring);
+    }
+    object->valuestring = copy;
+
+    return copy;
 }
 
 typedef struct
@@ -429,10 +557,8 @@ static unsigned char* ensure(printbuffer * const p, size_t needed)
 
             return NULL;
         }
-        if (newbuffer)
-        {
-            memcpy(newbuffer, p->buffer, p->offset + 1);
-        }
+
+        memcpy(newbuffer, p->buffer, p->offset + 1);
         p->hooks.deallocate(p->buffer);
     }
     p->length = newsize;
@@ -454,6 +580,13 @@ static void update_offset(printbuffer * const buffer)
     buffer->offset += strlen((const char*)buffer_pointer);
 }
 
+/* securely comparison of floating-point variables */
+static kJSON_bool compare_double(double a, double b)
+{
+    double maxVal = fabs(a) > fabs(b) ? fabs(a) : fabs(b);
+    return (fabs(a - b) <= maxVal * DBL_EPSILON);
+}
+
 /* Render the number nicely from the given item into a string. */
 static kJSON_bool print_number(const kJSON * const item, printbuffer * const output_buffer)
 {
@@ -461,40 +594,48 @@ static kJSON_bool print_number(const kJSON * const item, printbuffer * const out
     double d = item->valuedouble;
     int length = 0;
     size_t i = 0;
-    unsigned char number_buffer[26]; /* temporary buffer to print the number into */
+    unsigned char number_buffer[26] = {0}; /* temporary buffer to print the number into */
     unsigned char decimal_point = get_decimal_point();
+    double test = 0.0;
 
     if (output_buffer == NULL)
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     /* This checks for NaN and Infinity */
-    if ((d * 0) != 0)
+    if (isnan(d) || isinf(d))
     {
         length = sprintf((char*)number_buffer, "null");
     }
+    else if(d == (double)item->valueint)
+    {
+        length = sprintf((char*)number_buffer, "%d", item->valueint);
+    }
     else
     {
-		double i = 0;
-		if ((int)!modf(d, &i)) {
-			length = sprintf((char*)number_buffer, "%ld", (long int)d);
-		} else {
-			length = sprintf((char*)number_buffer, "%lf", d);
-		}
+        /* Try 15 decimal places of precision to avoid nonsignificant nonzero digits */
+        length = sprintf((char*)number_buffer, "%1.15g", d);
+
+        /* Check whether the original double can be recovered */
+        if ((sscanf((char*)number_buffer, "%lg", &test) != 1) || !compare_double((double)test, d))
+        {
+            /* If not, print with 17 decimal places of precision */
+            length = sprintf((char*)number_buffer, "%1.17g", d);
+        }
     }
 
-    /* sprintf failed or buffer overrun occured */
+    /* sprintf failed or buffer overrun occurred */
     if ((length < 0) || (length > (int)(sizeof(number_buffer) - 1)))
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     /* reserve appropriate space in the output */
     output_pointer = ensure(output_buffer, (size_t)length + sizeof(""));
     if (output_pointer == NULL)
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     /* copy the printed number to the output and replace locale
@@ -513,7 +654,7 @@ static kJSON_bool print_number(const kJSON * const item, printbuffer * const out
 
     output_buffer->offset += (size_t)length;
 
-    return CJSON_TRUE;
+    return true;
 }
 
 /* parse 4 digit hexadecimal number */
@@ -787,12 +928,13 @@ static kJSON_bool parse_string(kJSON * const item, parse_buffer * const input_bu
     input_buffer->offset = (size_t) (input_end - input_buffer->content);
     input_buffer->offset++;
 
-    return CJSON_TRUE;
+    return true;
 
 fail:
     if (output != NULL)
     {
         input_buffer->hooks.deallocate(output);
+        output = NULL;
     }
 
     if (input_pointer != NULL)
@@ -800,7 +942,7 @@ fail:
         input_buffer->offset = (size_t)(input_pointer - input_buffer->content);
     }
 
-    return CJSON_FALSE;
+    return false;
 }
 
 /* Render the cstring provided to an escaped version that can be printed. */
@@ -815,7 +957,7 @@ static kJSON_bool print_string_ptr(const unsigned char * const input, printbuffe
 
     if (output_buffer == NULL)
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     /* empty string */
@@ -824,11 +966,11 @@ static kJSON_bool print_string_ptr(const unsigned char * const input, printbuffe
         output = ensure(output_buffer, sizeof("\"\""));
         if (output == NULL)
         {
-            return CJSON_FALSE;
+            return false;
         }
         strcpy((char*)output, "\"\"");
 
-        return CJSON_TRUE;
+        return true;
     }
 
     /* set "flag" to 1 if something needs to be escaped */
@@ -860,7 +1002,7 @@ static kJSON_bool print_string_ptr(const unsigned char * const input, printbuffe
     output = ensure(output_buffer, output_length + sizeof("\"\""));
     if (output == NULL)
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     /* no characters have to be escaped */
@@ -871,7 +1013,7 @@ static kJSON_bool print_string_ptr(const unsigned char * const input, printbuffe
         output[output_length + 1] = '\"';
         output[output_length + 2] = '\0';
 
-        return CJSON_TRUE;
+        return true;
     }
 
     output[0] = '\"';
@@ -922,7 +1064,7 @@ static kJSON_bool print_string_ptr(const unsigned char * const input, printbuffe
     output[output_length + 1] = '\"';
     output[output_length + 2] = '\0';
 
-    return CJSON_TRUE;
+    return true;
 }
 
 /* Invoke print_string_ptr (which is useful) on an item. */
@@ -945,6 +1087,11 @@ static parse_buffer *buffer_skip_whitespace(parse_buffer * const buffer)
     if ((buffer == NULL) || (buffer->content == NULL))
     {
         return NULL;
+    }
+
+    if (cannot_access_at_index(buffer, 0))
+    {
+        return buffer;
     }
 
     while (can_access_at_index(buffer, 0) && (buffer_at_offset(buffer)[0] <= 32))
@@ -976,8 +1123,23 @@ static parse_buffer *skip_utf8_bom(parse_buffer * const buffer)
     return buffer;
 }
 
-/* Parse an object - create a new root, and populate. */
 CJSON_PUBLIC(kJSON *) kJSON_ParseWithOpts(const char *value, const char **return_parse_end, kJSON_bool require_null_terminated)
+{
+    size_t buffer_length;
+
+    if (NULL == value)
+    {
+        return NULL;
+    }
+
+    /* Adding null character size due to require_null_terminated. */
+    buffer_length = strlen(value) + sizeof("");
+
+    return kJSON_ParseWithLengthOpts(value, buffer_length, return_parse_end, require_null_terminated);
+}
+
+/* Parse an object - create a new root, and populate. */
+CJSON_PUBLIC(kJSON *) kJSON_ParseWithLengthOpts(const char *value, size_t buffer_length, const char **return_parse_end, kJSON_bool require_null_terminated)
 {
     parse_buffer buffer = { 0, 0, 0, 0, { 0, 0, 0 } };
     kJSON *item = NULL;
@@ -986,13 +1148,13 @@ CJSON_PUBLIC(kJSON *) kJSON_ParseWithOpts(const char *value, const char **return
     global_error.json = NULL;
     global_error.position = 0;
 
-    if (value == NULL)
+    if (value == NULL || 0 == buffer_length)
     {
         goto fail;
     }
 
     buffer.content = (const unsigned char*)value;
-    buffer.length = strlen((const char*)value) + sizeof("");
+    buffer.length = buffer_length;
     buffer.offset = 0;
     buffer.hooks = global_hooks;
 
@@ -1062,7 +1224,12 @@ CJSON_PUBLIC(kJSON *) kJSON_Parse(const char *value)
     return kJSON_ParseWithOpts(value, 0, 0);
 }
 
-#define cjson_min(a, b) ((a < b) ? a : b)
+CJSON_PUBLIC(kJSON *) kJSON_ParseWithLength(const char *value, size_t buffer_length)
+{
+    return kJSON_ParseWithLengthOpts(value, buffer_length, 0, 0);
+}
+
+#define cjson_min(a, b) (((a) < (b)) ? (a) : (b))
 
 static unsigned char *print(const kJSON * const item, kJSON_bool format, const internal_hooks * const hooks)
 {
@@ -1093,10 +1260,10 @@ static unsigned char *print(const kJSON * const item, kJSON_bool format, const i
     if (hooks->reallocate != NULL)
     {
         printed = (unsigned char*) hooks->reallocate(buffer->buffer, buffer->offset + 1);
-        buffer->buffer = NULL;
         if (printed == NULL) {
             goto fail;
         }
+        buffer->buffer = NULL;
     }
     else /* otherwise copy the JSON over to a new buffer */
     {
@@ -1110,6 +1277,7 @@ static unsigned char *print(const kJSON * const item, kJSON_bool format, const i
 
         /* free the buffer */
         hooks->deallocate(buffer->buffer);
+        buffer->buffer = NULL;
     }
 
     return printed;
@@ -1118,11 +1286,13 @@ fail:
     if (buffer->buffer != NULL)
     {
         hooks->deallocate(buffer->buffer);
+        buffer->buffer = NULL;
     }
 
     if (printed != NULL)
     {
         hooks->deallocate(printed);
+        printed = NULL;
     }
 
     return NULL;
@@ -1131,12 +1301,12 @@ fail:
 /* Render a kJSON item/entity/structure to text. */
 CJSON_PUBLIC(char *) kJSON_Print(const kJSON *item)
 {
-    return (char*)print(item, CJSON_TRUE, &global_hooks);
+    return (char*)print(item, true, &global_hooks);
 }
 
 CJSON_PUBLIC(char *) kJSON_PrintUnformatted(const kJSON *item)
 {
-    return (char*)print(item, CJSON_FALSE, &global_hooks);
+    return (char*)print(item, false, &global_hooks);
 }
 
 CJSON_PUBLIC(char *) kJSON_PrintBuffered(const kJSON *item, int prebuffer, kJSON_bool fmt)
@@ -1156,33 +1326,34 @@ CJSON_PUBLIC(char *) kJSON_PrintBuffered(const kJSON *item, int prebuffer, kJSON
 
     p.length = (size_t)prebuffer;
     p.offset = 0;
-    p.noalloc = CJSON_FALSE;
+    p.noalloc = false;
     p.format = fmt;
     p.hooks = global_hooks;
 
     if (!print_value(item, &p))
     {
         global_hooks.deallocate(p.buffer);
+        p.buffer = NULL;
         return NULL;
     }
 
     return (char*)p.buffer;
 }
 
-CJSON_PUBLIC(kJSON_bool) kJSON_PrintPreallocated(kJSON *item, char *buf, const int len, const kJSON_bool fmt)
+CJSON_PUBLIC(kJSON_bool) kJSON_PrintPreallocated(kJSON *item, char *buffer, const int length, const kJSON_bool format)
 {
     printbuffer p = { 0, 0, 0, 0, 0, 0, { 0, 0, 0 } };
 
-    if ((len < 0) || (buf == NULL))
+    if ((length < 0) || (buffer == NULL))
     {
-        return CJSON_FALSE;
+        return false;
     }
 
-    p.buffer = (unsigned char*)buf;
-    p.length = (size_t)len;
+    p.buffer = (unsigned char*)buffer;
+    p.length = (size_t)length;
     p.offset = 0;
-    p.noalloc = CJSON_TRUE;
-    p.format = fmt;
+    p.noalloc = true;
+    p.format = format;
     p.hooks = global_hooks;
 
     return print_value(item, &p);
@@ -1193,7 +1364,7 @@ static kJSON_bool parse_value(kJSON * const item, parse_buffer * const input_buf
 {
     if ((input_buffer == NULL) || (input_buffer->content == NULL))
     {
-        return CJSON_FALSE; /* no input */
+        return false; /* no input */
     }
 
     /* parse the different types of values */
@@ -1202,22 +1373,22 @@ static kJSON_bool parse_value(kJSON * const item, parse_buffer * const input_buf
     {
         item->type = kJSON_NULL;
         input_buffer->offset += 4;
-        return CJSON_TRUE;
+        return true;
     }
-    /* CJSON_FALSE */
+    /* false */
     if (can_read(input_buffer, 5) && (strncmp((const char*)buffer_at_offset(input_buffer), "false", 5) == 0))
     {
         item->type = kJSON_False;
         input_buffer->offset += 5;
-        return CJSON_TRUE;
+        return true;
     }
-    /* CJSON_TRUE */
+    /* true */
     if (can_read(input_buffer, 4) && (strncmp((const char*)buffer_at_offset(input_buffer), "true", 4) == 0))
     {
         item->type = kJSON_True;
         item->valueint = 1;
         input_buffer->offset += 4;
-        return CJSON_TRUE;
+        return true;
     }
     /* string */
     if (can_access_at_index(input_buffer, 0) && (buffer_at_offset(input_buffer)[0] == '\"'))
@@ -1240,7 +1411,7 @@ static kJSON_bool parse_value(kJSON * const item, parse_buffer * const input_buf
         return parse_object(item, input_buffer);
     }
 
-    return CJSON_FALSE;
+    return false;
 }
 
 /* Render a value to text. */
@@ -1250,7 +1421,7 @@ static kJSON_bool print_value(const kJSON * const item, printbuffer * const outp
 
     if ((item == NULL) || (output_buffer == NULL))
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     switch ((item->type) & 0xFF)
@@ -1259,28 +1430,28 @@ static kJSON_bool print_value(const kJSON * const item, printbuffer * const outp
             output = ensure(output_buffer, 5);
             if (output == NULL)
             {
-                return CJSON_FALSE;
+                return false;
             }
             strcpy((char*)output, "null");
-            return CJSON_TRUE;
+            return true;
 
         case kJSON_False:
             output = ensure(output_buffer, 6);
             if (output == NULL)
             {
-                return CJSON_FALSE;
+                return false;
             }
             strcpy((char*)output, "false");
-            return CJSON_TRUE;
+            return true;
 
         case kJSON_True:
             output = ensure(output_buffer, 5);
             if (output == NULL)
             {
-                return CJSON_FALSE;
+                return false;
             }
             strcpy((char*)output, "true");
-            return CJSON_TRUE;
+            return true;
 
         case kJSON_Number:
             return print_number(item, output_buffer);
@@ -1290,17 +1461,17 @@ static kJSON_bool print_value(const kJSON * const item, printbuffer * const outp
             size_t raw_length = 0;
             if (item->valuestring == NULL)
             {
-                return CJSON_FALSE;
+                return false;
             }
 
             raw_length = strlen(item->valuestring) + sizeof("");
             output = ensure(output_buffer, raw_length);
             if (output == NULL)
             {
-                return CJSON_FALSE;
+                return false;
             }
             memcpy(output, item->valuestring, raw_length);
-            return CJSON_TRUE;
+            return true;
         }
 
         case kJSON_String:
@@ -1313,7 +1484,7 @@ static kJSON_bool print_value(const kJSON * const item, printbuffer * const outp
             return print_object(item, output_buffer);
 
         default:
-            return CJSON_FALSE;
+            return false;
     }
 }
 
@@ -1325,7 +1496,7 @@ static kJSON_bool parse_array(kJSON * const item, parse_buffer * const input_buf
 
     if (input_buffer->depth >= CJSON_NESTING_LIMIT)
     {
-        return CJSON_FALSE; /* to deeply nested */
+        return false; /* to deeply nested */
     }
     input_buffer->depth++;
 
@@ -1395,12 +1566,16 @@ static kJSON_bool parse_array(kJSON * const item, parse_buffer * const input_buf
 success:
     input_buffer->depth--;
 
+    if (head != NULL) {
+        head->prev = current_item;
+    }
+
     item->type = kJSON_Array;
     item->child = head;
 
     input_buffer->offset++;
 
-    return CJSON_TRUE;
+    return true;
 
 fail:
     if (head != NULL)
@@ -1408,7 +1583,7 @@ fail:
         kJSON_Delete(head);
     }
 
-    return CJSON_FALSE;
+    return false;
 }
 
 /* Render an array to text */
@@ -1420,7 +1595,7 @@ static kJSON_bool print_array(const kJSON * const item, printbuffer * const outp
 
     if (output_buffer == NULL)
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     /* Compose the output array. */
@@ -1428,7 +1603,7 @@ static kJSON_bool print_array(const kJSON * const item, printbuffer * const outp
     output_pointer = ensure(output_buffer, 1);
     if (output_pointer == NULL)
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     *output_pointer = '[';
@@ -1439,7 +1614,7 @@ static kJSON_bool print_array(const kJSON * const item, printbuffer * const outp
     {
         if (!print_value(current_element, output_buffer))
         {
-            return CJSON_FALSE;
+            return false;
         }
         update_offset(output_buffer);
         if (current_element->next)
@@ -1448,7 +1623,7 @@ static kJSON_bool print_array(const kJSON * const item, printbuffer * const outp
             output_pointer = ensure(output_buffer, length + 1);
             if (output_pointer == NULL)
             {
-                return CJSON_FALSE;
+                return false;
             }
             *output_pointer++ = ',';
             if(output_buffer->format)
@@ -1464,13 +1639,13 @@ static kJSON_bool print_array(const kJSON * const item, printbuffer * const outp
     output_pointer = ensure(output_buffer, 2);
     if (output_pointer == NULL)
     {
-        return CJSON_FALSE;
+        return false;
     }
     *output_pointer++ = ']';
     *output_pointer = '\0';
     output_buffer->depth--;
 
-    return CJSON_TRUE;
+    return true;
 }
 
 /* Build an object from the text. */
@@ -1481,7 +1656,7 @@ static kJSON_bool parse_object(kJSON * const item, parse_buffer * const input_bu
 
     if (input_buffer->depth >= CJSON_NESTING_LIMIT)
     {
-        return CJSON_FALSE; /* to deeply nested */
+        return false; /* to deeply nested */
     }
     input_buffer->depth++;
 
@@ -1530,12 +1705,17 @@ static kJSON_bool parse_object(kJSON * const item, parse_buffer * const input_bu
             current_item = new_item;
         }
 
+        if (cannot_access_at_index(input_buffer, 1))
+        {
+            goto fail; /* nothing comes after the comma */
+        }
+
         /* parse the name of the child */
         input_buffer->offset++;
         buffer_skip_whitespace(input_buffer);
         if (!parse_string(current_item, input_buffer))
         {
-            goto fail; /* faile to parse name */
+            goto fail; /* failed to parse name */
         }
         buffer_skip_whitespace(input_buffer);
 
@@ -1567,11 +1747,15 @@ static kJSON_bool parse_object(kJSON * const item, parse_buffer * const input_bu
 success:
     input_buffer->depth--;
 
+    if (head != NULL) {
+        head->prev = current_item;
+    }
+
     item->type = kJSON_Object;
     item->child = head;
 
     input_buffer->offset++;
-    return CJSON_TRUE;
+    return true;
 
 fail:
     if (head != NULL)
@@ -1579,7 +1763,7 @@ fail:
         kJSON_Delete(head);
     }
 
-    return CJSON_FALSE;
+    return false;
 }
 
 /* Render an object to text. */
@@ -1591,7 +1775,7 @@ static kJSON_bool print_object(const kJSON * const item, printbuffer * const out
 
     if (output_buffer == NULL)
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     /* Compose the output: */
@@ -1599,7 +1783,7 @@ static kJSON_bool print_object(const kJSON * const item, printbuffer * const out
     output_pointer = ensure(output_buffer, length + 1);
     if (output_pointer == NULL)
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     *output_pointer++ = '{';
@@ -1618,7 +1802,7 @@ static kJSON_bool print_object(const kJSON * const item, printbuffer * const out
             output_pointer = ensure(output_buffer, output_buffer->depth);
             if (output_pointer == NULL)
             {
-                return CJSON_FALSE;
+                return false;
             }
             for (i = 0; i < output_buffer->depth; i++)
             {
@@ -1630,7 +1814,7 @@ static kJSON_bool print_object(const kJSON * const item, printbuffer * const out
         /* print key */
         if (!print_string_ptr((unsigned char*)current_item->string, output_buffer))
         {
-            return CJSON_FALSE;
+            return false;
         }
         update_offset(output_buffer);
 
@@ -1638,7 +1822,7 @@ static kJSON_bool print_object(const kJSON * const item, printbuffer * const out
         output_pointer = ensure(output_buffer, length);
         if (output_pointer == NULL)
         {
-            return CJSON_FALSE;
+            return false;
         }
         *output_pointer++ = ':';
         if (output_buffer->format)
@@ -1650,16 +1834,16 @@ static kJSON_bool print_object(const kJSON * const item, printbuffer * const out
         /* print value */
         if (!print_value(current_item, output_buffer))
         {
-            return CJSON_FALSE;
+            return false;
         }
         update_offset(output_buffer);
 
         /* print comma if not last */
-        length = (size_t) ((output_buffer->format ? 1 : 0) + (current_item->next ? 1 : 0));
+        length = ((size_t)(output_buffer->format ? 1 : 0) + (size_t)(current_item->next ? 1 : 0));
         output_pointer = ensure(output_buffer, length + 1);
         if (output_pointer == NULL)
         {
-            return CJSON_FALSE;
+            return false;
         }
         if (current_item->next)
         {
@@ -1679,7 +1863,7 @@ static kJSON_bool print_object(const kJSON * const item, printbuffer * const out
     output_pointer = ensure(output_buffer, output_buffer->format ? (output_buffer->depth + 1) : 2);
     if (output_pointer == NULL)
     {
-        return CJSON_FALSE;
+        return false;
     }
     if (output_buffer->format)
     {
@@ -1693,7 +1877,7 @@ static kJSON_bool print_object(const kJSON * const item, printbuffer * const out
     *output_pointer = '\0';
     output_buffer->depth--;
 
-    return CJSON_TRUE;
+    return true;
 }
 
 /* Get Array size/item / object item. */
@@ -1714,6 +1898,8 @@ CJSON_PUBLIC(int) kJSON_GetArraySize(const kJSON *array)
         size++;
         child = child->next;
     }
+
+    /* FIXME: Can overflow here. Cannot be fixed without breaking the API */
 
     return (int)size;
 }
@@ -1759,7 +1945,7 @@ static kJSON *get_object_item(const kJSON * const object, const char * const nam
     current_element = object->child;
     if (case_sensitive)
     {
-        while ((current_element != NULL) && (strcmp(name, current_element->string) != 0))
+        while ((current_element != NULL) && (current_element->string != NULL) && (strcmp(name, current_element->string) != 0))
         {
             current_element = current_element->next;
         }
@@ -1772,17 +1958,21 @@ static kJSON *get_object_item(const kJSON * const object, const char * const nam
         }
     }
 
+    if ((current_element == NULL) || (current_element->string == NULL)) {
+        return NULL;
+    }
+
     return current_element;
 }
 
 CJSON_PUBLIC(kJSON *) kJSON_GetObjectItem(const kJSON * const object, const char * const string)
 {
-    return get_object_item(object, string, CJSON_FALSE);
+    return get_object_item(object, string, false);
 }
 
 CJSON_PUBLIC(kJSON *) kJSON_GetObjectItemCaseSensitive(const kJSON * const object, const char * const string)
 {
-    return get_object_item(object, string, CJSON_TRUE);
+    return get_object_item(object, string, true);
 }
 
 CJSON_PUBLIC(kJSON_bool) kJSON_HasObjectItem(const kJSON *object, const char *string)
@@ -1823,35 +2013,39 @@ static kJSON_bool add_item_to_array(kJSON *array, kJSON *item)
 {
     kJSON *child = NULL;
 
-    if ((item == NULL) || (array == NULL))
+    if ((item == NULL) || (array == NULL) || (array == item))
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     child = array->child;
-
+    /*
+     * To find the last item in array quickly, we use prev in array
+     */
     if (child == NULL)
     {
         /* list is empty, start new one */
         array->child = item;
+        item->prev = item;
+        item->next = NULL;
     }
     else
     {
         /* append to the end */
-        while (child->next)
+        if (child->prev)
         {
-            child = child->next;
+            suffix_object(child->prev, item);
+            array->child->prev = item;
         }
-        suffix_object(child, item);
     }
 
-    return CJSON_TRUE;
+    return true;
 }
 
 /* Add item to array/object. */
-CJSON_PUBLIC(void) kJSON_AddItemToArray(kJSON *array, kJSON *item)
+CJSON_PUBLIC(kJSON_bool) kJSON_AddItemToArray(kJSON *array, kJSON *item)
 {
-    add_item_to_array(array, item);
+    return add_item_to_array(array, item);
 }
 
 #if defined(__clang__) || (defined(__GNUC__)  && ((__GNUC__ > 4) || ((__GNUC__ == 4) && (__GNUC_MINOR__ > 5))))
@@ -1875,9 +2069,9 @@ static kJSON_bool add_item_to_object(kJSON * const object, const char * const st
     char *new_key = NULL;
     int new_type = kJSON_Invalid;
 
-    if ((object == NULL) || (string == NULL) || (item == NULL))
+    if ((object == NULL) || (string == NULL) || (item == NULL) || (object == item))
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     if (constant_key)
@@ -1890,7 +2084,7 @@ static kJSON_bool add_item_to_object(kJSON * const object, const char * const st
         new_key = (char*)kJSON_strdup((const unsigned char*)string, hooks);
         if (new_key == NULL)
         {
-            return CJSON_FALSE;
+            return false;
         }
 
         new_type = item->type & ~kJSON_StringIsConst;
@@ -1907,41 +2101,41 @@ static kJSON_bool add_item_to_object(kJSON * const object, const char * const st
     return add_item_to_array(object, item);
 }
 
-CJSON_PUBLIC(void) kJSON_AddItemToObject(kJSON *object, const char *string, kJSON *item)
+CJSON_PUBLIC(kJSON_bool) kJSON_AddItemToObject(kJSON *object, const char *string, kJSON *item)
 {
-    add_item_to_object(object, string, item, &global_hooks, CJSON_FALSE);
+    return add_item_to_object(object, string, item, &global_hooks, false);
 }
 
 /* Add an item to an object with constant string as key */
-CJSON_PUBLIC(void) kJSON_AddItemToObjectCS(kJSON *object, const char *string, kJSON *item)
+CJSON_PUBLIC(kJSON_bool) kJSON_AddItemToObjectCS(kJSON *object, const char *string, kJSON *item)
 {
-    add_item_to_object(object, string, item, &global_hooks, CJSON_TRUE);
+    return add_item_to_object(object, string, item, &global_hooks, true);
 }
 
-CJSON_PUBLIC(void) kJSON_AddItemReferenceToArray(kJSON *array, kJSON *item)
+CJSON_PUBLIC(kJSON_bool) kJSON_AddItemReferenceToArray(kJSON *array, kJSON *item)
 {
     if (array == NULL)
     {
-        return;
+        return false;
     }
 
-    add_item_to_array(array, create_reference(item, &global_hooks));
+    return add_item_to_array(array, create_reference(item, &global_hooks));
 }
 
-CJSON_PUBLIC(void) kJSON_AddItemReferenceToObject(kJSON *object, const char *string, kJSON *item)
+CJSON_PUBLIC(kJSON_bool) kJSON_AddItemReferenceToObject(kJSON *object, const char *string, kJSON *item)
 {
     if ((object == NULL) || (string == NULL))
     {
-        return;
+        return false;
     }
 
-    add_item_to_object(object, string, create_reference(item, &global_hooks), &global_hooks, CJSON_FALSE);
+    return add_item_to_object(object, string, create_reference(item, &global_hooks), &global_hooks, false);
 }
 
 CJSON_PUBLIC(kJSON*) kJSON_AddNullToObject(kJSON * const object, const char * const name)
 {
     kJSON *null = kJSON_CreateNull();
-    if (add_item_to_object(object, name, null, &global_hooks, CJSON_FALSE))
+    if (add_item_to_object(object, name, null, &global_hooks, false))
     {
         return null;
     }
@@ -1952,32 +2146,32 @@ CJSON_PUBLIC(kJSON*) kJSON_AddNullToObject(kJSON * const object, const char * co
 
 CJSON_PUBLIC(kJSON*) kJSON_AddTrueToObject(kJSON * const object, const char * const name)
 {
-    kJSON *CJSON_TRUE_item = kJSON_CreateTrue();
-    if (add_item_to_object(object, name, CJSON_TRUE_item, &global_hooks, CJSON_FALSE))
+    kJSON *true_item = kJSON_CreateTrue();
+    if (add_item_to_object(object, name, true_item, &global_hooks, false))
     {
-        return CJSON_TRUE_item;
+        return true_item;
     }
 
-    kJSON_Delete(CJSON_TRUE_item);
+    kJSON_Delete(true_item);
     return NULL;
 }
 
 CJSON_PUBLIC(kJSON*) kJSON_AddFalseToObject(kJSON * const object, const char * const name)
 {
-    kJSON *CJSON_FALSE_item = kJSON_CreateFalse();
-    if (add_item_to_object(object, name, CJSON_FALSE_item, &global_hooks, CJSON_FALSE))
+    kJSON *false_item = kJSON_CreateFalse();
+    if (add_item_to_object(object, name, false_item, &global_hooks, false))
     {
-        return CJSON_FALSE_item;
+        return false_item;
     }
 
-    kJSON_Delete(CJSON_FALSE_item);
+    kJSON_Delete(false_item);
     return NULL;
 }
 
 CJSON_PUBLIC(kJSON*) kJSON_AddBoolToObject(kJSON * const object, const char * const name, const kJSON_bool boolean)
 {
     kJSON *bool_item = kJSON_CreateBool(boolean);
-    if (add_item_to_object(object, name, bool_item, &global_hooks, CJSON_FALSE))
+    if (add_item_to_object(object, name, bool_item, &global_hooks, false))
     {
         return bool_item;
     }
@@ -1989,7 +2183,7 @@ CJSON_PUBLIC(kJSON*) kJSON_AddBoolToObject(kJSON * const object, const char * co
 CJSON_PUBLIC(kJSON*) kJSON_AddNumberToObject(kJSON * const object, const char * const name, const double number)
 {
     kJSON *number_item = kJSON_CreateNumber(number);
-    if (add_item_to_object(object, name, number_item, &global_hooks, CJSON_FALSE))
+    if (add_item_to_object(object, name, number_item, &global_hooks, false))
     {
         return number_item;
     }
@@ -2001,7 +2195,7 @@ CJSON_PUBLIC(kJSON*) kJSON_AddNumberToObject(kJSON * const object, const char * 
 CJSON_PUBLIC(kJSON*) kJSON_AddStringToObject(kJSON * const object, const char * const name, const char * const string)
 {
     kJSON *string_item = kJSON_CreateString(string);
-    if (add_item_to_object(object, name, string_item, &global_hooks, CJSON_FALSE))
+    if (add_item_to_object(object, name, string_item, &global_hooks, false))
     {
         return string_item;
     }
@@ -2013,7 +2207,7 @@ CJSON_PUBLIC(kJSON*) kJSON_AddStringToObject(kJSON * const object, const char * 
 CJSON_PUBLIC(kJSON*) kJSON_AddRawToObject(kJSON * const object, const char * const name, const char * const raw)
 {
     kJSON *raw_item = kJSON_CreateRaw(raw);
-    if (add_item_to_object(object, name, raw_item, &global_hooks, CJSON_FALSE))
+    if (add_item_to_object(object, name, raw_item, &global_hooks, false))
     {
         return raw_item;
     }
@@ -2025,7 +2219,7 @@ CJSON_PUBLIC(kJSON*) kJSON_AddRawToObject(kJSON * const object, const char * con
 CJSON_PUBLIC(kJSON*) kJSON_AddObjectToObject(kJSON * const object, const char * const name)
 {
     kJSON *object_item = kJSON_CreateObject();
-    if (add_item_to_object(object, name, object_item, &global_hooks, CJSON_FALSE))
+    if (add_item_to_object(object, name, object_item, &global_hooks, false))
     {
         return object_item;
     }
@@ -2037,7 +2231,7 @@ CJSON_PUBLIC(kJSON*) kJSON_AddObjectToObject(kJSON * const object, const char * 
 CJSON_PUBLIC(kJSON*) kJSON_AddArrayToObject(kJSON * const object, const char * const name)
 {
     kJSON *array = kJSON_CreateArray();
-    if (add_item_to_object(object, name, array, &global_hooks, CJSON_FALSE))
+    if (add_item_to_object(object, name, array, &global_hooks, false))
     {
         return array;
     }
@@ -2048,12 +2242,12 @@ CJSON_PUBLIC(kJSON*) kJSON_AddArrayToObject(kJSON * const object, const char * c
 
 CJSON_PUBLIC(kJSON *) kJSON_DetachItemViaPointer(kJSON *parent, kJSON * const item)
 {
-    if ((parent == NULL) || (item == NULL))
+    if ((parent == NULL) || (item == NULL) || (item != parent->child && item->prev == NULL))
     {
         return NULL;
     }
 
-    if (item->prev != NULL)
+    if (item != parent->child)
     {
         /* not the first element */
         item->prev->next = item->next;
@@ -2069,6 +2263,12 @@ CJSON_PUBLIC(kJSON *) kJSON_DetachItemViaPointer(kJSON *parent, kJSON * const it
         /* first element */
         parent->child = item->next;
     }
+    else if (item->next == NULL)
+    {
+        /* last element */
+        parent->child->prev = item->prev;
+    }
+
     /* make sure the detached item doesn't point anywhere anymore */
     item->prev = NULL;
     item->next = NULL;
@@ -2116,20 +2316,24 @@ CJSON_PUBLIC(void) kJSON_DeleteItemFromObjectCaseSensitive(kJSON *object, const 
 }
 
 /* Replace array/object items with new ones. */
-CJSON_PUBLIC(void) kJSON_InsertItemInArray(kJSON *array, int which, kJSON *newitem)
+CJSON_PUBLIC(kJSON_bool) kJSON_InsertItemInArray(kJSON *array, int which, kJSON *newitem)
 {
     kJSON *after_inserted = NULL;
 
-    if (which < 0)
+    if (which < 0 || newitem == NULL)
     {
-        return;
+        return false;
     }
 
     after_inserted = get_array_item(array, (size_t)which);
     if (after_inserted == NULL)
     {
-        add_item_to_array(array, newitem);
-        return;
+        return add_item_to_array(array, newitem);
+    }
+
+    if (after_inserted != array->child && after_inserted->prev == NULL) {
+        /* return false if after_inserted is a corrupted array item */
+        return false;
     }
 
     newitem->next = after_inserted;
@@ -2143,18 +2347,19 @@ CJSON_PUBLIC(void) kJSON_InsertItemInArray(kJSON *array, int which, kJSON *newit
     {
         newitem->prev->next = newitem;
     }
+    return true;
 }
 
 CJSON_PUBLIC(kJSON_bool) kJSON_ReplaceItemViaPointer(kJSON * const parent, kJSON * const item, kJSON * replacement)
 {
-    if ((parent == NULL) || (replacement == NULL) || (item == NULL))
+    if ((parent == NULL) || (parent->child == NULL) || (replacement == NULL) || (item == NULL))
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     if (replacement == item)
     {
-        return CJSON_TRUE;
+        return true;
     }
 
     replacement->next = item->next;
@@ -2164,37 +2369,51 @@ CJSON_PUBLIC(kJSON_bool) kJSON_ReplaceItemViaPointer(kJSON * const parent, kJSON
     {
         replacement->next->prev = replacement;
     }
-    if (replacement->prev != NULL)
-    {
-        replacement->prev->next = replacement;
-    }
     if (parent->child == item)
     {
+        if (parent->child->prev == parent->child)
+        {
+            replacement->prev = replacement;
+        }
         parent->child = replacement;
+    }
+    else
+    {   /*
+         * To find the last item in array quickly, we use prev in array.
+         * We can't modify the last item's next pointer where this item was the parent's child
+         */
+        if (replacement->prev != NULL)
+        {
+            replacement->prev->next = replacement;
+        }
+        if (replacement->next == NULL)
+        {
+            parent->child->prev = replacement;
+        }
     }
 
     item->next = NULL;
     item->prev = NULL;
     kJSON_Delete(item);
 
-    return CJSON_TRUE;
+    return true;
 }
 
-CJSON_PUBLIC(void) kJSON_ReplaceItemInArray(kJSON *array, int which, kJSON *newitem)
+CJSON_PUBLIC(kJSON_bool) kJSON_ReplaceItemInArray(kJSON *array, int which, kJSON *newitem)
 {
     if (which < 0)
     {
-        return;
+        return false;
     }
 
-    kJSON_ReplaceItemViaPointer(array, get_array_item(array, (size_t)which), newitem);
+    return kJSON_ReplaceItemViaPointer(array, get_array_item(array, (size_t)which), newitem);
 }
 
 static kJSON_bool replace_item_in_object(kJSON *object, const char *string, kJSON *replacement, kJSON_bool case_sensitive)
 {
     if ((replacement == NULL) || (string == NULL))
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     /* replace the name in the replacement */
@@ -2203,21 +2422,24 @@ static kJSON_bool replace_item_in_object(kJSON *object, const char *string, kJSO
         kJSON_free(replacement->string);
     }
     replacement->string = (char*)kJSON_strdup((const unsigned char*)string, &global_hooks);
+    if (replacement->string == NULL)
+    {
+        return false;
+    }
+
     replacement->type &= ~kJSON_StringIsConst;
 
-    kJSON_ReplaceItemViaPointer(object, get_object_item(object, string, case_sensitive), replacement);
-
-    return CJSON_TRUE;
+    return kJSON_ReplaceItemViaPointer(object, get_object_item(object, string, case_sensitive), replacement);
 }
 
-CJSON_PUBLIC(void) kJSON_ReplaceItemInObject(kJSON *object, const char *string, kJSON *newitem)
+CJSON_PUBLIC(kJSON_bool) kJSON_ReplaceItemInObject(kJSON *object, const char *string, kJSON *newitem)
 {
-    replace_item_in_object(object, string, newitem, CJSON_FALSE);
+    return replace_item_in_object(object, string, newitem, false);
 }
 
-CJSON_PUBLIC(void) kJSON_ReplaceItemInObjectCaseSensitive(kJSON *object, const char *string, kJSON *newitem)
+CJSON_PUBLIC(kJSON_bool) kJSON_ReplaceItemInObjectCaseSensitive(kJSON *object, const char *string, kJSON *newitem)
 {
-    replace_item_in_object(object, string, newitem, CJSON_TRUE);
+    return replace_item_in_object(object, string, newitem, true);
 }
 
 /* Create basic types: */
@@ -2254,12 +2476,12 @@ CJSON_PUBLIC(kJSON *) kJSON_CreateFalse(void)
     return item;
 }
 
-CJSON_PUBLIC(kJSON *) kJSON_CreateBool(kJSON_bool b)
+CJSON_PUBLIC(kJSON *) kJSON_CreateBool(kJSON_bool boolean)
 {
     kJSON *item = kJSON_New_Item(&global_hooks);
     if(item)
     {
-        item->type = b ? kJSON_True : kJSON_False;
+        item->type = boolean ? kJSON_True : kJSON_False;
     }
 
     return item;
@@ -2278,7 +2500,7 @@ CJSON_PUBLIC(kJSON *) kJSON_CreateNumber(double num)
         {
             item->valueint = INT_MAX;
         }
-        else if (num <= INT_MIN)
+        else if (num <= (double)INT_MIN)
         {
             item->valueint = INT_MIN;
         }
@@ -2394,6 +2616,7 @@ CJSON_PUBLIC(kJSON *) kJSON_CreateIntArray(const int *numbers, int count)
     }
 
     a = kJSON_CreateArray();
+
     for(i = 0; a && (i < (size_t)count); i++)
     {
         n = kJSON_CreateNumber(numbers[i]);
@@ -2411,6 +2634,10 @@ CJSON_PUBLIC(kJSON *) kJSON_CreateIntArray(const int *numbers, int count)
             suffix_object(p, n);
         }
         p = n;
+    }
+
+    if (a && a->child) {
+        a->child->prev = n;
     }
 
     return a;
@@ -2449,6 +2676,10 @@ CJSON_PUBLIC(kJSON *) kJSON_CreateFloatArray(const float *numbers, int count)
         p = n;
     }
 
+    if (a && a->child) {
+        a->child->prev = n;
+    }
+
     return a;
 }
 
@@ -2466,7 +2697,7 @@ CJSON_PUBLIC(kJSON *) kJSON_CreateDoubleArray(const double *numbers, int count)
 
     a = kJSON_CreateArray();
 
-    for(i = 0;a && (i < (size_t)count); i++)
+    for(i = 0; a && (i < (size_t)count); i++)
     {
         n = kJSON_CreateNumber(numbers[i]);
         if(!n)
@@ -2485,10 +2716,14 @@ CJSON_PUBLIC(kJSON *) kJSON_CreateDoubleArray(const double *numbers, int count)
         p = n;
     }
 
+    if (a && a->child) {
+        a->child->prev = n;
+    }
+
     return a;
 }
 
-CJSON_PUBLIC(kJSON *) kJSON_CreateStringArray(const char **strings, int count)
+CJSON_PUBLIC(kJSON *) kJSON_CreateStringArray(const char *const *strings, int count)
 {
     size_t i = 0;
     kJSON *n = NULL;
@@ -2521,11 +2756,22 @@ CJSON_PUBLIC(kJSON *) kJSON_CreateStringArray(const char **strings, int count)
         p = n;
     }
 
+    if (a && a->child) {
+        a->child->prev = n;
+    }
+
     return a;
 }
 
 /* Duplication */
+kJSON * kJSON_Duplicate_rec(const kJSON *item, size_t depth, kJSON_bool recurse);
+
 CJSON_PUBLIC(kJSON *) kJSON_Duplicate(const kJSON *item, kJSON_bool recurse)
+{
+    return kJSON_Duplicate_rec(item, 0, recurse );
+}
+
+kJSON * kJSON_Duplicate_rec(const kJSON *item, size_t depth, kJSON_bool recurse)
 {
     kJSON *newitem = NULL;
     kJSON *child = NULL;
@@ -2572,7 +2818,10 @@ CJSON_PUBLIC(kJSON *) kJSON_Duplicate(const kJSON *item, kJSON_bool recurse)
     child = item->child;
     while (child != NULL)
     {
-        newchild = kJSON_Duplicate(child, CJSON_TRUE); /* Duplicate (with recurse) each item in the ->next chain */
+        if(depth >= CJSON_CIRCULAR_LIMIT) {
+            goto fail;
+        }
+        newchild = kJSON_Duplicate_rec(child, depth + 1, true); /* Duplicate (with recurse) each item in the ->next chain */
         if (!newchild)
         {
             goto fail;
@@ -2592,6 +2841,10 @@ CJSON_PUBLIC(kJSON *) kJSON_Duplicate(const kJSON *item, kJSON_bool recurse)
         }
         child = child->next;
     }
+    if (newitem && newitem->child)
+    {
+        newitem->child->prev = newchild;
+    }
 
     return newitem;
 
@@ -2604,69 +2857,96 @@ fail:
     return NULL;
 }
 
+static void skip_oneline_comment(char **input)
+{
+    *input += static_strlen("//");
+
+    for (; (*input)[0] != '\0'; ++(*input))
+    {
+        if ((*input)[0] == '\n') {
+            *input += static_strlen("\n");
+            return;
+        }
+    }
+}
+
+static void skip_multiline_comment(char **input)
+{
+    *input += static_strlen("/*");
+
+    for (; (*input)[0] != '\0'; ++(*input))
+    {
+        if (((*input)[0] == '*') && ((*input)[1] == '/'))
+        {
+            *input += static_strlen("*/");
+            return;
+        }
+    }
+}
+
+static void minify_string(char **input, char **output) {
+    (*output)[0] = (*input)[0];
+    *input += static_strlen("\"");
+    *output += static_strlen("\"");
+
+
+    for (; (*input)[0] != '\0'; (void)++(*input), ++(*output)) {
+        (*output)[0] = (*input)[0];
+
+        if ((*input)[0] == '\"') {
+            (*output)[0] = '\"';
+            *input += static_strlen("\"");
+            *output += static_strlen("\"");
+            return;
+        } else if (((*input)[0] == '\\') && ((*input)[1] == '\"')) {
+            (*output)[1] = (*input)[1];
+            *input += static_strlen("\"");
+            *output += static_strlen("\"");
+        }
+    }
+}
+
 CJSON_PUBLIC(void) kJSON_Minify(char *json)
 {
-    unsigned char *into = (unsigned char*)json;
+    char *into = json;
 
     if (json == NULL)
     {
         return;
     }
 
-    while (*json)
+    while (json[0] != '\0')
     {
-        if (*json == ' ')
+        switch (json[0])
         {
-            json++;
-        }
-        else if (*json == '\t')
-        {
-            /* Whitespace characters. */
-            json++;
-        }
-        else if (*json == '\r')
-        {
-            json++;
-        }
-        else if (*json=='\n')
-        {
-            json++;
-        }
-        else if ((*json == '/') && (json[1] == '/'))
-        {
-            /* double-slash comments, to end of line. */
-            while (*json && (*json != '\n'))
-            {
+            case ' ':
+            case '\t':
+            case '\r':
+            case '\n':
                 json++;
-            }
-        }
-        else if ((*json == '/') && (json[1] == '*'))
-        {
-            /* multiline comments. */
-            while (*json && !((*json == '*') && (json[1] == '/')))
-            {
-                json++;
-            }
-            json += 2;
-        }
-        else if (*json == '\"')
-        {
-            /* string literals, which are \" sensitive. */
-            *into++ = (unsigned char)*json++;
-            while (*json && (*json != '\"'))
-            {
-                if (*json == '\\')
+                break;
+
+            case '/':
+                if (json[1] == '/')
                 {
-                    *into++ = (unsigned char)*json++;
+                    skip_oneline_comment(&json);
                 }
-                *into++ = (unsigned char)*json++;
-            }
-            *into++ = (unsigned char)*json++;
-        }
-        else
-        {
-            /* All other characters. */
-            *into++ = (unsigned char)*json++;
+                else if (json[1] == '*')
+                {
+                    skip_multiline_comment(&json);
+                } else {
+                    json++;
+                }
+                break;
+
+            case '\"':
+                minify_string(&json, (char**)&into);
+                break;
+
+            default:
+                into[0] = json[0];
+                json++;
+                into++;
         }
     }
 
@@ -2678,7 +2958,7 @@ CJSON_PUBLIC(kJSON_bool) kJSON_IsInvalid(const kJSON * const item)
 {
     if (item == NULL)
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     return (item->type & 0xFF) == kJSON_Invalid;
@@ -2688,7 +2968,7 @@ CJSON_PUBLIC(kJSON_bool) kJSON_IsFalse(const kJSON * const item)
 {
     if (item == NULL)
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     return (item->type & 0xFF) == kJSON_False;
@@ -2698,7 +2978,7 @@ CJSON_PUBLIC(kJSON_bool) kJSON_IsTrue(const kJSON * const item)
 {
     if (item == NULL)
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     return (item->type & 0xff) == kJSON_True;
@@ -2709,7 +2989,7 @@ CJSON_PUBLIC(kJSON_bool) kJSON_IsBool(const kJSON * const item)
 {
     if (item == NULL)
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     return (item->type & (kJSON_True | kJSON_False)) != 0;
@@ -2718,7 +2998,7 @@ CJSON_PUBLIC(kJSON_bool) kJSON_IsNull(const kJSON * const item)
 {
     if (item == NULL)
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     return (item->type & 0xFF) == kJSON_NULL;
@@ -2728,7 +3008,7 @@ CJSON_PUBLIC(kJSON_bool) kJSON_IsNumber(const kJSON * const item)
 {
     if (item == NULL)
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     return (item->type & 0xFF) == kJSON_Number;
@@ -2738,7 +3018,7 @@ CJSON_PUBLIC(kJSON_bool) kJSON_IsString(const kJSON * const item)
 {
     if (item == NULL)
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     return (item->type & 0xFF) == kJSON_String;
@@ -2748,7 +3028,7 @@ CJSON_PUBLIC(kJSON_bool) kJSON_IsArray(const kJSON * const item)
 {
     if (item == NULL)
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     return (item->type & 0xFF) == kJSON_Array;
@@ -2758,7 +3038,7 @@ CJSON_PUBLIC(kJSON_bool) kJSON_IsObject(const kJSON * const item)
 {
     if (item == NULL)
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     return (item->type & 0xFF) == kJSON_Object;
@@ -2768,7 +3048,7 @@ CJSON_PUBLIC(kJSON_bool) kJSON_IsRaw(const kJSON * const item)
 {
     if (item == NULL)
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     return (item->type & 0xFF) == kJSON_Raw;
@@ -2776,9 +3056,9 @@ CJSON_PUBLIC(kJSON_bool) kJSON_IsRaw(const kJSON * const item)
 
 CJSON_PUBLIC(kJSON_bool) kJSON_Compare(const kJSON * const a, const kJSON * const b, const kJSON_bool case_sensitive)
 {
-    if ((a == NULL) || (b == NULL) || ((a->type & 0xFF) != (b->type & 0xFF)) || kJSON_IsInvalid(a))
+    if ((a == NULL) || (b == NULL) || ((a->type & 0xFF) != (b->type & 0xFF)))
     {
-        return CJSON_FALSE;
+        return false;
     }
 
     /* check if type is valid */
@@ -2795,13 +3075,13 @@ CJSON_PUBLIC(kJSON_bool) kJSON_Compare(const kJSON * const a, const kJSON * cons
             break;
 
         default:
-            return CJSON_FALSE;
+            return false;
     }
 
     /* identical objects are equal */
     if (a == b)
     {
-        return CJSON_TRUE;
+        return true;
     }
 
     switch (a->type & 0xFF)
@@ -2810,27 +3090,27 @@ CJSON_PUBLIC(kJSON_bool) kJSON_Compare(const kJSON * const a, const kJSON * cons
         case kJSON_False:
         case kJSON_True:
         case kJSON_NULL:
-            return CJSON_TRUE;
+            return true;
 
         case kJSON_Number:
-            if (a->valuedouble == b->valuedouble)
+            if (compare_double(a->valuedouble, b->valuedouble))
             {
-                return CJSON_TRUE;
+                return true;
             }
-            return CJSON_FALSE;
+            return false;
 
         case kJSON_String:
         case kJSON_Raw:
             if ((a->valuestring == NULL) || (b->valuestring == NULL))
             {
-                return CJSON_FALSE;
+                return false;
             }
             if (strcmp(a->valuestring, b->valuestring) == 0)
             {
-                return CJSON_TRUE;
+                return true;
             }
 
-            return CJSON_FALSE;
+            return false;
 
         case kJSON_Array:
         {
@@ -2841,7 +3121,7 @@ CJSON_PUBLIC(kJSON_bool) kJSON_Compare(const kJSON * const a, const kJSON * cons
             {
                 if (!kJSON_Compare(a_element, b_element, case_sensitive))
                 {
-                    return CJSON_FALSE;
+                    return false;
                 }
 
                 a_element = a_element->next;
@@ -2850,10 +3130,10 @@ CJSON_PUBLIC(kJSON_bool) kJSON_Compare(const kJSON * const a, const kJSON * cons
 
             /* one of the arrays is longer than the other */
             if (a_element != b_element) {
-                return CJSON_FALSE;
+                return false;
             }
 
-            return CJSON_TRUE;
+            return true;
         }
 
         case kJSON_Object:
@@ -2866,36 +3146,36 @@ CJSON_PUBLIC(kJSON_bool) kJSON_Compare(const kJSON * const a, const kJSON * cons
                 b_element = get_object_item(b, a_element->string, case_sensitive);
                 if (b_element == NULL)
                 {
-                    return CJSON_FALSE;
+                    return false;
                 }
 
                 if (!kJSON_Compare(a_element, b_element, case_sensitive))
                 {
-                    return CJSON_FALSE;
+                    return false;
                 }
             }
 
-            /* doing this twice, once on a and b to prevent CJSON_TRUE comparison if a subset of b
+            /* doing this twice, once on a and b to prevent true comparison if a subset of b
              * TODO: Do this the proper way, this is just a fix for now */
             kJSON_ArrayForEach(b_element, b)
             {
                 a_element = get_object_item(a, b_element->string, case_sensitive);
                 if (a_element == NULL)
                 {
-                    return CJSON_FALSE;
+                    return false;
                 }
 
                 if (!kJSON_Compare(b_element, a_element, case_sensitive))
                 {
-                    return CJSON_FALSE;
+                    return false;
                 }
             }
 
-            return CJSON_TRUE;
+            return true;
         }
 
         default:
-            return CJSON_FALSE;
+            return false;
     }
 }
 
@@ -2907,4 +3187,5 @@ CJSON_PUBLIC(void *) kJSON_malloc(size_t size)
 CJSON_PUBLIC(void) kJSON_free(void *object)
 {
     global_hooks.deallocate(object);
+    object = NULL;
 }
