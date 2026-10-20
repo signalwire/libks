@@ -597,6 +597,7 @@ static kJSON_bool print_number(const kJSON * const item, printbuffer * const out
     unsigned char number_buffer[26] = {0}; /* temporary buffer to print the number into */
     unsigned char decimal_point = get_decimal_point();
     double test = 0.0;
+    double integral = 0.0;
 
     if (output_buffer == NULL)
     {
@@ -611,6 +612,16 @@ static kJSON_bool print_number(const kJSON * const item, printbuffer * const out
     else if(d == (double)item->valueint)
     {
         length = sprintf((char*)number_buffer, "%d", item->valueint);
+    }
+    else if (modf(d, &integral) != 0.0)
+    {
+        /* Non-integral values print with six decimals; they are below 2^52, so at most 24 chars */
+        length = sprintf((char*)number_buffer, "%lf", d);
+    }
+    else if ((d >= (double)LLONG_MIN) && (d < -(double)LLONG_MIN))
+    {
+        /* Integral values in long long range print in full, without exponent */
+        length = sprintf((char*)number_buffer, "%lld", (long long)d);
     }
     else
     {
