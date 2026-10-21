@@ -211,6 +211,56 @@ KS_DECLARE(void) ks_json_delete_item_from_object(ks_json_t *obj, const char *key
 	kJSON_DeleteItemFromObject(obj, key);
 }
 
+/* Unlike kJSON_ReplaceItemViaPointer(), which leaves the replacement's key as it is, the replacement takes over the replaced item's key */
+KS_DECLARE(ks_bool_t) ks_json_replace_item(ks_json_t *parent, ks_json_t **item, ks_json_t *replacement)
+{
+	ks_json_t *old;
+	char *key = NULL;
+
+	if (!item || !*item) {
+		return KS_FALSE;
+	}
+
+	old = *item;
+
+	/* Object children carry their key over; array children have none, so the replacement keeps its own */
+	if (replacement != old && old->string) {
+		size_t len = strlen(old->string) + 1;
+
+		if (!(key = kJSON_malloc(len))) {
+			return KS_FALSE;
+		}
+
+		memcpy(key, old->string, len);
+	}
+
+	if (!kJSON_ReplaceItemViaPointer(parent, old, replacement)) {
+		if (key) {
+			kJSON_free(key);
+		}
+
+		return KS_FALSE;
+	}
+
+	if (key) {
+		if (replacement->string && !(replacement->type & kJSON_StringIsConst)) {
+			kJSON_free(replacement->string);
+		}
+
+		replacement->string = key;
+		replacement->type &= ~kJSON_StringIsConst;
+	}
+
+	*item = NULL;
+
+	return KS_TRUE;
+}
+
+KS_DECLARE(ks_json_t *) ks_json_detach_item_via_pointer(ks_json_t *parent, ks_json_t *item)
+{
+	return kJSON_DetachItemViaPointer(parent, item);
+}
+
 // Get apis
 KS_DECLARE(ks_json_t *) ks_json_get_array_item(ks_json_t *array, int index)
 {
