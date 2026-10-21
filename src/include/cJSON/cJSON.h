@@ -20,75 +20,21 @@
   THE SOFTWARE.
 */
 
-#ifndef cJSON__h
-#define cJSON__h
+#ifndef kJSON__h
+#define kJSON__h
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-/* project version */
-#define CJSON_VERSION_MAJOR 1
-#define CJSON_VERSION_MINOR 7
-#define CJSON_VERSION_PATCH 6
-
-#include <stddef.h>
-
-/* kJSON Types: */
-typedef enum {
-	kJSON_Invalid = (0),
-	kJSON_False   =  (1 << 0),
-	kJSON_True    =  (1 << 1),
-	kJSON_NULL    =  (1 << 2),
-	kJSON_Number  = (1 << 3),
-	kJSON_String  = (1 << 4),
-	kJSON_Array   = (1 << 5),
-	kJSON_Object  = (1 << 6),
-	kJSON_Raw     = (1 << 7) /* raw json */
-} kJSON_TYPES;
-
-#define kJSON_IsReference 256
-#define kJSON_StringIsConst 512
-
-/* The kJSON structure: */
-typedef struct kJSON
-{
-    /* next/prev allow you to walk array/object chains. Alternatively, use GetArraySize/GetArrayItem/GetObjectItem */
-    struct kJSON *next;
-    struct kJSON *prev;
-    /* An array or object item will have a child pointer pointing to a chain of the items in the array/object. */
-    struct kJSON *child;
-
-    /* The type of the item, as above. */
-    kJSON_TYPES type;
-
-    /* The item's string, if type==kJSON_String  and type == kJSON_Raw */
-    char *valuestring;
-    /* writing to valueint is DEPRECATED, use kJSON_SetNumberValue instead */
-    int valueint;
-    /* The item's number, if type==kJSON_Number */
-    double valuedouble;
-
-    /* The item's name string, if this item is the child of, or is in the list of subitems of an object. */
-    char *string;
-} kJSON;
-
-typedef struct kJSON_Hooks
-{
-      void *(*malloc_fn)(size_t sz);
-      void (*free_fn)(void *ptr);
-      void *(*realloc_fn)(void *, size_t sz);
-} kJSON_Hooks;
-
-typedef int kJSON_bool;
-
 #if !defined(__WINDOWS__) && (defined(WIN32) || defined(WIN64) || defined(_MSC_VER) || defined(_WIN32))
 #define __WINDOWS__
 #endif
+
 #ifdef __WINDOWS__
 
-/* When compiling for windows, we specify a specific calling convention to avoid issues where we are being called from a project with a different default calling convention.  For windows you have 2 define options:
+/* When compiling for windows, we specify a specific calling convention to avoid issues where we are being called from a project with a different default calling convention.  For windows you have 3 define options:
 
 CJSON_HIDE_SYMBOLS - Define this in the case where you don't want to ever dllexport symbols
 CJSON_EXPORT_SYMBOLS - Define this on library build when you want to dllexport symbols (default)
@@ -106,19 +52,25 @@ then using the CJSON_API_VISIBILITY flag to "export" the same symbols the way CJ
 
 */
 
+#define CJSON_CDECL __cdecl
+#define CJSON_STDCALL __stdcall
+
 /* export symbols by default, this is necessary for copy pasting the C and header file */
 #if !defined(CJSON_HIDE_SYMBOLS) && !defined(CJSON_IMPORT_SYMBOLS) && !defined(CJSON_EXPORT_SYMBOLS)
 #define CJSON_EXPORT_SYMBOLS
 #endif
 
 #if defined(CJSON_HIDE_SYMBOLS)
-#define CJSON_PUBLIC(type)   type __stdcall
+#define CJSON_PUBLIC(type)   type CJSON_STDCALL
 #elif defined(CJSON_EXPORT_SYMBOLS)
-#define CJSON_PUBLIC(type)   __declspec(dllexport) type __stdcall
+#define CJSON_PUBLIC(type)   __declspec(dllexport) type CJSON_STDCALL
 #elif defined(CJSON_IMPORT_SYMBOLS)
-#define CJSON_PUBLIC(type)   __declspec(dllimport) type __stdcall
+#define CJSON_PUBLIC(type)   __declspec(dllimport) type CJSON_STDCALL
 #endif
-#else /* !WIN32 */
+#else /* !__WINDOWS__ */
+#define CJSON_CDECL
+#define CJSON_STDCALL
+
 #if (defined(__GNUC__) || defined(__SUNPRO_CC) || defined (__SUNPRO_C)) && defined(CJSON_API_VISIBILITY)
 #define CJSON_PUBLIC(type)   __attribute__((visibility("default"))) type
 #else
@@ -126,10 +78,69 @@ then using the CJSON_API_VISIBILITY flag to "export" the same symbols the way CJ
 #endif
 #endif
 
+/* project version */
+#define CJSON_VERSION_MAJOR 1
+#define CJSON_VERSION_MINOR 7
+#define CJSON_VERSION_PATCH 19
+
+#include <stddef.h>
+
+/* kJSON Types: */
+#define kJSON_Invalid (0)
+#define kJSON_False  (1 << 0)
+#define kJSON_True   (1 << 1)
+#define kJSON_NULL   (1 << 2)
+#define kJSON_Number (1 << 3)
+#define kJSON_String (1 << 4)
+#define kJSON_Array  (1 << 5)
+#define kJSON_Object (1 << 6)
+#define kJSON_Raw    (1 << 7) /* raw json */
+
+#define kJSON_IsReference 256
+#define kJSON_StringIsConst 512
+
+/* The kJSON structure: */
+typedef struct kJSON
+{
+    /* next/prev allow you to walk array/object chains. Alternatively, use GetArraySize/GetArrayItem/GetObjectItem */
+    struct kJSON *next;
+    struct kJSON *prev;
+    /* An array or object item will have a child pointer pointing to a chain of the items in the array/object. */
+    struct kJSON *child;
+
+    /* The type of the item, as above. */
+    int type;
+
+    /* The item's string, if type==kJSON_String  and type == kJSON_Raw */
+    char *valuestring;
+    /* writing to valueint is DEPRECATED, use kJSON_SetNumberValue instead */
+    int valueint;
+    /* The item's number, if type==kJSON_Number */
+    double valuedouble;
+
+    /* The item's name string, if this item is the child of, or is in the list of subitems of an object. */
+    char *string;
+} kJSON;
+
+typedef struct kJSON_Hooks
+{
+      /* malloc/free are CDECL on Windows regardless of the default calling convention of the compiler, so ensure the hooks allow passing those functions directly. */
+      void *(CJSON_CDECL *malloc_fn)(size_t sz);
+      void (CJSON_CDECL *free_fn)(void *ptr);
+} kJSON_Hooks;
+
+typedef int kJSON_bool;
+
 /* Limits how deeply nested arrays/objects can be before kJSON rejects to parse them.
  * This is to prevent stack overflows. */
 #ifndef CJSON_NESTING_LIMIT
 #define CJSON_NESTING_LIMIT 1000
+#endif
+
+/* Limits the length of circular references can be before kJSON rejects to parse them.
+ * This is to prevent stack overflows. */
+#ifndef CJSON_CIRCULAR_LIMIT
+#define CJSON_CIRCULAR_LIMIT 10000
 #endif
 
 /* returns the version of kJSON as a string */
@@ -141,9 +152,11 @@ CJSON_PUBLIC(void) kJSON_InitHooks(kJSON_Hooks* hooks);
 /* Memory Management: the caller is always responsible to free the results from all variants of kJSON_Parse (with kJSON_Delete) and kJSON_Print (with stdlib free, kJSON_Hooks.free_fn, or kJSON_free as appropriate). The exception is kJSON_PrintPreallocated, where the caller has full responsibility of the buffer. */
 /* Supply a block of JSON, and this returns a kJSON object you can interrogate. */
 CJSON_PUBLIC(kJSON *) kJSON_Parse(const char *value);
+CJSON_PUBLIC(kJSON *) kJSON_ParseWithLength(const char *value, size_t buffer_length);
 /* ParseWithOpts allows you to require (and check) that the JSON is null terminated, and to retrieve the pointer to the final byte parsed. */
 /* If you supply a ptr in return_parse_end and parsing fails, then return_parse_end will contain a pointer to the error so will match kJSON_GetErrorPtr(). */
 CJSON_PUBLIC(kJSON *) kJSON_ParseWithOpts(const char *value, const char **return_parse_end, kJSON_bool require_null_terminated);
+CJSON_PUBLIC(kJSON *) kJSON_ParseWithLengthOpts(const char *value, size_t buffer_length, const char **return_parse_end, kJSON_bool require_null_terminated);
 
 /* Render a kJSON entity to text for transfer/storage. */
 CJSON_PUBLIC(char *) kJSON_Print(const kJSON *item);
@@ -155,7 +168,7 @@ CJSON_PUBLIC(char *) kJSON_PrintBuffered(const kJSON *item, int prebuffer, kJSON
 /* NOTE: kJSON is not always 100% accurate in estimating how much memory it will use, so to be safe allocate 5 bytes more than you actually need */
 CJSON_PUBLIC(kJSON_bool) kJSON_PrintPreallocated(kJSON *item, char *buffer, const int length, const kJSON_bool format);
 /* Delete a kJSON entity and all subentities. */
-CJSON_PUBLIC(void) kJSON_Delete(kJSON *c);
+CJSON_PUBLIC(void) kJSON_Delete(kJSON *item);
 
 /* Returns the number of items in an array (or object). */
 CJSON_PUBLIC(int) kJSON_GetArraySize(const kJSON *array);
@@ -168,8 +181,9 @@ CJSON_PUBLIC(kJSON_bool) kJSON_HasObjectItem(const kJSON *object, const char *st
 /* For analysing failed parses. This returns a pointer to the parse error. You'll probably need to look a few chars back to make sense of it. Defined when kJSON_Parse() returns 0. 0 when kJSON_Parse() succeeds. */
 CJSON_PUBLIC(const char *) kJSON_GetErrorPtr(void);
 
-/* Check if the item is a string and return its valuestring */
-CJSON_PUBLIC(char *) kJSON_GetStringValue(kJSON *item);
+/* Check item type and return its value */
+CJSON_PUBLIC(char *) kJSON_GetStringValue(const kJSON * const item);
+CJSON_PUBLIC(double) kJSON_GetNumberValue(const kJSON * const item);
 
 /* These functions check the type of an item */
 CJSON_PUBLIC(kJSON_bool) kJSON_IsInvalid(const kJSON * const item);
@@ -198,29 +212,30 @@ CJSON_PUBLIC(kJSON *) kJSON_CreateObject(void);
 /* Create a string where valuestring references a string so
  * it will not be freed by kJSON_Delete */
 CJSON_PUBLIC(kJSON *) kJSON_CreateStringReference(const char *string);
-/* Create an object/arrray that only references it's elements so
+/* Create an object/array that only references it's elements so
  * they will not be freed by kJSON_Delete */
 CJSON_PUBLIC(kJSON *) kJSON_CreateObjectReference(const kJSON *child);
 CJSON_PUBLIC(kJSON *) kJSON_CreateArrayReference(const kJSON *child);
 
-/* These utilities create an Array of count items. */
+/* These utilities create an Array of count items.
+ * The parameter count cannot be greater than the number of elements in the number array, otherwise array access will be out of bounds.*/
 CJSON_PUBLIC(kJSON *) kJSON_CreateIntArray(const int *numbers, int count);
 CJSON_PUBLIC(kJSON *) kJSON_CreateFloatArray(const float *numbers, int count);
 CJSON_PUBLIC(kJSON *) kJSON_CreateDoubleArray(const double *numbers, int count);
-CJSON_PUBLIC(kJSON *) kJSON_CreateStringArray(const char **strings, int count);
+CJSON_PUBLIC(kJSON *) kJSON_CreateStringArray(const char *const *strings, int count);
 
 /* Append item to the specified array/object. */
-CJSON_PUBLIC(void) kJSON_AddItemToArray(kJSON *array, kJSON *item);
-CJSON_PUBLIC(void) kJSON_AddItemToObject(kJSON *object, const char *string, kJSON *item);
+CJSON_PUBLIC(kJSON_bool) kJSON_AddItemToArray(kJSON *array, kJSON *item);
+CJSON_PUBLIC(kJSON_bool) kJSON_AddItemToObject(kJSON *object, const char *string, kJSON *item);
 /* Use this when string is definitely const (i.e. a literal, or as good as), and will definitely survive the kJSON object.
  * WARNING: When this function was used, make sure to always check that (item->type & kJSON_StringIsConst) is zero before
  * writing to `item->string` */
-CJSON_PUBLIC(void) kJSON_AddItemToObjectCS(kJSON *object, const char *string, kJSON *item);
+CJSON_PUBLIC(kJSON_bool) kJSON_AddItemToObjectCS(kJSON *object, const char *string, kJSON *item);
 /* Append reference to item to the specified array/object. Use this when you want to add an existing kJSON to a new kJSON, but don't want to corrupt your existing kJSON. */
-CJSON_PUBLIC(void) kJSON_AddItemReferenceToArray(kJSON *array, kJSON *item);
-CJSON_PUBLIC(void) kJSON_AddItemReferenceToObject(kJSON *object, const char *string, kJSON *item);
+CJSON_PUBLIC(kJSON_bool) kJSON_AddItemReferenceToArray(kJSON *array, kJSON *item);
+CJSON_PUBLIC(kJSON_bool) kJSON_AddItemReferenceToObject(kJSON *object, const char *string, kJSON *item);
 
-/* Remove/Detatch items from Arrays/Objects. */
+/* Remove/Detach items from Arrays/Objects. */
 CJSON_PUBLIC(kJSON *) kJSON_DetachItemViaPointer(kJSON *parent, kJSON * const item);
 CJSON_PUBLIC(kJSON *) kJSON_DetachItemFromArray(kJSON *array, int which);
 CJSON_PUBLIC(void) kJSON_DeleteItemFromArray(kJSON *array, int which);
@@ -230,22 +245,24 @@ CJSON_PUBLIC(void) kJSON_DeleteItemFromObject(kJSON *object, const char *string)
 CJSON_PUBLIC(void) kJSON_DeleteItemFromObjectCaseSensitive(kJSON *object, const char *string);
 
 /* Update array items. */
-CJSON_PUBLIC(void) kJSON_InsertItemInArray(kJSON *array, int which, kJSON *newitem); /* Shifts pre-existing items to the right. */
+CJSON_PUBLIC(kJSON_bool) kJSON_InsertItemInArray(kJSON *array, int which, kJSON *newitem); /* Shifts pre-existing items to the right. */
 CJSON_PUBLIC(kJSON_bool) kJSON_ReplaceItemViaPointer(kJSON * const parent, kJSON * const item, kJSON * replacement);
-CJSON_PUBLIC(void) kJSON_ReplaceItemInArray(kJSON *array, int which, kJSON *newitem);
-CJSON_PUBLIC(void) kJSON_ReplaceItemInObject(kJSON *object,const char *string,kJSON *newitem);
-CJSON_PUBLIC(void) kJSON_ReplaceItemInObjectCaseSensitive(kJSON *object,const char *string,kJSON *newitem);
+CJSON_PUBLIC(kJSON_bool) kJSON_ReplaceItemInArray(kJSON *array, int which, kJSON *newitem);
+CJSON_PUBLIC(kJSON_bool) kJSON_ReplaceItemInObject(kJSON *object,const char *string,kJSON *newitem);
+CJSON_PUBLIC(kJSON_bool) kJSON_ReplaceItemInObjectCaseSensitive(kJSON *object,const char *string,kJSON *newitem);
 
 /* Duplicate a kJSON item */
 CJSON_PUBLIC(kJSON *) kJSON_Duplicate(const kJSON *item, kJSON_bool recurse);
 /* Duplicate will create a new, identical kJSON item to the one you pass, in new memory that will
-need to be released. With recurse!=0, it will duplicate any children connected to the item.
-The item->next and ->prev pointers are always zero on return from Duplicate. */
+ * need to be released. With recurse!=0, it will duplicate any children connected to the item.
+ * The item->next and ->prev pointers are always zero on return from Duplicate. */
 /* Recursively compare two kJSON items for equality. If either a or b is NULL or invalid, they will be considered unequal.
  * case_sensitive determines if object keys are treated case sensitive (1) or case insensitive (0) */
 CJSON_PUBLIC(kJSON_bool) kJSON_Compare(const kJSON * const a, const kJSON * const b, const kJSON_bool case_sensitive);
 
-
+/* Minify a strings, remove blank characters(such as ' ', '\t', '\r', '\n') from strings.
+ * The input pointer json cannot point to a read-only address area, such as a string constant, 
+ * but should point to a readable and writable address area. */
 CJSON_PUBLIC(void) kJSON_Minify(char *json);
 
 /* Helper functions for creating and adding items to an object at the same time.
@@ -265,6 +282,15 @@ CJSON_PUBLIC(kJSON*) kJSON_AddArrayToObject(kJSON * const object, const char * c
 /* helper for the kJSON_SetNumberValue macro */
 CJSON_PUBLIC(double) kJSON_SetNumberHelper(kJSON *object, double number);
 #define kJSON_SetNumberValue(object, number) ((object != NULL) ? kJSON_SetNumberHelper(object, (double)number) : (number))
+/* Change the valuestring of a kJSON_String object, only takes effect when type of object is kJSON_String */
+CJSON_PUBLIC(char*) kJSON_SetValuestring(kJSON *object, const char *valuestring);
+
+/* If the object is not a boolean type this does nothing and returns kJSON_Invalid else it returns the new type*/
+#define kJSON_SetBoolValue(object, boolValue) ( \
+    (object != NULL && ((object)->type & (kJSON_False|kJSON_True))) ? \
+    (object)->type=((object)->type &(~(kJSON_False|kJSON_True)))|((boolValue)?kJSON_True:kJSON_False) : \
+    kJSON_Invalid\
+)
 
 /* Macro for iterating over an array or object */
 #define kJSON_ArrayForEach(element, array) for(element = (array != NULL) ? (array)->child : NULL; element != NULL; element = element->next)
