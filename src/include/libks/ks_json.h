@@ -73,6 +73,27 @@ KS_DECLARE(void) ks_json_delete(ks_json_t **c);
 KS_DECLARE(void) ks_json_delete_item_from_array(ks_json_t *array, int index);
 KS_DECLARE(void) ks_json_delete_item_from_object(ks_json_t *object, const char * const key);
 
+/* Let consumers detect ks_json_replace_item() and ks_json_detach_item_via_pointer() at build time */
+#define HAVE_KS_JSON_REPLACE_ITEM 1
+#define HAVE_KS_JSON_DETACH_ITEM_VIA_POINTER 1
+
+/*!
+  \brief Replace a child of an array or object with a new item, keeping its position and key
+  \param parent the array or object holding *item
+  \param item the child to replace; deleted and set to NULL on success
+  \param replacement a detached item; owned by parent on success, left untouched on failure
+  \return KS_TRUE on success (including replacement == *item, where only *item is set to NULL), KS_FALSE on NULL arguments, an empty parent or allocation failure
+*/
+KS_DECLARE(ks_bool_t) ks_json_replace_item(ks_json_t *parent, ks_json_t **item, ks_json_t *replacement);
+
+/*!
+  \brief Unlink a child from its array or object without deleting it
+  \param parent the array or object holding item
+  \param item a child of parent
+  \return item, now owned by the caller, or NULL if an argument is NULL or item is already detached
+*/
+KS_DECLARE(ks_json_t *) ks_json_detach_item_via_pointer(ks_json_t *parent, ks_json_t *item);
+
 KS_DECLARE(ks_json_t *) ks_json_get_object_item(ks_json_t *object, const char *string);
 KS_DECLARE(ks_bool_t) ks_json_get_object_bool(ks_json_t *object, const char *string, ks_bool_t def);
 KS_DECLARE(const char *) ks_json_get_object_string(ks_json_t *object, const char *key, const char *def);

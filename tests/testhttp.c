@@ -47,7 +47,7 @@ typedef struct ssl_profile_s {
 
 static int init_ssl(ssl_profile_t *profile)
 {
-	const char *err = "";
+	const char *err;
 
 	profile->ssl_ctx = SSL_CTX_new(profile->ssl_method);         /* create context */
 	assert(profile->ssl_ctx);

@@ -28,6 +28,8 @@ KS_BEGIN_EXTERN_C
 
 static const ks_port_t KS_HEPV3_DEFAULT_PORT = 9062; /* TCP */
 static const uint32_t KS_HEPV3_DEFAULT_NODE_ID = 200;
+/* Longest correlation id or node name sent; a longer value is not sent at all */
+static const size_t KS_HEPV3_MAX_STRING_CHUNK_LEN = 1024;
 
 typedef enum {
 	KS_HEPV3_DIR_SEND = 0,
@@ -45,6 +47,10 @@ typedef struct {
 	uint8_t protocol_type_id;
 	char *payload;
 	size_t payload_size;
+	/* Optional, generic chunk 0x0011: internal correlation id */
+	const char *correlation_id;
+	/* Optional, generic chunk 0x0013: capture agent name */
+	const char *node_name;
 } ks_hepv3_capture_params_t;
 
 typedef struct {
@@ -59,6 +65,15 @@ typedef struct ks_hepv3_socket_s ks_hepv3_socket_t;
 KS_DECLARE(ks_status_t) ks_hepv3_socket_init(ks_hepv3_socket_params_t *params, ks_hepv3_socket_t **out_hep_socketP);
 KS_DECLARE(void) ks_hepv3_socket_destroy(ks_hepv3_socket_t **hep_socketP);
 KS_DECLARE(ks_status_t) ks_hepv3_socket_write(ks_hepv3_socket_t *hepv3_socket, void *data, ks_size_t *bytes);
+
+/**
+ * Builds a HEPv3 packet. A payload that does not fit the 65535 octet packet is truncated.
+ * A NULL or unparsable local_ip / remote_ip is sent as the unspecified address.
+ * A NULL or empty correlation_id / node_name is not sent.
+ * @param hep_params  capture parameters, payload must not be empty
+ * @param out_buffer  receives the packet, to be released with free()
+ * @return packet length, 0 on error
+ */
 KS_DECLARE(ks_size_t) ks_hepv3_capture_create(const ks_hepv3_capture_params_t *hep_params, char **out_buffer);
 
 KS_END_EXTERN_C

@@ -39,6 +39,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <limits.h>
+#include <math.h>
+#include <float.h>
+#include <math.h>
 
 #if defined(_MSC_VER)
 #pragma warning (pop)
@@ -50,8 +53,15 @@
 #include "cJSON_Utils.h"
 
 /* define our own boolean type */
-#define kJSON_TRUE ((kJSON_bool)1)
-#define kJSON_FALSE ((kJSON_bool)0)
+#ifdef true
+#undef true
+#endif
+#define true ((kJSON_bool)1)
+
+#ifdef false
+#undef false
+#endif
+#define false ((kJSON_bool)0)
 
 static unsigned char* kJSONUtils_strdup(const unsigned char* const string)
 {
@@ -98,12 +108,20 @@ static int compare_strings(const unsigned char *string1, const unsigned char *st
     return tolower(*string1) - tolower(*string2);
 }
 
+/* securely comparison of floating-point variables */
+static kJSON_bool compare_double(double a, double b)
+{
+    double maxVal = fabs(a) > fabs(b) ? fabs(a) : fabs(b);
+    return (fabs(a - b) <= maxVal * DBL_EPSILON);
+}
+
+
 /* Compare the next path element of two JSON pointers, two NULL pointers are considered unequal: */
 static kJSON_bool compare_pointers(const unsigned char *name, const unsigned char *pointer, const kJSON_bool case_sensitive)
 {
     if ((name == NULL) || (pointer == NULL))
     {
-        return kJSON_FALSE;
+        return false;
     }
 
     for (; (*name != '\0') && (*pointer != '\0') && (*pointer != '/'); (void)name++, pointer++) /* compare until next '/' */
@@ -114,7 +132,7 @@ static kJSON_bool compare_pointers(const unsigned char *name, const unsigned cha
             if (((pointer[1] != '0') || (*name != '~')) && ((pointer[1] != '1') || (*name != '/')))
             {
                 /* invalid escape sequence or wrong character in *name */
-                return kJSON_FALSE;
+                return false;
             }
             else
             {
@@ -123,16 +141,16 @@ static kJSON_bool compare_pointers(const unsigned char *name, const unsigned cha
         }
         else if ((!case_sensitive && (tolower(*name) != tolower(*pointer))) || (case_sensitive && (*name != *pointer)))
         {
-            return kJSON_FALSE;
+            return false;
         }
     }
     if (((*pointer != 0) && (*pointer != '/')) != (*name != 0))
     {
         /* one string has ended, the other not */
-        return kJSON_FALSE;;
+        return false;;
     }
 
-    return kJSON_TRUE;
+    return true;
 }
 
 /* calculate the length of a string if encoded as JSON pointer with ~0 and ~1 escape sequences */
@@ -158,13 +176,14 @@ static void encode_string_as_pointer(unsigned char *destination, const unsigned 
     {
         if (source[0] == '/')
         {
+            destination[0] = '~';
             destination[1] = '1';
             destination++;
         }
         else if (source[0] == '~')
         {
             destination[0] = '~';
-            destination[1] = '1';
+            destination[1] = '0';
             destination++;
         }
         else
@@ -209,6 +228,7 @@ CJSON_PUBLIC(char *) kJSONUtils_FindPointerFromObjectTo(const kJSON * const obje
                 if (child_index > ULONG_MAX)
                 {
                     kJSON_free(target_pointer);
+                    kJSON_free(full_pointer);
                     return NULL;
                 }
                 sprintf((char*)full_pointer, "/%lu%s", (unsigned long)child_index, target_pointer); /* /<array_index><path> */
@@ -262,7 +282,7 @@ static kJSON_bool decode_array_index_from_pointer(const unsigned char * const po
         return 0;
     }
 
-    for (position = 0; (pointer[position] >= '0') && (pointer[0] <= '9'); position++)
+    for (position = 0; (pointer[position] >= '0') && (pointer[position] <= '9'); position++)
     {
         parsed_index = (10 * parsed_index) + (size_t)(pointer[position] - '0');
 
@@ -327,12 +347,12 @@ static kJSON *get_item_from_pointer(kJSON * const object, const char * pointer, 
 
 CJSON_PUBLIC(kJSON *) kJSONUtils_GetPointer(kJSON * const object, const char *pointer)
 {
-    return get_item_from_pointer(object, pointer, kJSON_FALSE);
+    return get_item_from_pointer(object, pointer, false);
 }
 
 CJSON_PUBLIC(kJSON *) kJSONUtils_GetPointerCaseSensitive(kJSON * const object, const char *pointer)
 {
-    return get_item_from_pointer(object, pointer, kJSON_TRUE);
+    return get_item_from_pointer(object, pointer, true);
 }
 
 /* JSON Patch implementation. */
@@ -383,7 +403,7 @@ static kJSON *detach_item_from_array(kJSON *array, size_t which)
         /* item doesn't exist */
         return NULL;
     }
-    if (c->prev)
+    if (c != array->child)
     {
         /* not the first element */
         c->prev->next = c->next;
@@ -392,9 +412,13 @@ static kJSON *detach_item_from_array(kJSON *array, size_t which)
     {
         c->next->prev = c->prev;
     }
-    if (c==array->child)
+    if (c == array->child)
     {
         array->child = c->next;
+    }
+    else if (c->next == NULL)
+    {
+        array->child->prev = c->prev;
     }
     /* make sure the detached item doesn't point anywhere anymore */
     c->prev = c->next = NULL;
@@ -499,6 +523,7 @@ static kJSON *sort_list(kJSON *list, const kJSON_bool case_sensitive)
     {
         /* Split the lists */
         second->prev->next = NULL;
+        second->prev = NULL;
     }
 
     /* Recursively sort the sub-lists. */
@@ -510,7 +535,7 @@ static kJSON *sort_list(kJSON *list, const kJSON_bool case_sensitive)
     while ((first != NULL) && (second != NULL))
     {
         kJSON *smaller = NULL;
-        if (compare_strings((unsigned char*)first->string, (unsigned char*)second->string, kJSON_FALSE) < 0)
+        if (compare_strings((unsigned char*)first->string, (unsigned char*)second->string, case_sensitive) < 0)
         {
             smaller = first;
         }
@@ -581,30 +606,30 @@ static kJSON_bool compare_json(kJSON *a, kJSON *b, const kJSON_bool case_sensiti
     if ((a == NULL) || (b == NULL) || ((a->type & 0xFF) != (b->type & 0xFF)))
     {
         /* mismatched type. */
-        return kJSON_FALSE;
+        return false;
     }
     switch (a->type & 0xFF)
     {
         case kJSON_Number:
             /* numeric mismatch. */
-            if ((a->valueint != b->valueint) || (a->valuedouble != b->valuedouble))
+            if ((a->valueint != b->valueint) || (!compare_double(a->valuedouble, b->valuedouble)))
             {
-                return kJSON_FALSE;
+                return false;
             }
             else
             {
-                return kJSON_TRUE;
+                return true;
             }
 
         case kJSON_String:
             /* string mismatch. */
             if (strcmp(a->valuestring, b->valuestring) != 0)
             {
-                return kJSON_FALSE;
+                return false;
             }
             else
             {
-                return kJSON_TRUE;
+                return true;
             }
 
         case kJSON_Array:
@@ -613,18 +638,18 @@ static kJSON_bool compare_json(kJSON *a, kJSON *b, const kJSON_bool case_sensiti
                 kJSON_bool identical = compare_json(a, b, case_sensitive);
                 if (!identical)
                 {
-                    return kJSON_FALSE;
+                    return false;
                 }
             }
 
             /* array size mismatch? (one of both children is not NULL) */
             if ((a != NULL) || (b != NULL))
             {
-                return kJSON_FALSE;
+                return false;
             }
             else
             {
-                return kJSON_TRUE;
+                return true;
             }
 
         case kJSON_Object:
@@ -632,36 +657,36 @@ static kJSON_bool compare_json(kJSON *a, kJSON *b, const kJSON_bool case_sensiti
             sort_object(b, case_sensitive);
             for ((void)(a = a->child), b = b->child; (a != NULL) && (b != NULL); (void)(a = a->next), b = b->next)
             {
-                kJSON_bool identical = kJSON_FALSE;
+                kJSON_bool identical = false;
                 /* compare object keys */
                 if (compare_strings((unsigned char*)a->string, (unsigned char*)b->string, case_sensitive))
                 {
                     /* missing member */
-                    return kJSON_FALSE;
+                    return false;
                 }
                 identical = compare_json(a, b, case_sensitive);
                 if (!identical)
                 {
-                    return kJSON_FALSE;
+                    return false;
                 }
             }
 
             /* object length mismatch (one of both children is not null) */
             if ((a != NULL) || (b != NULL))
             {
-                return kJSON_FALSE;
+                return false;
             }
             else
             {
-                return kJSON_TRUE;
+                return true;
             }
 
         default:
             break;
     }
 
-    /* null, kJSON_TRUE or kJSON_FALSE */
-    return kJSON_TRUE;
+    /* null, true or false */
+    return true;
 }
 
 /* non broken version of kJSON_InsertItemInArray */
@@ -935,7 +960,9 @@ static int apply_patch(kJSON *object, const kJSON *patch, const kJSON_bool case_
 
     /* split pointer in parent and child */
     parent_pointer = kJSONUtils_strdup((unsigned char*)path->valuestring);
-    child_pointer = (unsigned char*)strrchr((char*)parent_pointer, '/');
+    if (parent_pointer) {
+        child_pointer = (unsigned char*)strrchr((char*)parent_pointer, '/');
+    }
     if (child_pointer != NULL)
     {
         child_pointer[0] = '\0';
@@ -1026,7 +1053,7 @@ CJSON_PUBLIC(int) kJSONUtils_ApplyPatches(kJSON * const object, const kJSON * co
 
     while (current_patch != NULL)
     {
-        status = apply_patch(object, current_patch, kJSON_FALSE);
+        status = apply_patch(object, current_patch, false);
         if (status != 0)
         {
             return status;
@@ -1055,7 +1082,7 @@ CJSON_PUBLIC(int) kJSONUtils_ApplyPatchesCaseSensitive(kJSON * const object, con
 
     while (current_patch != NULL)
     {
-        status = apply_patch(object, current_patch, kJSON_TRUE);
+        status = apply_patch(object, current_patch, true);
         if (status != 0)
         {
             return status;
@@ -1127,7 +1154,7 @@ static void create_patches(kJSON * const patches, const unsigned char * const pa
     switch (from->type & 0xFF)
     {
         case kJSON_Number:
-            if ((from->valueint != to->valueint) || (from->valuedouble != to->valuedouble))
+            if ((from->valueint != to->valueint) || !compare_double(from->valuedouble, to->valuedouble))
             {
                 compose_patch(patches, (const unsigned char*)"replace", path, NULL, to);
             }
@@ -1261,7 +1288,7 @@ CJSON_PUBLIC(kJSON *) kJSONUtils_GeneratePatches(kJSON * const from, kJSON * con
     }
 
     patches = kJSON_CreateArray();
-    create_patches(patches, (const unsigned char*)"", from, to, kJSON_FALSE);
+    create_patches(patches, (const unsigned char*)"", from, to, false);
 
     return patches;
 }
@@ -1276,19 +1303,19 @@ CJSON_PUBLIC(kJSON *) kJSONUtils_GeneratePatchesCaseSensitive(kJSON * const from
     }
 
     patches = kJSON_CreateArray();
-    create_patches(patches, (const unsigned char*)"", from, to, kJSON_TRUE);
+    create_patches(patches, (const unsigned char*)"", from, to, true);
 
     return patches;
 }
 
 CJSON_PUBLIC(void) kJSONUtils_SortObject(kJSON * const object)
 {
-    sort_object(object, kJSON_FALSE);
+    sort_object(object, false);
 }
 
 CJSON_PUBLIC(void) kJSONUtils_SortObjectCaseSensitive(kJSON * const object)
 {
-    sort_object(object, kJSON_TRUE);
+    sort_object(object, true);
 }
 
 static kJSON *merge_patch(kJSON *target, const kJSON * const patch, const kJSON_bool case_sensitive)
@@ -1340,6 +1367,7 @@ static kJSON *merge_patch(kJSON *target, const kJSON * const patch, const kJSON_
             replacement = merge_patch(replace_me, patch_child, case_sensitive);
             if (replacement == NULL)
             {
+                kJSON_Delete(target);
                 return NULL;
             }
 
@@ -1352,12 +1380,12 @@ static kJSON *merge_patch(kJSON *target, const kJSON * const patch, const kJSON_
 
 CJSON_PUBLIC(kJSON *) kJSONUtils_MergePatch(kJSON *target, const kJSON * const patch)
 {
-    return merge_patch(target, patch, kJSON_FALSE);
+    return merge_patch(target, patch, false);
 }
 
 CJSON_PUBLIC(kJSON *) kJSONUtils_MergePatchCaseSensitive(kJSON *target, const kJSON * const patch)
 {
-    return merge_patch(target, patch, kJSON_TRUE);
+    return merge_patch(target, patch, true);
 }
 
 static kJSON *generate_merge_patch(kJSON * const from, kJSON * const to, const kJSON_bool case_sensitive)
@@ -1381,6 +1409,10 @@ static kJSON *generate_merge_patch(kJSON * const from, kJSON * const to, const k
     from_child = from->child;
     to_child = to->child;
     patch = kJSON_CreateObject();
+    if (patch == NULL)
+    {
+        return NULL;
+    }
     while (from_child || to_child)
     {
         int diff;
@@ -1440,10 +1472,10 @@ static kJSON *generate_merge_patch(kJSON * const from, kJSON * const to, const k
 
 CJSON_PUBLIC(kJSON *) kJSONUtils_GenerateMergePatch(kJSON * const from, kJSON * const to)
 {
-    return generate_merge_patch(from, to, kJSON_FALSE);
+    return generate_merge_patch(from, to, false);
 }
 
 CJSON_PUBLIC(kJSON *) kJSONUtils_GenerateMergePatchCaseSensitive(kJSON * const from, kJSON * const to)
 {
-    return generate_merge_patch(from, to, kJSON_TRUE);
+    return generate_merge_patch(from, to, true);
 }
