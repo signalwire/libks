@@ -35,6 +35,7 @@ KS_DECLARE(ks_status_t) ks_q_wait(ks_q_t *q);
 KS_DECLARE(ks_size_t) ks_q_term(ks_q_t *q);
 KS_DECLARE(ks_size_t) ks_q_size(ks_q_t *q);
 KS_DECLARE(ks_size_t) ks_q_maxlen(ks_q_t *q);
+KS_DECLARE(ks_size_t) ks_q_pushers(ks_q_t *q);
 KS_DECLARE(ks_status_t) ks_q_destroy(ks_q_t **qP);
 KS_DECLARE(ks_status_t) ks_q_create(ks_q_t **qP, ks_pool_t *pool, ks_size_t maxlen);
 KS_DECLARE(ks_status_t) ks_q_push(ks_q_t *q, void *ptr);

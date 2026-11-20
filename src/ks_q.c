@@ -150,6 +150,21 @@ KS_DECLARE(ks_size_t) ks_q_maxlen(ks_q_t *q)
 	return q->maxlen;
 }
 
+/*
+ * The number of threads waiting in ks_q_push() for room in the queue.
+ * A thread that a pop has woken is counted until it runs again.
+ */
+KS_DECLARE(ks_size_t) ks_q_pushers(ks_q_t *q)
+{
+	ks_size_t pushers;
+
+	ks_mutex_lock(q->list_mutex);
+	pushers = q->pushers;
+	ks_mutex_unlock(q->list_mutex);
+
+	return pushers;
+}
+
 KS_DECLARE(ks_status_t) ks_q_destroy(ks_q_t **qP)
 {
 	ks_q_t *q;
