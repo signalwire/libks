@@ -245,6 +245,68 @@ ks_status_t qtest3()
 	return status;
 }
 
+static void *test4_thread(ks_thread_t *thread, void *data)
+{
+	ks_q_t *q = (ks_q_t *) data;
+
+	/* The queue is full, so this blocks until qtest4() pops. Any pointer will do as the item. */
+	while (ks_q_push(q, data) == KS_STATUS_BREAK) {
+		continue;
+	}
+
+	return NULL;
+}
+
+ks_status_t qtest4()
+{
+	ks_thread_t *thread = NULL;
+	ks_q_t *q = NULL;
+	ks_pool_t *pool = NULL;
+	ks_status_t status = KS_STATUS_FAIL;
+	void *pop = NULL;
+	int blocked = 0;
+	int i;
+
+	ks_pool_open(&pool);
+	ks_q_create(&q, pool, 1);
+
+	if (ks_q_pushers(q) != 0) goto end;
+	if (ks_q_push(q, q) != KS_STATUS_SUCCESS) goto end;
+	if (ks_q_pushers(q) != 0) goto end;
+
+	if (ks_thread_create(&thread, test4_thread, q, pool) != KS_STATUS_SUCCESS) goto end;
+
+	/* Up to 5 seconds for the thread to block in ks_q_push(). */
+	for (i = 0; i < 500 && !blocked; i++) {
+		ks_sleep(10000);
+		blocked = ks_q_pushers(q) == 1;
+	}
+
+	if (!blocked) goto end;
+	if (ks_q_pop(q, &pop) != KS_STATUS_SUCCESS) goto end;
+
+	ks_thread_join(thread);
+	thread = NULL;
+
+	if (ks_q_pushers(q) != 0) goto end;
+	if (ks_q_size(q) != 1) goto end;
+
+	status = KS_STATUS_SUCCESS;
+
+ end:
+
+	ks_q_term(q);
+
+	if (thread) {
+		ks_thread_join(thread);
+	}
+
+	ks_q_destroy(&q);
+	ks_pool_close(&pool);
+
+	return status;
+}
+
 int main(int argc, char **argv)
 {
 	int ttl;
@@ -254,7 +316,7 @@ int main(int argc, char **argv)
 
 	ks_init();
 
-	plan(4 * runs + 1);
+	plan(4 * runs + 2);
 
 	ttl = ks_env_cpu_count() * 5;
 	//ttl = 5;
@@ -262,6 +324,7 @@ int main(int argc, char **argv)
 
 
 	ok(qtest3() == KS_STATUS_SUCCESS);
+	ok(qtest4() == KS_STATUS_SUCCESS);
 	for(i = 0; i < runs; i++) {
 		ok(qtest1(size));
 		ok(qtest2(ttl, 0, size) == 0);
