@@ -23,10 +23,16 @@
  *
  */
 #include "libks/ks.h"
+
 #ifndef KS_PLAT_WIN
+#ifdef KS_PLAT_FBSD
+#include <uuid.h>
+#else
 #include <uuid/uuid.h>
 #endif
+#endif
 #include "cJSON/cJSON.h"
+
 
 /* todo move util functions to ks_utils.c */
 
