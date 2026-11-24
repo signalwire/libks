@@ -72,6 +72,24 @@ int sockutil_listen_stop(volatile int *stop, ks_sockaddr_t *addr);
  */
 int sockutil_listen_stopping(volatile int *stop, ks_socket_t server_sock, ks_socket_t client_sock);
 
+/**
+ * Make a self-signed certificate and its key, in one PEM file, in a directory of
+ * this run's own (mkdtemp in the working directory: the build's tests directory
+ * under ctest). Two runs of the same build at once then never write, read or
+ * remove each other's file.
+ * @param name The file's name, e.g. "testtls_server.pem".
+ * @param path Where the file's path is written.
+ * @param len The size of path.
+ * @return 1 the file was made, 0 not.
+ */
+int sockutil_cert_make(const char *name, char *path, ks_size_t len);
+
+/**
+ * Remove a certificate sockutil_cert_make made, and its directory.
+ * @param path The path sockutil_cert_make gave; empty does nothing.
+ */
+void sockutil_cert_remove(const char *path);
+
 #endif
 
 /* For Emacs:

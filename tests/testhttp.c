@@ -33,6 +33,9 @@ static char v4[48] = "";
 static char v6[48] = "";
 static int mask = 0;
 
+/* This run's own copy of the certificate (sockutil_cert_make). */
+static char cert_path[512] = "";
+
 
 static char __MSG[] = "TESTING................................................................................/TESTING";
 
@@ -125,9 +128,9 @@ void server_callback(ks_socket_t server_sock, ks_socket_t client_sock, ks_sockad
 
 	if (tcp_data->ssl) {
 		tcp_data->server_profile.ssl_method = SSLv23_server_method();
-		ks_set_string(tcp_data->server_profile.cert, "./testhttp.pem");
-		ks_set_string(tcp_data->server_profile.key, "./testhttp.pem");
-		ks_set_string(tcp_data->server_profile.chain, "./testhttp.pem");
+		ks_set_string(tcp_data->server_profile.cert, cert_path);
+		ks_set_string(tcp_data->server_profile.key, cert_path);
+		ks_set_string(tcp_data->server_profile.chain, cert_path);
 		init_ssl(&tcp_data->server_profile);
 	}
 
@@ -302,9 +305,9 @@ static int test_get(char *ip, int ssl)
 	if (ssl) {
 		tcp_data.ssl = 1;
 		tcp_data.client_profile.ssl_method = SSLv23_client_method();
-		ks_set_string(tcp_data.client_profile.cert, "./testhttp.pem");
-		ks_set_string(tcp_data.client_profile.key, "./testhttp.pem");
-		ks_set_string(tcp_data.client_profile.chain, "./testhttp.pem");
+		ks_set_string(tcp_data.client_profile.cert, cert_path);
+		ks_set_string(tcp_data.client_profile.key, cert_path);
+		ks_set_string(tcp_data.client_profile.chain, cert_path);
 		init_ssl(&tcp_data.client_profile);
 	}
 
@@ -982,8 +985,8 @@ int main(void)
 
 	ok(have_v4 || have_v6);
 
-	if (have_v4 || have_v6) {
-		ks_gen_cert(".", "testhttp.pem");
+	if ((have_v4 || have_v6) && !sockutil_cert_make("testhttp.pem", cert_path, sizeof(cert_path))) {
+		diag("could not make testhttp.pem");
 	}
 
 	if (have_v4) {
@@ -1002,7 +1005,7 @@ int main(void)
 		ok(test_keepalive(v6));
 	}
 
-	unlink("./testhttp.pem");
+	sockutil_cert_remove(cert_path);
 	ks_shutdown();
 
 	done_testing();
