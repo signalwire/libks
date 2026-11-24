@@ -310,6 +310,7 @@ static int test_ws(char *url)
 	ks_pool_t *pool;
 	kws_opcode_t oc;
 	uint8_t *rdata;
+	ks_status_t status;
 	ks_json_t *req = ks_json_create_object();
 	ks_json_add_string_to_object(req, "url", url);
 
@@ -329,9 +330,19 @@ static int test_ws(char *url)
 	ks_pool_open(&pool);
 	ks_assert(pool);
 
-	ok(kws_connect_ex(&kws, req, KWS_BLOCK | KWS_CLOSE_SOCK, pool, NULL, 3000) == KS_STATUS_SUCCESS);
-	printf("websocket connected to [%s]\n", url);
+	status = kws_connect_ex(&kws, req, KWS_BLOCK | KWS_CLOSE_SOCK, pool, NULL, 3000);
+	ok(status == KS_STATUS_SUCCESS);
 	ks_json_delete(&req);
+
+	/* No websocket: the frame checks fail rather than read through a NULL kws. */
+	if (status != KS_STATUS_SUCCESS || !kws) {
+		printf("websocket could not connect to [%s]\n", url);
+		fail("no websocket to read a frame from");
+		fail("no websocket to read a frame from");
+		goto end;
+	}
+
+	printf("websocket connected to [%s]\n", url);
 
 	ks_ssize_t bytes;
 
@@ -353,6 +364,8 @@ static int test_ws(char *url)
 	}
 
 	ok(rdata != NULL && strstr((char *)rdata, __MSG) != NULL);
+
+ end:
 
 	kws_destroy(&kws);
 
