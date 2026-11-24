@@ -27,7 +27,30 @@
 
 KS_BEGIN_EXTERN_C
 
+/*
+ * Status codes of the push, pop and peek functions:
+ *
+ * KS_STATUS_SUCCESS   The item was pushed, popped or peeked.
+ * KS_STATUS_INACTIVE  The queue was terminated by ks_q_term(). Items left in it are not returned.
+ * KS_STATUS_BREAK     ks_q_trypush() found the queue full, or ks_q_trypop() or ks_q_trypeek() found it
+ *                     empty. From ks_q_push(), ks_q_pop() and the timed pops: ks_q_wake() was called
+ *                     while the thread waited, and the queue was still full or empty when it ran again.
+ * KS_STATUS_TIMEOUT   The time given to ks_q_pop_timeout() or ks_q_timedpop_usec() passed and the
+ *                     queue was empty.
+ * KS_STATUS_FAIL      The wait of a timed pop failed.
+ *
+ * ks_q_push() waits while a queue created with a maxlen is full; a maxlen of 0 sets no limit.
+ * ks_q_pop() waits while the queue is empty.
+ */
+
+/* Waits for an item for up to timeout milliseconds; a timeout of 0 waits without a time limit. */
 KS_DECLARE(ks_status_t) ks_q_pop_timeout(ks_q_t *q, void **ptr, uint32_t timeout);
+/*
+ * Waits for an item for up to usec microseconds. 0 or a negative value does not wait, unlike
+ * the 0 of ks_q_pop_timeout(). Windows waits in whole milliseconds.
+ */
+KS_DECLARE(ks_status_t) ks_q_timedpop_usec(ks_q_t *q, void **ptr, ks_time_t usec);
+/* Ends the wait of every thread blocked in a push or a pop; see KS_STATUS_BREAK. */
 KS_DECLARE(ks_status_t) ks_q_wake(ks_q_t *q);
 KS_DECLARE(ks_status_t) ks_q_flush(ks_q_t *q);
 KS_DECLARE(ks_status_t) ks_q_set_flush_fn(ks_q_t *q, ks_flush_fn_t fn, void *flush_data);

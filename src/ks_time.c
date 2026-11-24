@@ -88,7 +88,8 @@ KS_DECLARE(ks_time_t) ks_time_now(void)
 		/* Use QueryPerformanceCounter */
 		uint64_t count = 0;
 		QueryPerformanceCounter((LARGE_INTEGER*)&count);
-		now = ((count * 1000000) / win32_qpc_freq);
+		/* Whole seconds and the remainder are scaled separately to stay within 64 bits. */
+		now = (count / win32_qpc_freq) * 1000000 + (count % win32_qpc_freq) * 1000000 / win32_qpc_freq;
 	} else {
 		/* Use good old timeGetTime() */
 		DWORD tick_now;

@@ -125,6 +125,11 @@ KS_DECLARE(ks_status_t) __ks_cond_create_ex(ks_cond_t **cond, ks_pool_t *pool, k
 
 KS_DECLARE(ks_status_t) ks_cond_wait(ks_cond_t *cond);
 KS_DECLARE(ks_status_t) ks_cond_timedwait(ks_cond_t *cond, ks_time_t ms);
+/*
+ * Waits for up to usec microseconds; 0 or a negative value returns without waiting.
+ * Windows waits in whole milliseconds.
+ */
+KS_DECLARE(ks_status_t) ks_cond_timedwait_usec(ks_cond_t *cond, ks_time_t usec);
 KS_DECLARE(ks_status_t) ks_cond_destroy(ks_cond_t **cond);
 KS_DECLARE(ks_mutex_t *) ks_cond_get_mutex(ks_cond_t *cond);
 KS_DECLARE(void) ks_thread_stats(uint32_t *active_attached, uint32_t *active_detached);

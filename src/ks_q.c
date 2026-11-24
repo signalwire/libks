@@ -39,6 +39,7 @@ struct ks_q_s {
 	ks_mutex_t *list_mutex;
 	uint32_t pushers;
 	uint32_t poppers;
+	uint32_t wakes;
 	struct ks_qnode_s *head;
 	struct ks_qnode_s *tail;
 	struct ks_qnode_s *empty;
@@ -111,6 +112,7 @@ KS_DECLARE(ks_status_t) ks_q_set_flush_fn(ks_q_t *q, ks_flush_fn_t fn, void *flu
 KS_DECLARE(ks_status_t) ks_q_wake(ks_q_t *q)
 {
 	ks_mutex_lock(q->list_mutex);
+	q->wakes++;
 	ks_cond_broadcast(q->push_cond);
 	ks_cond_broadcast(q->pop_cond);
 	ks_mutex_unlock(q->list_mutex);
@@ -260,6 +262,7 @@ static ks_status_t do_push(ks_q_t *q, void *ptr)
 KS_DECLARE(ks_status_t) ks_q_push(ks_q_t *q, void *ptr)
 {
 	ks_status_t r;
+	uint32_t wakes;
 
 	ks_mutex_lock(q->list_mutex);
 	if (q->active == 0) {
@@ -267,18 +270,21 @@ KS_DECLARE(ks_status_t) ks_q_push(ks_q_t *q, void *ptr)
 		goto end;
 	}
 
+	wakes = q->wakes;
 
-	if (q->maxlen && q->len == q->maxlen) {
+	while (q->maxlen && q->len == q->maxlen) {
 		q->pushers++;
 		ks_cond_wait(q->push_cond);
 		q->pushers--;
 
-		if (q->maxlen && q->len == q->maxlen) {
-			if (!q->active) {
-				r = KS_STATUS_INACTIVE;
-			} else {
-				r = KS_STATUS_BREAK;
-			}
+		if (!q->active) {
+			r = KS_STATUS_INACTIVE;
+			goto end;
+		}
+
+		/* Return after ks_q_wake() if the queue is still full; otherwise wait again. */
+		if (q->wakes != wakes && q->len == q->maxlen) {
+			r = KS_STATUS_BREAK;
 			goto end;
 		}
 	}
@@ -379,9 +385,17 @@ static ks_status_t do_peek(ks_q_t *q, void **ptr)
 	return KS_STATUS_SUCCESS;
 }
 
-KS_DECLARE(ks_status_t) ks_q_pop_timeout(ks_q_t *q, void **ptr, uint32_t timeout)
+/*
+ * Pops one item, waiting while the queue is empty. Unless timed is set the wait has no limit
+ * and usec is ignored; with timed set it lasts at most usec microseconds, and not at all for
+ * 0 or less.
+ */
+static ks_status_t do_pop_wait(ks_q_t *q, void **ptr, ks_bool_t timed, ks_time_t usec)
 {
-	ks_status_t r;
+	ks_status_t r = KS_STATUS_SUCCESS;
+	ks_time_t now = 0;
+	ks_time_t deadline = 0;
+	uint32_t wakes;
 
 	ks_mutex_lock(q->list_mutex);
 
@@ -390,27 +404,47 @@ KS_DECLARE(ks_status_t) ks_q_pop_timeout(ks_q_t *q, void **ptr, uint32_t timeout
 		goto end;
 	}
 
-	if (q->len == 0) {
-		if (q->active) {
-			q->poppers++;
-			if (timeout) {
-				r = ks_cond_timedwait(q->pop_cond, timeout);
-			} else {
-				r = ks_cond_wait(q->pop_cond);
-			}
-			q->poppers--;
+	wakes = q->wakes;
 
-			if (timeout && r != KS_STATUS_SUCCESS) {
-				goto end;
-			}
+	if (timed) {
+		if (usec < 0) {
+			usec = 0;
 		}
 
-		if (q->len == 0) {
-			if (!q->active) {
-				r = KS_STATUS_INACTIVE;
-			} else {
-				r = KS_STATUS_BREAK;
+		now = ks_time_now();
+		deadline = usec > INT64_MAX - now ? INT64_MAX : now + usec;
+	}
+
+	while (q->len == 0) {
+		if (timed) {
+			if (now >= deadline) {
+				r = KS_STATUS_TIMEOUT;
+				goto end;
 			}
+
+			q->poppers++;
+			r = ks_cond_timedwait_usec(q->pop_cond, deadline - now);
+			q->poppers--;
+
+			if (r != KS_STATUS_SUCCESS && r != KS_STATUS_TIMEOUT) {
+				goto end;
+			}
+
+			now = ks_time_now();
+		} else {
+			q->poppers++;
+			ks_cond_wait(q->pop_cond);
+			q->poppers--;
+		}
+
+		if (!q->active) {
+			r = KS_STATUS_INACTIVE;
+			goto end;
+		}
+
+		/* Return after ks_q_wake() if the queue is still empty; otherwise wait again. */
+		if (q->wakes != wakes && q->len == 0) {
+			r = KS_STATUS_BREAK;
 			goto end;
 		}
 	}
@@ -427,6 +461,20 @@ KS_DECLARE(ks_status_t) ks_q_pop_timeout(ks_q_t *q, void **ptr, uint32_t timeout
 
 	return r;
 
+}
+
+KS_DECLARE(ks_status_t) ks_q_timedpop_usec(ks_q_t *q, void **ptr, ks_time_t usec)
+{
+	return do_pop_wait(q, ptr, KS_TRUE, usec);
+}
+
+KS_DECLARE(ks_status_t) ks_q_pop_timeout(ks_q_t *q, void **ptr, uint32_t timeout)
+{
+	if (!timeout) {
+		return do_pop_wait(q, ptr, KS_FALSE, 0);
+	}
+
+	return do_pop_wait(q, ptr, KS_TRUE, (ks_time_t)timeout * KS_USEC_PER_MSEC);
 }
 
 KS_DECLARE(ks_status_t) ks_q_pop(ks_q_t *q, void **ptr)
