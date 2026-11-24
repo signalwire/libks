@@ -27,6 +27,7 @@
 
 #include "libks/ks.h"
 #include <tap.h>
+#include "sockutil.h"
 
 #ifdef _WINDOWS_
 #undef unlink
@@ -36,7 +37,6 @@
 #define SHA1_HASH_SIZE 20
 #define WEBSOCKET_GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 #define B64BUFFLEN 1024
-#define LISTEN_PORT 8090
 
 #define __MSG "\"welcome\""
 
@@ -45,7 +45,6 @@ static const char c64[65] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxy
 struct tcp_data {
 	ks_socket_t sock;
 	ks_sockaddr_t addr;
-	int ready;
 	char *ip;
 };
 
@@ -233,7 +232,6 @@ static void *tcp_sock_server(ks_thread_t *thread, void *thread_data)
 {
 	struct tcp_data *tcp_data = (struct tcp_data *) thread_data;
 
-	tcp_data->ready = 1;
 	ks_listen_sock(tcp_data->sock, &tcp_data->addr, 0, server_callback, tcp_data);
 
 	printf("TCP THREAD DONE\n");
@@ -250,11 +248,10 @@ static void start_tcp_server_and_test_ws(char *ip)
 	int family = AF_INET;
 	ks_socket_t cl_sock = KS_SOCK_INVALID;
 	struct tcp_data tcp_data = { 0 };
-	int sanity = 100;
 
 	ks_pool_open(&pool);
 
-	if (ks_addr_set(&tcp_data.addr, ip, LISTEN_PORT, family) != KS_STATUS_SUCCESS) {
+	if (ks_addr_set(&tcp_data.addr, ip, 0, family) != KS_STATUS_SUCCESS) {
 		printf("TCP CLIENT Can't set ADDR\n");
 		goto end;
 	}
@@ -271,12 +268,13 @@ static void start_tcp_server_and_test_ws(char *ip)
 
 	ks_thread_create(&thread_p, tcp_sock_server, &tcp_data, pool);
 
-	while(!tcp_data.ready && --sanity > 0) {
-		ks_sleep(10000);
+	if (!sockutil_wait_listen(tcp_data.sock, 5000)) {
+		printf("TCP SERVER is not listening\n");
+		goto end;
 	}
 
 	char url[1024];
-	snprintf(url, sizeof(url), "ws://127.0.0.1:%d/test", LISTEN_PORT);
+	snprintf(url, sizeof(url), "ws://127.0.0.1:%d/test", sockutil_port(tcp_data.sock));
 	test_ws(url);
 
 end:

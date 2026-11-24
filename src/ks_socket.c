@@ -629,10 +629,115 @@ KS_DECLARE(int) ks_wait_sock(ks_socket_t sock, uint32_t ms, ks_poll_t flags)
 #endif
 
 #if defined(KS_USE_POLL) || defined(WIN32)
+typedef struct ks_wait_sock_flag_name_s {
+	ks_poll_t flag;
+	const char *name;
+} ks_wait_sock_flag_name_t;
+
+static const ks_wait_sock_flag_name_t wait_sock_flag_name_table[] = {
+	{ KS_POLL_READ, "READ" },
+	{ KS_POLL_WRITE, "WRITE" },
+	{ KS_POLL_ERROR, "ERROR" },
+	{ KS_POLL_HUP, "HUP" },
+	{ KS_POLL_RDNORM, "RDNORM" },
+	{ KS_POLL_RDBAND, "RDBAND" },
+	{ KS_POLL_PRI, "PRI" },
+	{ KS_POLL_INVALID, "INVALID" }
+};
+
+/**
+ * Write the requested KS_POLL_* flags as names ("READ|WRITE") for the failure logs.
+ * @param flags The flags passed to ks_wait_sock.
+ * @param buf Where to write the names.
+ * @param len The size of buf.
+ * @return buf, holding "none" when no known flag is set.
+ */
+static const char *wait_sock_flag_names(ks_poll_t flags, char *buf, size_t len)
+{
+	size_t used = 0, i;
+
+	buf[0] = '\0';
+
+	for (i = 0; i < sizeof(wait_sock_flag_name_table) / sizeof(wait_sock_flag_name_table[0]); i++) {
+		if ((flags & wait_sock_flag_name_table[i].flag) && used < len) {
+			used += snprintf(buf + used, len - used, "%s%s", used ? "|" : "", wait_sock_flag_name_table[i].name);
+		}
+	}
+
+	if (!buf[0]) {
+		snprintf(buf, len, "none");
+	}
+
+	return buf;
+}
+
+/**
+ * The symbolic name of an error poll() returns, so a log line says EBADF, not 9.
+ * @param err The error number.
+ * @return The name, or "errno" for one not listed.
+ */
+static const char *wait_sock_errno_name(int err)
+{
+	const char *name = "errno";
+
+	switch (err) {
+#ifdef EINTR
+	case EINTR:
+		name = "EINTR";
+		break;
+#endif
+#ifdef EBADF
+	case EBADF:
+		name = "EBADF";
+		break;
+#endif
+#ifdef EFAULT
+	case EFAULT:
+		name = "EFAULT";
+		break;
+#endif
+#ifdef EINVAL
+	case EINVAL:
+		name = "EINVAL";
+		break;
+#endif
+#ifdef ENOMEM
+	case ENOMEM:
+		name = "ENOMEM";
+		break;
+#endif
+#ifdef EAGAIN
+	case EAGAIN:
+		name = "EAGAIN";
+		break;
+#endif
+	default:
+		break;
+	}
+
+	return name;
+}
+
+/**
+ * Put back the error a caller may read after a failed wait: logging can change it.
+ * @param err The error to restore.
+ */
+static void wait_sock_set_errno(int err)
+{
+#ifdef WIN32
+	WSASetLastError(err);
+#else
+	errno = err;
+#endif
+}
+
 KS_DECLARE(int) ks_wait_sock(ks_socket_t sock, uint32_t ms, ks_poll_t flags)
 {
+	char fl[64];
 	struct pollfd pfds[2] = { {0} };
-	int s = 0, r = 0;
+	int s = 0, r = 0, err = 0, so_error = 0, left = (int)ms;
+	socklen_t so_len = 0;
+	ks_time_t deadline = 0, now = 0;
 
 	if (sock == KS_SOCK_INVALID) {
 	  return KS_POLL_INVALID;
@@ -660,7 +765,55 @@ KS_DECLARE(int) ks_wait_sock(ks_socket_t sock, uint32_t ms, ks_poll_t flags)
 		pfds[0].events |= POLLPRI;
 	}
 
-	s = ks_poll(pfds, 1, ms);
+	/* A signal delivered to this thread (a child's SIGCHLD where something has a handler for it,
+	 * or every signal under an emulator such as Rosetta) interrupts poll() with EINTR. That is
+	 * not a socket error: wait again for what is left of the timeout. */
+	deadline = ks_time_now() + (ks_time_t)ms * KS_USEC_PER_MSEC;
+
+	while ((s = ks_poll(pfds, 1, left)) < 0 && ks_errno_is_interupt(ks_errno())) {
+		now = ks_time_now();
+		left = now >= deadline ? 0 : (int)ks_time_ms(deadline - now);
+
+		ks_log(KS_LOG_DEBUG, "ks_wait_sock(fd %d, %s): poll() interrupted (EINTR), waiting again for %d ms\n",
+			(int)sock, wait_sock_flag_names(flags, fl, sizeof(fl)), left);
+	}
+
+	/* Each failure means something different, so each is logged on its own; a timeout (0) is not one.
+	 * These run only when poll() fails or reports a condition, never on a plain ready or timeout,
+	 * and leave errno as poll() set it for the caller. */
+	if (s < 0) {
+		err = ks_errno();
+
+		ks_log(KS_LOG_ERROR, "ks_wait_sock(fd %d, %s): poll() failed: %s (%d) %s\n",
+			(int)sock, wait_sock_flag_names(flags, fl, sizeof(fl)), wait_sock_errno_name(err), err, strerror(err));
+
+		wait_sock_set_errno(err);
+	} else if (s > 0 && (pfds[0].revents & (POLLERR | POLLHUP | POLLNVAL))) {
+		err = ks_errno();
+
+		if ((pfds[0].revents & POLLERR)) {
+			so_len = sizeof(so_error);
+
+			if (getsockopt(sock, SOL_SOCKET, SO_ERROR, (void *)&so_error, &so_len) != 0) {
+				so_error = -1;
+			}
+
+			ks_log(KS_LOG_WARNING, "ks_wait_sock(fd %d, %s): socket error (POLLERR), SO_ERROR %d %s\n",
+				(int)sock, wait_sock_flag_names(flags, fl, sizeof(fl)), so_error, so_error > 0 ? strerror(so_error) : "");
+		}
+
+		if ((pfds[0].revents & POLLHUP)) {
+			ks_log(KS_LOG_INFO, "ks_wait_sock(fd %d, %s): peer closed (POLLHUP)\n",
+				(int)sock, wait_sock_flag_names(flags, fl, sizeof(fl)));
+		}
+
+		if ((pfds[0].revents & POLLNVAL)) {
+			ks_log(KS_LOG_ERROR, "ks_wait_sock(fd %d, %s): fd is not open (POLLNVAL): used after close?\n",
+				(int)sock, wait_sock_flag_names(flags, fl, sizeof(fl)));
+		}
+
+		wait_sock_set_errno(err);
+	}
 
 	if (s < 0) {
 		r = s;

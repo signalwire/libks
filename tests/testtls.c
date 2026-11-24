@@ -22,17 +22,16 @@
 
 #include "libks/ks.h"
 #include <tap.h>
+#include "sockutil.h"
 
 typedef struct  {
 	int family;
 	ks_pool_t *pool;
 	ks_sockaddr_t server_addr;
 	ks_socket_t server_socket;
-	ks_bool_t ready;
 	ks_tls_shared_ctx_t *shared_ctx;
 } tls_data_t;
 
-static const int TLS_TEST_PORT = 8090;
 static const uint32_t TLS_TEST_READ_TIMEOUT_MS = 5000;
 static const uint32_t TLS_TEST_WRITE_TIMEOUT_MS = 5000;
 static char TLS_TEST_PAYLOAD[] = "TESTING.TLS.PAYLOAD...............................................................................TESTING.TLS.PAYLOAD.END";
@@ -117,7 +116,6 @@ static void *tcp_sock_server(ks_thread_t *thread, void *thread_data)
 	}
 
 	tls_data->shared_ctx = shared_ctx;
-	tls_data->ready = 1;
 
 	ks_listen_sock(tls_data->server_socket, &tls_data->server_addr, 0, server_callback, tls_data);
 
@@ -136,7 +134,6 @@ static int test_tls(char *ip)
 	tls_data_t tls_data = {0};
 	ks_pool_t *pool = NULL;
 	ks_thread_t *thread_p = NULL;
-	int sanity = 100;
 	ks_tls_t *ktls = NULL;
 	ks_tls_connect_params_t client_params = {0};
 	ks_status_t status = KS_STATUS_FAIL;
@@ -144,7 +141,7 @@ static int test_tls(char *ip)
 	char data[1024] = {0};
 	ks_size_t read_bytes = 1024;
 
-	if (ks_addr_set(&tls_data.server_addr, ip, TLS_TEST_PORT, family) != KS_STATUS_SUCCESS) {
+	if (ks_addr_set(&tls_data.server_addr, ip, 0, family) != KS_STATUS_SUCCESS) {
 		ks_log(KS_LOG_ERROR, "TSL CLIENT Can't set ADDR\n");
 		goto end;
 	}
@@ -166,13 +163,14 @@ static int test_tls(char *ip)
 
 	ks_thread_create(&thread_p, tcp_sock_server, &tls_data, pool);
 
-	while(!tls_data.ready && --sanity > 0) {
-		ks_sleep_ms(10);
+	if (!sockutil_wait_listen(tls_data.server_socket, 5000)) {
+		ks_log(KS_LOG_ERROR, "TLS SERVER is not listening\n");
+		goto end;
 	}
 
 	/* Client connection */
 	client_params.host = ip;
-	client_params.port = TLS_TEST_PORT;
+	client_params.port = sockutil_port(tls_data.server_socket);
 	client_params.verify_peer = KS_TLS_VERIFY_DISABLED;
 	client_params.init_timeout_ms = 5000;
 	client_params.connect_timeout_ms = 5000;

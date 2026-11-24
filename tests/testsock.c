@@ -22,20 +22,17 @@
 
 #include "libks/ks.h"
 #include <tap.h>
+#include "sockutil.h"
 
 static char v4[48] = "";
 static char v6[48] = "";
 static int mask = 0;
-static int tcp_port = 8090;
-static int udp_cl_port = 9090;
-static int udp_sv_port = 9091;
 
 static char __MSG[] = "TESTING................................................................................/TESTING";
 
 struct tcp_data {
 	ks_socket_t sock;
 	ks_sockaddr_t addr;
-	int ready;
 	char *ip;
 };
 
@@ -73,7 +70,6 @@ static void *tcp_sock_server(ks_thread_t *thread, void *thread_data)
 {
 	struct tcp_data *tcp_data = (struct tcp_data *) thread_data;
 
-	tcp_data->ready = 1;
 	ks_listen_sock(tcp_data->sock, &tcp_data->addr, 0, server_callback, tcp_data);
 
 	printf("TCP THREAD DONE\n");
@@ -168,7 +164,7 @@ static int test_tcp(char *ip)
 	ks_socket_t cl_sock = KS_SOCK_INVALID;
 	char buf[8192] = "";
 	struct tcp_data tcp_data = { 0 };
-	int r = 1, sanity = 100;
+	int r = 1;
 
 	ks_pool_open(&pool);
 
@@ -176,7 +172,7 @@ static int test_tcp(char *ip)
 		family = AF_INET6;
 	}
 
-	if (ks_addr_set(&tcp_data.addr, ip, tcp_port, family) != KS_STATUS_SUCCESS) {
+	if (ks_addr_set(&tcp_data.addr, ip, 0, family) != KS_STATUS_SUCCESS) {
 		r = 0;
 		printf("TCP CLIENT Can't set ADDR\n");
 		goto end;
@@ -195,16 +191,24 @@ static int test_tcp(char *ip)
 
 	ks_thread_create(&thread_p, tcp_sock_server, &tcp_data, pool);
 
-	while(!tcp_data.ready && --sanity > 0) {
-		ks_sleep(10000);
+	if (!sockutil_wait_listen(tcp_data.sock, 5000)) {
+		r = 0;
+		printf("TCP SERVER is not listening\n");
+		goto end;
 	}
 
-	ks_addr_set(&addr, ip, tcp_port, family);
+	ks_addr_set(&addr, ip, sockutil_port(tcp_data.sock), family);
 	cl_sock = ks_socket_connect(SOCK_STREAM, IPPROTO_TCP, &addr);
 
 	//int x;
 
 	printf("TCP CLIENT SOCKET %d %s %d\n", (int)cl_sock, addr.host, addr.port);
+
+	if (cl_sock == KS_SOCK_INVALID) {
+		r = 0;
+		printf("TCP CLIENT Can't connect\n");
+		goto end;
+	}
 
 	ks_size_t msglen = strlen(__MSG);
 	ks_socket_send(cl_sock, __MSG, &msglen);
@@ -241,6 +245,7 @@ struct udp_data {
 	int ready;
 	char *ip;
 	ks_socket_t sv_sock;
+	ks_port_t port;
 };
 
 static void *udp_sock_server(ks_thread_t *thread, void *thread_data)
@@ -257,7 +262,7 @@ static void *udp_sock_server(ks_thread_t *thread, void *thread_data)
 		family = AF_INET6;
 	}
 
-	ks_addr_set(&addr, udp_data->ip, udp_sv_port, family);
+	ks_addr_set(&addr, udp_data->ip, 0, family);
 	remote_addr.family = family;
 
 	if ((udp_data->sv_sock = socket(family, SOCK_DGRAM, IPPROTO_UDP)) == KS_SOCK_INVALID) {
@@ -272,9 +277,10 @@ static void *udp_sock_server(ks_thread_t *thread, void *thread_data)
 		goto end;
 	}
 
+	udp_data->port = sockutil_port(udp_data->sv_sock);
 	udp_data->ready = 1;
 
-	printf("UDP SERVER SOCKET %d %s %d\n", (int)(udp_data->sv_sock), addr.host, addr.port);
+	printf("UDP SERVER SOCKET %d %s %d\n", (int)(udp_data->sv_sock), addr.host, udp_data->port);
 	bytes = sizeof(buf);
 	if (ks_socket_recvfrom(udp_data->sv_sock, buf, &bytes, &remote_addr) != KS_STATUS_SUCCESS) {
 		printf("UDP SERVER RECVFROM ERR %s\n", strerror(ks_errno()));
@@ -328,7 +334,7 @@ static int test_udp(char *ip)
 		family = AF_INET6;
 	}
 
-	ks_addr_set(&addr, ip, udp_cl_port, family);
+	ks_addr_set(&addr, ip, 0, family);
 
 	if ((cl_sock = socket(family, SOCK_DGRAM, IPPROTO_UDP)) == KS_SOCK_INVALID) {
 		printf("UDP CLIENT SOCKET ERROR %s\n", strerror(ks_errno()));
@@ -342,8 +348,6 @@ static int test_udp(char *ip)
 		r = 0; goto end;
 	}
 
-	ks_addr_set(&remote_addr, ip, udp_sv_port, family);
-
 	udp_data.ip = ip;
 	ks_thread_create(&thread_p, udp_sock_server, &udp_data, pool);
 
@@ -351,7 +355,9 @@ static int test_udp(char *ip)
 		ks_sleep(10000);
 	}
 
-	printf("UDP CLIENT SOCKET %d %s %d -> %s %d\n", (int)cl_sock, addr.host, addr.port, remote_addr.host, remote_addr.port);
+	ks_addr_set(&remote_addr, ip, udp_data.port, family);
+
+	printf("UDP CLIENT SOCKET %d %s %d -> %s %d\n", (int)cl_sock, addr.host, sockutil_port(cl_sock), remote_addr.host, remote_addr.port);
 
 	bytes = strlen(__MSG);
 	if (ks_socket_sendto(cl_sock, __MSG, &bytes, &remote_addr) != KS_STATUS_SUCCESS) {
