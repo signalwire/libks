@@ -227,7 +227,7 @@ KS_DECLARE(void) ks_sleep(ks_time_t microsec)
 	clock_nanosleep(CLOCK_MONOTONIC, 0, &ts, NULL);
 #elif defined(__APPLE__)
 	ts.tv_sec = ks_time_sec(microsec);
-	ts.tv_nsec = ks_time_usec(microsec) * 900;
+	ts.tv_nsec = ks_time_nsec(microsec);
 	nanosleep(&ts, NULL);
 #else
 	generic_sleep(microsec);
