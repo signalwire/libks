@@ -22,13 +22,13 @@
 
 #include "libks/ks.h"
 #include <tap.h>
+#include "sockutil.h"
 
 typedef struct  {
 	int family;
 	ks_pool_t *pool;
 	ks_sockaddr_t server_addr;
 	ks_socket_t server_socket;
-	ks_bool_t ready;
 	ks_tls_shared_ctx_t *shared_ctx;
 } tls_data_t;
 
@@ -117,7 +117,6 @@ static void *tcp_sock_server(ks_thread_t *thread, void *thread_data)
 	}
 
 	tls_data->shared_ctx = shared_ctx;
-	tls_data->ready = 1;
 
 	ks_listen_sock(tls_data->server_socket, &tls_data->server_addr, 0, server_callback, tls_data);
 
@@ -136,7 +135,6 @@ static int test_tls(char *ip)
 	tls_data_t tls_data = {0};
 	ks_pool_t *pool = NULL;
 	ks_thread_t *thread_p = NULL;
-	int sanity = 100;
 	ks_tls_t *ktls = NULL;
 	ks_tls_connect_params_t client_params = {0};
 	ks_status_t status = KS_STATUS_FAIL;
@@ -166,8 +164,9 @@ static int test_tls(char *ip)
 
 	ks_thread_create(&thread_p, tcp_sock_server, &tls_data, pool);
 
-	while(!tls_data.ready && --sanity > 0) {
-		ks_sleep_ms(10);
+	if (!sockutil_wait_listen(tls_data.server_socket, 5000)) {
+		ks_log(KS_LOG_ERROR, "TLS SERVER is not listening\n");
+		goto end;
 	}
 
 	/* Client connection */

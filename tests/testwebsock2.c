@@ -27,6 +27,7 @@
 
 #include "libks/ks.h"
 #include <tap.h>
+#include "sockutil.h"
 
 #ifdef _WINDOWS_
 #undef unlink
@@ -45,7 +46,6 @@ static const char c64[65] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxy
 struct tcp_data {
 	ks_socket_t sock;
 	ks_sockaddr_t addr;
-	int ready;
 	char *ip;
 };
 
@@ -233,7 +233,6 @@ static void *tcp_sock_server(ks_thread_t *thread, void *thread_data)
 {
 	struct tcp_data *tcp_data = (struct tcp_data *) thread_data;
 
-	tcp_data->ready = 1;
 	ks_listen_sock(tcp_data->sock, &tcp_data->addr, 0, server_callback, tcp_data);
 
 	printf("TCP THREAD DONE\n");
@@ -250,7 +249,6 @@ static void start_tcp_server_and_test_ws(char *ip)
 	int family = AF_INET;
 	ks_socket_t cl_sock = KS_SOCK_INVALID;
 	struct tcp_data tcp_data = { 0 };
-	int sanity = 100;
 
 	ks_pool_open(&pool);
 
@@ -271,8 +269,9 @@ static void start_tcp_server_and_test_ws(char *ip)
 
 	ks_thread_create(&thread_p, tcp_sock_server, &tcp_data, pool);
 
-	while(!tcp_data.ready && --sanity > 0) {
-		ks_sleep(10000);
+	if (!sockutil_wait_listen(tcp_data.sock, 5000)) {
+		printf("TCP SERVER is not listening\n");
+		goto end;
 	}
 
 	char url[1024];

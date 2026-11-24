@@ -22,6 +22,7 @@
 
 #include "libks/ks.h"
 #include <tap.h>
+#include "sockutil.h"
 
 static char v4[48] = "";
 static char v6[48] = "";
@@ -35,7 +36,6 @@ static char __MSG[] = "TESTING..................................................
 struct tcp_data {
 	ks_socket_t sock;
 	ks_sockaddr_t addr;
-	int ready;
 	char *ip;
 };
 
@@ -73,7 +73,6 @@ static void *tcp_sock_server(ks_thread_t *thread, void *thread_data)
 {
 	struct tcp_data *tcp_data = (struct tcp_data *) thread_data;
 
-	tcp_data->ready = 1;
 	ks_listen_sock(tcp_data->sock, &tcp_data->addr, 0, server_callback, tcp_data);
 
 	printf("TCP THREAD DONE\n");
@@ -168,7 +167,7 @@ static int test_tcp(char *ip)
 	ks_socket_t cl_sock = KS_SOCK_INVALID;
 	char buf[8192] = "";
 	struct tcp_data tcp_data = { 0 };
-	int r = 1, sanity = 100;
+	int r = 1;
 
 	ks_pool_open(&pool);
 
@@ -195,8 +194,10 @@ static int test_tcp(char *ip)
 
 	ks_thread_create(&thread_p, tcp_sock_server, &tcp_data, pool);
 
-	while(!tcp_data.ready && --sanity > 0) {
-		ks_sleep(10000);
+	if (!sockutil_wait_listen(tcp_data.sock, 5000)) {
+		r = 0;
+		printf("TCP SERVER is not listening\n");
+		goto end;
 	}
 
 	ks_addr_set(&addr, ip, tcp_port, family);
@@ -205,6 +206,12 @@ static int test_tcp(char *ip)
 	//int x;
 
 	printf("TCP CLIENT SOCKET %d %s %d\n", (int)cl_sock, addr.host, addr.port);
+
+	if (cl_sock == KS_SOCK_INVALID) {
+		r = 0;
+		printf("TCP CLIENT Can't connect\n");
+		goto end;
+	}
 
 	ks_size_t msglen = strlen(__MSG);
 	ks_socket_send(cl_sock, __MSG, &msglen);

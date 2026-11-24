@@ -22,6 +22,7 @@
 
 #include "libks/ks.h"
 #include <tap.h>
+#include "sockutil.h"
 
 #ifdef _WINDOWS_
 #undef unlink
@@ -101,7 +102,6 @@ static int init_ssl(ssl_profile_t *profile)
 struct tcp_data {
 	ks_socket_t sock;
 	ks_sockaddr_t addr;
-	int ready;
 	char *ip;
 	ks_pool_t *pool;
 	int ssl;
@@ -167,7 +167,6 @@ static void *tcp_sock_server(ks_thread_t *thread, void *thread_data)
 {
 	struct tcp_data *tcp_data = (struct tcp_data *) thread_data;
 
-	tcp_data->ready = 1;
 	ks_listen_sock(tcp_data->sock, &tcp_data->addr, 0, server_callback, tcp_data);
 
 	printf("WS THREAD DONE\n");
@@ -183,7 +182,7 @@ static int test_ws(char *ip, int ssl)
 	int family = AF_INET;
 	ks_socket_t cl_sock = KS_SOCK_INVALID;
 	struct tcp_data tcp_data = { 0 };
-	int r = 1, sanity = 100;
+	int r = 1;
 	kws_t *kws = NULL;
 
 	ks_pool_open(&pool);
@@ -223,8 +222,10 @@ static int test_ws(char *ip, int ssl)
 
 	ks_thread_create(&thread_p, tcp_sock_server, &tcp_data, pool);
 
-	while(!tcp_data.ready && --sanity > 0) {
-		ks_sleep(10000);
+	if (!sockutil_wait_listen(tcp_data.sock, 5000)) {
+		r = 0;
+		printf("WS SERVER is not listening\n");
+		goto end;
 	}
 
 	ks_addr_set(&addr, ip, tcp_port, family);
@@ -232,7 +233,14 @@ static int test_ws(char *ip, int ssl)
 
 	printf("WS %s CLIENT SOCKET %d %s %d\n", ssl ? "SSL" : "PLAIN", (int)cl_sock, addr.host, addr.port);
 
+	if (cl_sock == KS_SOCK_INVALID) {
+		r = 0;
+		printf("WS CLIENT Can't connect\n");
+		goto end;
+	}
+
 	if (kws_init(&kws, cl_sock, tcp_data.client_profile.ssl_ctx, "/verto:tatooine.freeswitch.org:verto", KWS_BLOCK, pool) != KS_STATUS_SUCCESS) {
+		r = 0;
 		printf("WS CLIENT CREATE FAIL\n");
 		goto end;
 	}
