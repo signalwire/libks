@@ -120,6 +120,47 @@ int sockutil_listen_stopping(volatile int *stop, ks_socket_t server_sock, ks_soc
 	return 1;
 }
 
+int sockutil_cert_make(const char *name, char *path, ks_size_t len)
+{
+	char dir[] = "testcert.XXXXXX";
+
+	*path = '\0';
+
+	if (!mkdtemp(dir)) {
+		return 0;
+	}
+
+	ks_snprintf(path, len, "%s%s%s", dir, KS_PATH_SEPARATOR, name);
+	ks_gen_cert(dir, name);
+
+	if (access(path, R_OK) != 0) {
+		sockutil_cert_remove(path);
+		*path = '\0';
+
+		return 0;
+	}
+
+	return 1;
+}
+
+void sockutil_cert_remove(const char *path)
+{
+	char dir[512];
+	char *sep;
+
+	if (ks_zstr(path)) {
+		return;
+	}
+
+	unlink(path);
+	ks_snprintf(dir, sizeof(dir), "%s", path);
+
+	if ((sep = strrchr(dir, *KS_PATH_SEPARATOR))) {
+		*sep = '\0';
+		rmdir(dir);
+	}
+}
+
 /* For Emacs:
  * Local Variables:
  * mode:c

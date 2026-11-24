@@ -40,6 +40,9 @@ static char TLS_TEST_PAYLOAD[] = "TESTING.TLS.PAYLOAD...........................
 #define TLS_TEST_READ_BUF_LEN 1024
 #define TLS_TEST_SERVER_CERT "testtls_server.pem"
 
+/* This run's own copy of the certificate (sockutil_cert_make). */
+static char cert_path[512] = "";
+
 void server_callback(ks_socket_t server_sock, ks_socket_t client_sock, ks_sockaddr_t *addr, void *user_data)
 {
 	ks_status_t status;
@@ -110,9 +113,9 @@ static void *tcp_sock_server(ks_thread_t *thread, void *thread_data)
 	ks_tls_shared_ctx_t *shared_ctx = NULL;
 
 
-	ctx_params.chain_file = "./" TLS_TEST_SERVER_CERT;
-	ctx_params.cert_file = "./" TLS_TEST_SERVER_CERT;
-	ctx_params.key_file = "./" TLS_TEST_SERVER_CERT;
+	ctx_params.chain_file = cert_path;
+	ctx_params.cert_file = cert_path;
+	ctx_params.key_file = cert_path;
 	// ctx_params.debug = KS_TRUE;
 
 	if (ks_tls_create_shared_server_ctx(&shared_ctx, &ctx_params, tls_data->pool) != KS_STATUS_SUCCESS) {
@@ -260,8 +263,8 @@ int main(void)
 
 	ok(have_v4 || have_v6);
 
-	if (have_v4 || have_v6) {
-		ks_gen_cert(".", TLS_TEST_SERVER_CERT);
+	if ((have_v4 || have_v6) && !sockutil_cert_make(TLS_TEST_SERVER_CERT, cert_path, sizeof(cert_path))) {
+		diag("could not make %s", TLS_TEST_SERVER_CERT);
 	}
 
 	if (have_v4) {
@@ -272,7 +275,7 @@ int main(void)
 		ok(test_tls(v6));
 	}
 
-	unlink("./" TLS_TEST_SERVER_CERT);
+	sockutil_cert_remove(cert_path);
 	ks_shutdown();
 
 	done_testing();
