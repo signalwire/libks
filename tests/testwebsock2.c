@@ -37,7 +37,6 @@
 #define SHA1_HASH_SIZE 20
 #define WEBSOCKET_GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 #define B64BUFFLEN 1024
-#define LISTEN_PORT 8090
 
 #define __MSG "\"welcome\""
 
@@ -252,7 +251,7 @@ static void start_tcp_server_and_test_ws(char *ip)
 
 	ks_pool_open(&pool);
 
-	if (ks_addr_set(&tcp_data.addr, ip, LISTEN_PORT, family) != KS_STATUS_SUCCESS) {
+	if (ks_addr_set(&tcp_data.addr, ip, 0, family) != KS_STATUS_SUCCESS) {
 		printf("TCP CLIENT Can't set ADDR\n");
 		goto end;
 	}
@@ -275,7 +274,7 @@ static void start_tcp_server_and_test_ws(char *ip)
 	}
 
 	char url[1024];
-	snprintf(url, sizeof(url), "ws://127.0.0.1:%d/test", LISTEN_PORT);
+	snprintf(url, sizeof(url), "ws://127.0.0.1:%d/test", sockutil_port(tcp_data.sock));
 	test_ws(url);
 
 end:

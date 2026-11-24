@@ -32,7 +32,6 @@
 static char v4[48] = "";
 static char v6[48] = "";
 static int mask = 0;
-static int tcp_port = 8090;
 
 
 static char __MSG[] = "TESTING................................................................................/TESTING";
@@ -203,7 +202,7 @@ static int test_ws(char *ip, int ssl)
 		family = AF_INET6;
 	}
 
-	if (ks_addr_set(&tcp_data.addr, ip, tcp_port, family) != KS_STATUS_SUCCESS) {
+	if (ks_addr_set(&tcp_data.addr, ip, 0, family) != KS_STATUS_SUCCESS) {
 		r = 0;
 		printf("WS CLIENT Can't set ADDR\n");
 		goto end;
@@ -228,7 +227,7 @@ static int test_ws(char *ip, int ssl)
 		goto end;
 	}
 
-	ks_addr_set(&addr, ip, tcp_port, family);
+	ks_addr_set(&addr, ip, sockutil_port(tcp_data.sock), family);
 	cl_sock = ks_socket_connect(SOCK_STREAM, IPPROTO_TCP, &addr);
 
 	printf("WS %s CLIENT SOCKET %d %s %d\n", ssl ? "SSL" : "PLAIN", (int)cl_sock, addr.host, addr.port);

@@ -37,6 +37,14 @@
  */
 int sockutil_wait_listen(ks_socket_t sock, uint32_t ms);
 
+/**
+ * The local port a socket is bound to: the one the OS chose when it was bound
+ * to port 0, which no other socket on the host holds.
+ * @param sock A bound socket.
+ * @return The port, or 0 when the socket is not bound or the lookup fails.
+ */
+ks_port_t sockutil_port(ks_socket_t sock);
+
 #endif
 
 /* For Emacs:

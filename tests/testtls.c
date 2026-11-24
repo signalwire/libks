@@ -32,7 +32,6 @@ typedef struct  {
 	ks_tls_shared_ctx_t *shared_ctx;
 } tls_data_t;
 
-static const int TLS_TEST_PORT = 8090;
 static const uint32_t TLS_TEST_READ_TIMEOUT_MS = 5000;
 static const uint32_t TLS_TEST_WRITE_TIMEOUT_MS = 5000;
 static char TLS_TEST_PAYLOAD[] = "TESTING.TLS.PAYLOAD...............................................................................TESTING.TLS.PAYLOAD.END";
@@ -142,7 +141,7 @@ static int test_tls(char *ip)
 	char data[1024] = {0};
 	ks_size_t read_bytes = 1024;
 
-	if (ks_addr_set(&tls_data.server_addr, ip, TLS_TEST_PORT, family) != KS_STATUS_SUCCESS) {
+	if (ks_addr_set(&tls_data.server_addr, ip, 0, family) != KS_STATUS_SUCCESS) {
 		ks_log(KS_LOG_ERROR, "TSL CLIENT Can't set ADDR\n");
 		goto end;
 	}
@@ -171,7 +170,7 @@ static int test_tls(char *ip)
 
 	/* Client connection */
 	client_params.host = ip;
-	client_params.port = TLS_TEST_PORT;
+	client_params.port = sockutil_port(tls_data.server_socket);
 	client_params.verify_peer = KS_TLS_VERIFY_DISABLED;
 	client_params.init_timeout_ms = 5000;
 	client_params.connect_timeout_ms = 5000;

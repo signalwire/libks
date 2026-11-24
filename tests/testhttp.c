@@ -32,7 +32,6 @@
 static char v4[48] = "";
 static char v6[48] = "";
 static int mask = 0;
-static int tcp_port = 8090;
 
 
 static char __MSG[] = "TESTING................................................................................/TESTING";
@@ -308,7 +307,7 @@ static int test_get(char *ip, int ssl)
 		family = AF_INET6;
 	}
 
-	if (ks_addr_set(&tcp_data.addr, ip, tcp_port, family) != KS_STATUS_SUCCESS) {
+	if (ks_addr_set(&tcp_data.addr, ip, 0, family) != KS_STATUS_SUCCESS) {
 		r = 0;
 		printf("WS CLIENT Can't set ADDR\n");
 		goto end;
@@ -333,7 +332,7 @@ static int test_get(char *ip, int ssl)
 		goto end;
 	}
 
-	ks_addr_set(&addr, ip, tcp_port, family);
+	ks_addr_set(&addr, ip, sockutil_port(tcp_data.sock), family);
 	cl_sock = ks_socket_connect(SOCK_STREAM, IPPROTO_TCP, &addr);
 
 	printf("WS %s CLIENT SOCKET %d %s %d\n", ssl ? "SSL" : "PLAIN", (int)cl_sock, addr.host, addr.port);
@@ -405,7 +404,7 @@ static int test_post(char *ip)
 		family = AF_INET6;
 	}
 
-	if (ks_addr_set(&tcp_data.addr, ip, tcp_port, family) != KS_STATUS_SUCCESS) {
+	if (ks_addr_set(&tcp_data.addr, ip, 0, family) != KS_STATUS_SUCCESS) {
 		r = 0;
 		printf("WS CLIENT Can't set ADDR\n");
 		goto end;
@@ -430,7 +429,7 @@ static int test_post(char *ip)
 		goto end;
 	}
 
-	ks_addr_set(&addr, ip, tcp_port, family);
+	ks_addr_set(&addr, ip, sockutil_port(tcp_data.sock), family);
 	cl_sock = ks_socket_connect(SOCK_STREAM, IPPROTO_TCP, &addr);
 
 	printf("HTTP CLIENT SOCKET %d %s %d\n", (int)cl_sock, addr.host, addr.port);
@@ -501,7 +500,7 @@ static int test_post_json_read_buffer(char *ip)
 		family = AF_INET6;
 	}
 
-	if (ks_addr_set(&tcp_data.addr, ip, tcp_port, family) != KS_STATUS_SUCCESS) {
+	if (ks_addr_set(&tcp_data.addr, ip, 0, family) != KS_STATUS_SUCCESS) {
 		r = 0;
 		printf("WS CLIENT Can't set ADDR\n");
 		goto end;
@@ -526,7 +525,7 @@ static int test_post_json_read_buffer(char *ip)
 		goto end;
 	}
 
-	ks_addr_set(&addr, ip, tcp_port, family);
+	ks_addr_set(&addr, ip, sockutil_port(tcp_data.sock), family);
 	cl_sock = ks_socket_connect(SOCK_STREAM, IPPROTO_TCP, &addr);
 
 	printf("HTTP CLIENT SOCKET %d %s %d\n", (int)cl_sock, addr.host, addr.port);
@@ -597,7 +596,7 @@ static int test_keepalive(char *ip)
 		family = AF_INET6;
 	}
 
-	if (ks_addr_set(&tcp_data.addr, ip, tcp_port, family) != KS_STATUS_SUCCESS) {
+	if (ks_addr_set(&tcp_data.addr, ip, 0, family) != KS_STATUS_SUCCESS) {
 		r = 0;
 		printf("WS CLIENT Can't set ADDR\n");
 		goto end;
@@ -622,7 +621,7 @@ static int test_keepalive(char *ip)
 		goto end;
 	}
 
-	ks_addr_set(&addr, ip, tcp_port, family);
+	ks_addr_set(&addr, ip, sockutil_port(tcp_data.sock), family);
 	cl_sock = ks_socket_connect(SOCK_STREAM, IPPROTO_TCP, &addr);
 
 	printf("HTTP CLIENT SOCKET %d %s %d\n", (int)cl_sock, addr.host, addr.port);
@@ -831,7 +830,7 @@ static int test_uri_sanitize(char *ip)
 
 	if (strchr(ip, ':')) family = AF_INET6;
 
-	if (ks_addr_set(&tcp_data.addr, ip, tcp_port, family) != KS_STATUS_SUCCESS) {
+	if (ks_addr_set(&tcp_data.addr, ip, 0, family) != KS_STATUS_SUCCESS) {
 		r = 0;
 		printf("URI CLIENT Can't set ADDR\n");
 		goto end;
@@ -855,7 +854,7 @@ static int test_uri_sanitize(char *ip)
 		goto end;
 	}
 
-	ks_addr_set(&addr, ip, tcp_port, family);
+	ks_addr_set(&addr, ip, sockutil_port(tcp_data.sock), family);
 	cl_sock = ks_socket_connect(SOCK_STREAM, IPPROTO_TCP, &addr);
 
 	for (i = 0; g_uri_cases[i].send; i++) {

@@ -47,10 +47,10 @@
 
 #include "libks/ks.h"
 #include <tap.h>
+#include "sockutil.h"
 #include <openssl/sha.h>
 #include <openssl/evp.h>
 
-#define FRAMES_PORT 8095
 #define WS_GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 /* Unmasked server frames: an empty PING, TEXT "hello", an empty PONG, BINARY {1, 2}. */
@@ -254,7 +254,7 @@ static int test_frames(const char *ip, int with_handshake, int which)
 		srv.frames_len = 10 + LONG_LEN;
 	}
 
-	if (ks_addr_set(&addr, ip, FRAMES_PORT, AF_INET) != KS_STATUS_SUCCESS ||
+	if (ks_addr_set(&addr, ip, 0, AF_INET) != KS_STATUS_SUCCESS ||
 		(srv.sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == KS_SOCK_INVALID) {
 		goto end;
 	}
@@ -263,6 +263,7 @@ static int test_frames(const char *ip, int with_handshake, int which)
 		diag("listen failed");
 		goto end;
 	}
+	ks_addr_set(&addr, ip, sockutil_port(srv.sock), AF_INET);
 	ks_thread_create(&thread_p, frames_server_thread, &srv, pool);
 
 	if ((cl_sock = ks_socket_connect(SOCK_STREAM, IPPROTO_TCP, &addr)) == KS_SOCK_INVALID) {

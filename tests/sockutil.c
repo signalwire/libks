@@ -73,6 +73,24 @@ int sockutil_wait_listen(ks_socket_t sock, uint32_t ms)
 	return 0;
 }
 
+ks_port_t sockutil_port(ks_socket_t sock)
+{
+	struct sockaddr_storage ss;
+	socklen_t len = sizeof(ss);
+
+	memset(&ss, 0, sizeof(ss));
+
+	if (getsockname(sock, (struct sockaddr *)&ss, &len) != 0) {
+		return 0;
+	}
+
+	if (ss.ss_family == AF_INET6) {
+		return ntohs(((struct sockaddr_in6 *)&ss)->sin6_port);
+	}
+
+	return ntohs(((struct sockaddr_in *)&ss)->sin_port);
+}
+
 /* For Emacs:
  * Local Variables:
  * mode:c
