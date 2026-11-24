@@ -46,6 +46,7 @@ struct tcp_data {
 	ks_socket_t sock;
 	ks_sockaddr_t addr;
 	char *ip;
+	volatile int stop;
 };
 
 static int b64encode(unsigned char *in, size_t ilen, unsigned char *out, size_t olen)
@@ -171,7 +172,7 @@ static ssize_t append_text_frame(void *bp)
 
 static void server_callback(ks_socket_t server_sock, ks_socket_t client_sock, ks_sockaddr_t *addr, void *user_data)
 {
-	//struct tcp_data *tcp_data = (struct tcp_data *) user_data;
+	struct tcp_data *tcp_data = (struct tcp_data *) user_data;
 	char buf[8192] = "";
 	ks_status_t status;
 	ks_size_t bytes;
@@ -179,6 +180,10 @@ static void server_callback(ks_socket_t server_sock, ks_socket_t client_sock, ks
 	char input[512] = "";
 	unsigned char output[SHA1_HASH_SIZE] = "";
 	char b64[256] = "";
+
+	if (sockutil_listen_stopping(&tcp_data->stop, server_sock, client_sock)) {
+		return;
+	}
 
 	printf("TCP SERVER SOCK %d connection from %s:%u\n", (int)server_sock, addr->host, addr->port);
 
@@ -248,6 +253,8 @@ static void start_tcp_server_and_test_ws(char *ip)
 	int family = AF_INET;
 	ks_socket_t cl_sock = KS_SOCK_INVALID;
 	struct tcp_data tcp_data = { 0 };
+	ks_sockaddr_t addr;
+	int listening = 0;
 
 	ks_pool_open(&pool);
 
@@ -273,18 +280,23 @@ static void start_tcp_server_and_test_ws(char *ip)
 		goto end;
 	}
 
+	listening = 1;
+	ks_addr_set(&addr, ip, sockutil_port(tcp_data.sock), family);
+
 	char url[1024];
-	snprintf(url, sizeof(url), "ws://127.0.0.1:%d/test", sockutil_port(tcp_data.sock));
+	snprintf(url, sizeof(url), "ws://127.0.0.1:%d/test", addr.port);
 	test_ws(url);
 
 end:
-	if (tcp_data.sock != KS_SOCK_INVALID) {
-		ks_socket_shutdown(tcp_data.sock, 2);
-		ks_socket_close(&tcp_data.sock);
-	}
-
+	/* Once the server thread runs, ks_listen_sock owns tcp_data.sock and closes it. */
 	if (thread_p) {
+		if (listening) {
+			sockutil_listen_stop(&tcp_data.stop, &addr);
+		}
+
 		ks_thread_join(thread_p);
+	} else if (tcp_data.sock != KS_SOCK_INVALID) {
+		ks_socket_close(&tcp_data.sock);
 	}
 
 	ks_socket_close(&cl_sock);

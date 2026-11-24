@@ -45,6 +45,33 @@ int sockutil_wait_listen(ks_socket_t sock, uint32_t ms);
  */
 ks_port_t sockutil_port(ks_socket_t sock);
 
+/**
+ * Stop a ks_listen_sock loop running in another thread. ks_listen_sock owns the
+ * socket it is given: it closes it itself on every way out, and it has no stop
+ * of its own. Closing or shutting the socket down from outside is a second close
+ * of an fd number the listener still holds; whatever opened an fd in between (any
+ * other thread) gets that number and loses its fd to the listener's close. So this
+ * only sets *stop and connects to the listener; its callback, which must begin
+ * with sockutil_listen_stopping, ends the loop from the listener's own thread.
+ * @param stop The flag the listen callback checks.
+ * @param addr The address the listener is listening on, its port included.
+ * @return 1 the listener was reached, 0 the connect failed (nothing listening there).
+ */
+int sockutil_listen_stop(volatile int *stop, ks_sockaddr_t *addr);
+
+/**
+ * In a ks_listen_sock callback, first: whether the test asked the listener to stop
+ * (sockutil_listen_stop), and if so end its loop. The connection takes over the
+ * listening fd's number (dup2, which closes the listening socket and never leaves
+ * the number free), so ks_listen_sock's next accept fails and it closes that fd
+ * itself; the connection's own fd is closed here.
+ * @param stop The flag sockutil_listen_stop sets.
+ * @param server_sock The listening socket the callback was given.
+ * @param client_sock The connection the callback was given.
+ * @return 1 stopping: return from the callback at once; 0 a connection to serve.
+ */
+int sockutil_listen_stopping(volatile int *stop, ks_socket_t server_sock, ks_socket_t client_sock);
+
 #endif
 
 /* For Emacs:

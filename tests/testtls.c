@@ -30,6 +30,7 @@ typedef struct  {
 	ks_sockaddr_t server_addr;
 	ks_socket_t server_socket;
 	ks_tls_shared_ctx_t *shared_ctx;
+	volatile int stop;
 } tls_data_t;
 
 static const uint32_t TLS_TEST_READ_TIMEOUT_MS = 5000;
@@ -48,6 +49,10 @@ void server_callback(ks_socket_t server_sock, ks_socket_t client_sock, ks_sockad
 	uint8_t read_buf[TLS_TEST_READ_BUF_LEN] = {0};
 	ks_size_t read_chunk_size = TLS_TEST_READ_BUF_LEN;
 	ks_size_t read_bytes = 0;
+
+	if (sockutil_listen_stopping(&tls_data->stop, server_sock, client_sock)) {
+		return;
+	}
 
 	ks_log(KS_LOG_DEBUG, "SERVER: Accepting client from %s:%u [%d]...\n", addr->host, addr->port, client_sock);
 
@@ -112,6 +117,9 @@ static void *tcp_sock_server(ks_thread_t *thread, void *thread_data)
 
 	if (ks_tls_create_shared_server_ctx(&shared_ctx, &ctx_params, tls_data->pool) != KS_STATUS_SUCCESS) {
 		ks_log(KS_LOG_DEBUG, "CAN'T CREATE SHARED SERVER CONTEXT\n");
+		/* This thread owns the socket, as ks_listen_sock would have. */
+		ks_socket_close(&tls_data->server_socket);
+
 		return NULL;
 	}
 
@@ -140,6 +148,8 @@ static int test_tls(char *ip)
 	ks_size_t write_bytes = sizeof(TLS_TEST_PAYLOAD);
 	char data[1024] = {0};
 	ks_size_t read_bytes = 1024;
+	ks_sockaddr_t stop_addr;
+	int listening = 0;
 
 	if (ks_addr_set(&tls_data.server_addr, ip, 0, family) != KS_STATUS_SUCCESS) {
 		ks_log(KS_LOG_ERROR, "TSL CLIENT Can't set ADDR\n");
@@ -168,9 +178,12 @@ static int test_tls(char *ip)
 		goto end;
 	}
 
+	listening = 1;
+	ks_addr_set(&stop_addr, ip, sockutil_port(tls_data.server_socket), family);
+
 	/* Client connection */
 	client_params.host = ip;
-	client_params.port = sockutil_port(tls_data.server_socket);
+	client_params.port = stop_addr.port;
 	client_params.verify_peer = KS_TLS_VERIFY_DISABLED;
 	client_params.init_timeout_ms = 5000;
 	client_params.connect_timeout_ms = 5000;
@@ -208,13 +221,15 @@ static int test_tls(char *ip)
 end:
 	ks_tls_destroy(&ktls);
 
-	if (server_sock != KS_SOCK_INVALID) {
-		ks_socket_shutdown(server_sock, SHUT_RDWR);
-		ks_socket_close(&server_sock);
-	}
-
+	/* Once the server thread runs, it (ks_listen_sock) owns the server socket and closes it. */
 	if (thread_p) {
+		if (listening) {
+			sockutil_listen_stop(&tls_data.stop, &stop_addr);
+		}
+
 		ks_thread_join(thread_p);
+	} else if (server_sock != KS_SOCK_INVALID) {
+		ks_socket_close(&server_sock);
 	}
 
 	if (pool) {
