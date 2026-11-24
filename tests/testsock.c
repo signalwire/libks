@@ -34,14 +34,19 @@ struct tcp_data {
 	ks_socket_t sock;
 	ks_sockaddr_t addr;
 	char *ip;
+	volatile int stop;
 };
 
 void server_callback(ks_socket_t server_sock, ks_socket_t client_sock, ks_sockaddr_t *addr, void *user_data)
 {
-	//struct tcp_data *tcp_data = (struct tcp_data *) user_data;
+	struct tcp_data *tcp_data = (struct tcp_data *) user_data;
 	char buf[8192] = "";
 	ks_status_t status;
 	ks_size_t bytes;
+
+	if (sockutil_listen_stopping(&tcp_data->stop, server_sock, client_sock)) {
+		return;
+	}
 
 	printf("TCP SERVER SOCK %d connection from %s:%u\n", (int)server_sock, addr->host, addr->port);
 
@@ -164,7 +169,7 @@ static int test_tcp(char *ip)
 	ks_socket_t cl_sock = KS_SOCK_INVALID;
 	char buf[8192] = "";
 	struct tcp_data tcp_data = { 0 };
-	int r = 1;
+	int r = 1, listening = 0;
 
 	ks_pool_open(&pool);
 
@@ -197,6 +202,7 @@ static int test_tcp(char *ip)
 		goto end;
 	}
 
+	listening = 1;
 	ks_addr_set(&addr, ip, sockutil_port(tcp_data.sock), family);
 	cl_sock = ks_socket_connect(SOCK_STREAM, IPPROTO_TCP, &addr);
 
@@ -224,13 +230,15 @@ static int test_tcp(char *ip)
 
  end:
 
-	if (tcp_data.sock != KS_SOCK_INVALID) {
-		ks_socket_shutdown(tcp_data.sock, 2);
-		ks_socket_close(&tcp_data.sock);
-	}
-
+	/* Once the server thread runs, ks_listen_sock owns tcp_data.sock and closes it. */
 	if (thread_p) {
+		if (listening) {
+			sockutil_listen_stop(&tcp_data.stop, &addr);
+		}
+
 		ks_thread_join(thread_p);
+	} else if (tcp_data.sock != KS_SOCK_INVALID) {
+		ks_socket_close(&tcp_data.sock);
 	}
 
 	ks_socket_close(&cl_sock);

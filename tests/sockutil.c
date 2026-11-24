@@ -91,6 +91,35 @@ ks_port_t sockutil_port(ks_socket_t sock)
 	return ntohs(((struct sockaddr_in *)&ss)->sin_port);
 }
 
+int sockutil_listen_stop(volatile int *stop, ks_sockaddr_t *addr)
+{
+	ks_socket_t sock;
+
+	*stop = 1;
+
+	if ((sock = ks_socket_connect(SOCK_STREAM, IPPROTO_TCP, addr)) == KS_SOCK_INVALID) {
+		return 0;
+	}
+
+	/* Connected means queued for accept; the listener sees it whether or not this end is still open. */
+	ks_socket_close(&sock);
+
+	return 1;
+}
+
+int sockutil_listen_stopping(volatile int *stop, ks_socket_t server_sock, ks_socket_t client_sock)
+{
+	if (!*stop) {
+		return 0;
+	}
+
+	/* accept on a connected socket fails (EINVAL), so ks_listen_sock returns and closes server_sock. */
+	dup2(client_sock, server_sock);
+	ks_socket_close(&client_sock);
+
+	return 1;
+}
+
 /* For Emacs:
  * Local Variables:
  * mode:c
