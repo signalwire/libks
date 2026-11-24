@@ -735,8 +735,9 @@ KS_DECLARE(int) ks_wait_sock(ks_socket_t sock, uint32_t ms, ks_poll_t flags)
 {
 	char fl[64];
 	struct pollfd pfds[2] = { {0} };
-	int s = 0, r = 0, err = 0, so_error = 0;
+	int s = 0, r = 0, err = 0, so_error = 0, left = (int)ms;
 	socklen_t so_len = 0;
+	ks_time_t deadline = 0, now = 0;
 
 	if (sock == KS_SOCK_INVALID) {
 	  return KS_POLL_INVALID;
@@ -764,7 +765,18 @@ KS_DECLARE(int) ks_wait_sock(ks_socket_t sock, uint32_t ms, ks_poll_t flags)
 		pfds[0].events |= POLLPRI;
 	}
 
-	s = ks_poll(pfds, 1, ms);
+	/* A signal delivered to this thread (a child's SIGCHLD where something has a handler for it,
+	 * or every signal under an emulator such as Rosetta) interrupts poll() with EINTR. That is
+	 * not a socket error: wait again for what is left of the timeout. */
+	deadline = ks_time_now() + (ks_time_t)ms * KS_USEC_PER_MSEC;
+
+	while ((s = ks_poll(pfds, 1, left)) < 0 && ks_errno_is_interupt(ks_errno())) {
+		now = ks_time_now();
+		left = now >= deadline ? 0 : (int)ks_time_ms(deadline - now);
+
+		ks_log(KS_LOG_DEBUG, "ks_wait_sock(fd %d, %s): poll() interrupted (EINTR), waiting again for %d ms\n",
+			(int)sock, wait_sock_flag_names(flags, fl, sizeof(fl)), left);
+	}
 
 	/* Each failure means something different, so each is logged on its own; a timeout (0) is not one.
 	 * These run only when poll() fails or reports a condition, never on a plain ready or timeout,

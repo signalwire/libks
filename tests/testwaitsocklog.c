@@ -128,8 +128,7 @@ int main(int argc, char **argv)
 
 	ok(log_count == 0, "timeout and ready log nothing (%d lines)", log_count);
 
-	/* poll() failing (here: interrupted by a signal) returns -1 as before, logs errno by name,
-	 * and leaves errno for the caller. */
+	/* An interrupted poll() is waited again (testwaitsock.c) and logged at DEBUG, not as a failure. */
 	memset(&w, 0, sizeof(w));
 	w.sock = fds[0];
 	pthread_create(&t, NULL, wait_thread, &w);
@@ -141,10 +140,10 @@ int main(int argc, char **argv)
 	ks_sleep_ms(200);
 	pthread_kill(t, SIGUSR1);
 	pthread_join(t, NULL);
-	ok(w.result == -1, "interrupted wait still returns -1 (%d)", w.result);
-	ok(w.err == EINTR, "errno is still EINTR after the log (%d)", w.err);
-	ok(strstr(last_log[KS_LOG_LEVEL_ERROR], "ks_wait_sock(fd ") && strstr(last_log[KS_LOG_LEVEL_ERROR], "READ): poll() failed: EINTR (4)"),
-		"poll() failure logged at ERROR: %s", last_log[KS_LOG_LEVEL_ERROR]);
+	ok(w.result == 0, "interrupted wait times out (%d), not -1", w.result);
+	ok(last_log[KS_LOG_LEVEL_ERROR][0] == '\0', "no ERROR line for the interruption: '%s'", last_log[KS_LOG_LEVEL_ERROR]);
+	ok(strstr(last_log[KS_LOG_LEVEL_DEBUG], "READ): poll() interrupted (EINTR)") != NULL,
+		"EINTR retry logged at DEBUG: %s", last_log[KS_LOG_LEVEL_DEBUG]);
 
 	/* Peer closed: HUP, logged at INFO. */
 	close(fds[1]);
