@@ -307,6 +307,277 @@ ks_status_t qtest4()
 	return status;
 }
 
+static void *test5_thread(ks_thread_t *thread, void *data)
+{
+	ks_q_t *q = (ks_q_t *) data;
+
+	return (void *)(intptr_t)ks_q_push(q, data);
+}
+
+/* A blocked ks_q_push() waits on when another thread takes the slot it was woken for. */
+ks_status_t qtest5()
+{
+	ks_thread_t *thread = NULL;
+	ks_q_t *q = NULL;
+	ks_pool_t *pool = NULL;
+	ks_status_t status = KS_STATUS_FAIL;
+	ks_status_t pushed = KS_STATUS_FAIL;
+	void *pop = NULL;
+	int blocked = 0;
+	int taken = 0;
+	int i;
+
+	ks_pool_open(&pool);
+	ks_q_create(&q, pool, 1);
+
+	if (ks_q_push(q, q) != KS_STATUS_SUCCESS) goto end;
+	if (ks_thread_create(&thread, test5_thread, q, pool) != KS_STATUS_SUCCESS) goto end;
+
+	/* Up to 5 seconds for the thread to block in ks_q_push(). */
+	for (i = 0; i < 500 && !blocked; i++) {
+		ks_sleep(10000);
+		blocked = ks_q_pushers(q) == 1;
+	}
+
+	if (!blocked) goto end;
+
+	/*
+	 * Each round frees the only slot and takes it back. The trypush fails only if the
+	 * thread got the slot first.
+	 */
+	for (i = 0; i < 20 && !taken; i++) {
+		if (ks_q_pop(q, &pop) != KS_STATUS_SUCCESS) goto end;
+
+		taken = ks_q_trypush(q, q) != KS_STATUS_SUCCESS;
+		ks_sleep(1000);
+	}
+
+	if (!taken && ks_q_pop(q, &pop) != KS_STATUS_SUCCESS) goto end;
+
+	ks_thread_join(thread);
+	pushed = (ks_status_t)(intptr_t)ks_thread_get_return_data(thread);
+	thread = NULL;
+
+	if (pushed != KS_STATUS_SUCCESS) goto end;
+	if (ks_q_size(q) != 1) goto end;
+
+	status = KS_STATUS_SUCCESS;
+
+ end:
+
+	ks_q_term(q);
+
+	if (thread) {
+		ks_thread_join(thread);
+	}
+
+	ks_q_destroy(&q);
+	ks_pool_close(&pool);
+
+	return status;
+}
+
+static void *test6_thread(ks_thread_t *thread, void *data)
+{
+	ks_q_t *q = (ks_q_t *) data;
+	ks_status_t status;
+	void *pop = NULL;
+
+	/* The thread pops what it gets and ends on the first status that is not success. */
+	do {
+		status = ks_q_pop_timeout(q, &pop, 200);
+	} while (status == KS_STATUS_SUCCESS);
+
+	return (void *)(intptr_t)status;
+}
+
+/* A ks_q_pop_timeout() woken for an item that another thread took waits on and ends with a timeout. */
+ks_status_t qtest6()
+{
+	ks_thread_t *thread = NULL;
+	ks_q_t *q = NULL;
+	ks_pool_t *pool = NULL;
+	ks_status_t status = KS_STATUS_FAIL;
+	ks_status_t popped = KS_STATUS_FAIL;
+	void *pop = NULL;
+	int i;
+
+	ks_pool_open(&pool);
+	ks_q_create(&q, pool, 0);
+
+	if (ks_thread_create(&thread, test6_thread, q, pool) != KS_STATUS_SUCCESS) goto end;
+
+	/* Each round pushes an item and takes it back, unless the thread popped it first. */
+	for (i = 0; i < 50; i++) {
+		if (ks_q_push(q, q) != KS_STATUS_SUCCESS) goto end;
+
+		ks_q_trypop(q, &pop);
+		ks_sleep(1000);
+	}
+
+	ks_thread_join(thread);
+	popped = (ks_status_t)(intptr_t)ks_thread_get_return_data(thread);
+	thread = NULL;
+
+	if (popped != KS_STATUS_TIMEOUT) goto end;
+
+	status = KS_STATUS_SUCCESS;
+
+ end:
+
+	ks_q_term(q);
+
+	if (thread) {
+		ks_thread_join(thread);
+	}
+
+	ks_q_destroy(&q);
+	ks_pool_close(&pool);
+
+	return status;
+}
+
+struct test7_data {
+	ks_q_t *q;
+	ks_mutex_t *mutex;
+	ks_status_t status;
+	int done;
+};
+
+static void *test7_thread(ks_thread_t *thread, void *data)
+{
+	struct test7_data *t7 = (struct test7_data *) data;
+	void *pop = NULL;
+
+	t7->status = ks_q_pop(t7->q, &pop);
+
+	ks_mutex_lock(t7->mutex);
+	t7->done = 1;
+	ks_mutex_unlock(t7->mutex);
+
+	return NULL;
+}
+
+/* ks_q_wake() ends a blocked ks_q_pop() and a blocked ks_q_push() with KS_STATUS_BREAK. */
+ks_status_t qtest7()
+{
+	ks_thread_t *thread = NULL;
+	ks_q_t *q = NULL;
+	ks_pool_t *pool = NULL;
+	ks_status_t status = KS_STATUS_FAIL;
+	ks_status_t pushed = KS_STATUS_FAIL;
+	struct test7_data t7 = { 0 };
+	void *pop = NULL;
+	int blocked = 0;
+	int done = 0;
+	int i;
+
+	ks_pool_open(&pool);
+	ks_q_create(&q, pool, 1);
+
+	t7.q = q;
+
+	if (ks_mutex_create(&t7.mutex, KS_MUTEX_FLAG_DEFAULT, pool) != KS_STATUS_SUCCESS) goto end;
+	if (ks_thread_create(&thread, test7_thread, &t7, pool) != KS_STATUS_SUCCESS) goto end;
+
+	/* A wake that comes before the thread waits does nothing, so it is repeated for up to 5 seconds. */
+	for (i = 0; i < 500 && !done; i++) {
+		ks_sleep(10000);
+		ks_q_wake(q);
+
+		ks_mutex_lock(t7.mutex);
+		done = t7.done;
+		ks_mutex_unlock(t7.mutex);
+	}
+
+	if (!done) goto end;
+
+	ks_thread_join(thread);
+	thread = NULL;
+
+	if (t7.status != KS_STATUS_BREAK) goto end;
+
+	if (ks_q_push(q, q) != KS_STATUS_SUCCESS) goto end;
+	if (ks_thread_create(&thread, test5_thread, q, pool) != KS_STATUS_SUCCESS) goto end;
+
+	/* Up to 5 seconds for the thread to block in ks_q_push(). */
+	for (i = 0; i < 500 && !blocked; i++) {
+		ks_sleep(10000);
+		blocked = ks_q_pushers(q) == 1;
+	}
+
+	if (!blocked) goto end;
+
+	ks_q_wake(q);
+
+	ks_thread_join(thread);
+	pushed = (ks_status_t)(intptr_t)ks_thread_get_return_data(thread);
+	thread = NULL;
+
+	if (pushed != KS_STATUS_BREAK) goto end;
+	if (ks_q_pushers(q) != 0) goto end;
+	if (ks_q_size(q) != 1) goto end;
+	if (ks_q_pop(q, &pop) != KS_STATUS_SUCCESS || pop != q) goto end;
+
+	status = KS_STATUS_SUCCESS;
+
+ end:
+
+	ks_q_term(q);
+
+	if (thread) {
+		ks_thread_join(thread);
+	}
+
+	ks_q_destroy(&q);
+	ks_pool_close(&pool);
+
+	return status;
+}
+
+/*
+ * ks_q_pop_timeout() counts milliseconds and ks_q_timedpop_usec() microseconds; the
+ * latter does not wait for 0 or less.
+ */
+ks_status_t qtest8()
+{
+	ks_q_t *q = NULL;
+	ks_pool_t *pool = NULL;
+	ks_status_t status = KS_STATUS_FAIL;
+	void *pop = NULL;
+	ks_time_t start;
+
+	ks_pool_open(&pool);
+	ks_q_create(&q, pool, 0);
+
+	start = ks_time_now();
+	if (ks_q_pop_timeout(q, &pop, 100) != KS_STATUS_TIMEOUT) goto end;
+	if (ks_time_now() - start < 100000) goto end;
+
+	start = ks_time_now();
+	if (ks_q_timedpop_usec(q, &pop, 100000) != KS_STATUS_TIMEOUT) goto end;
+	if (ks_time_now() - start < 100000) goto end;
+
+	if (ks_q_timedpop_usec(q, &pop, 500) != KS_STATUS_TIMEOUT) goto end;
+	if (ks_q_timedpop_usec(q, &pop, 0) != KS_STATUS_TIMEOUT) goto end;
+	if (ks_q_timedpop_usec(q, &pop, -1) != KS_STATUS_TIMEOUT) goto end;
+
+	if (ks_q_push(q, q) != KS_STATUS_SUCCESS) goto end;
+	if (ks_q_timedpop_usec(q, &pop, 0) != KS_STATUS_SUCCESS || pop != q) goto end;
+
+	if (ks_q_push(q, pool) != KS_STATUS_SUCCESS) goto end;
+	if (ks_q_pop_timeout(q, &pop, 100) != KS_STATUS_SUCCESS || pop != pool) goto end;
+
+	status = KS_STATUS_SUCCESS;
+
+ end:
+
+	ks_q_destroy(&q);
+	ks_pool_close(&pool);
+
+	return status;
+}
+
 int main(int argc, char **argv)
 {
 	int ttl;
@@ -316,7 +587,7 @@ int main(int argc, char **argv)
 
 	ks_init();
 
-	plan(4 * runs + 2);
+	plan(4 * runs + 6);
 
 	ttl = ks_env_cpu_count() * 5;
 	//ttl = 5;
@@ -325,6 +596,10 @@ int main(int argc, char **argv)
 
 	ok(qtest3() == KS_STATUS_SUCCESS);
 	ok(qtest4() == KS_STATUS_SUCCESS);
+	ok(qtest5() == KS_STATUS_SUCCESS);
+	ok(qtest6() == KS_STATUS_SUCCESS);
+	ok(qtest7() == KS_STATUS_SUCCESS);
+	ok(qtest8() == KS_STATUS_SUCCESS);
 	for(i = 0; i < runs; i++) {
 		ok(qtest1(size));
 		ok(qtest2(ttl, 0, size) == 0);

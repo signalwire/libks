@@ -579,6 +579,71 @@ KS_DECLARE(ks_status_t) ks_cond_timedwait(ks_cond_t *cond, ks_time_t ms)
 	return KS_STATUS_SUCCESS;
 }
 
+KS_DECLARE(ks_status_t) ks_cond_timedwait_usec(ks_cond_t *cond, ks_time_t usec)
+{
+#ifdef WIN32
+	DWORD ms;
+	BOOL res;
+#else
+	struct timespec ts;
+	ks_time_t n;
+	int r = 0;
+#endif
+#ifdef KS_DEBUG_MUTEX
+	ks_mutex_lock_record_t record = __pre_mutex_cond_wait(cond->mutex);
+#endif
+
+	if (usec < 0) {
+		usec = 0;
+	}
+
+#ifdef WIN32
+	/* SleepConditionVariableCS() counts milliseconds: round up and stay below INFINITE. */
+	if (usec > (ks_time_t)(INFINITE - 1) * KS_USEC_PER_MSEC) {
+		ms = INFINITE - 1;
+	} else {
+		ms = (DWORD)((usec + KS_USEC_PER_MSEC - 1) / KS_USEC_PER_MSEC);
+	}
+
+	res = SleepConditionVariableCS(&cond->cond, &cond->mutex->mutex, ms);
+
+#ifdef KS_DEBUG_MUTEX
+	__post_mutex_cond_wait(cond->mutex, &record);
+#endif
+
+	if (!res) {
+		if (GetLastError() == ERROR_TIMEOUT) {
+			return KS_STATUS_TIMEOUT;
+		} else {
+			return KS_STATUS_FAIL;
+		}
+	}
+#else
+	n = ks_time_now();
+	n = usec > INT64_MAX - n ? INT64_MAX : n + usec;
+
+	ts.tv_sec   = ks_time_sec(n);
+	ts.tv_nsec  = ks_time_nsec(n);
+
+	r = pthread_cond_timedwait(&cond->cond, &cond->mutex->mutex, &ts);
+
+#ifdef KS_DEBUG_MUTEX
+	__post_mutex_cond_wait(cond->mutex, &record);
+#endif
+
+	if (r) {
+		switch(r) {
+		case ETIMEDOUT:
+			return KS_STATUS_TIMEOUT;
+		default:
+			return KS_STATUS_FAIL;
+		}
+	}
+#endif
+
+	return KS_STATUS_SUCCESS;
+}
+
 KS_DECLARE(ks_status_t) ks_cond_destroy(ks_cond_t **cond)
 {
 	ks_cond_t *condp = *cond;
