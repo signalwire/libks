@@ -221,14 +221,24 @@ KS_DECLARE(void) ks_sleep(ks_time_t microsec)
 	struct timespec ts;
 #endif
 
+	/* A signal handled on this thread interrupts the sleep (EINTR) and leaves the time still
+	 * to sleep in the second timespec; sleep on for it, so a signal never cuts a sleep short. */
 #if defined(HAVE_CLOCK_NANOSLEEP)
 	ts.tv_sec = ks_time_sec(microsec);
 	ts.tv_nsec = ks_time_nsec(microsec);
-	clock_nanosleep(CLOCK_MONOTONIC, 0, &ts, NULL);
+
+	while (clock_nanosleep(CLOCK_MONOTONIC, 0, &ts, &ts) == EINTR) {
+		continue;
+	}
+
 #elif defined(__APPLE__)
 	ts.tv_sec = ks_time_sec(microsec);
-	ts.tv_nsec = ks_time_usec(microsec) * 900;
-	nanosleep(&ts, NULL);
+	ts.tv_nsec = ks_time_nsec(microsec);
+
+	while (nanosleep(&ts, &ts) == -1 && errno == EINTR) {
+		continue;
+	}
+
 #else
 	generic_sleep(microsec);
 #endif

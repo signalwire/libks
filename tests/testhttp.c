@@ -33,6 +33,9 @@ static char v4[48] = "";
 static char v6[48] = "";
 static int mask = 0;
 
+/* This run's own copy of the certificate (sockutil_cert_make). */
+static char cert_path[512] = "";
+
 
 static char __MSG[] = "TESTING................................................................................/TESTING";
 
@@ -106,6 +109,7 @@ struct tcp_data {
 	int ssl;
 	ssl_profile_t client_profile;
 	ssl_profile_t server_profile;
+	volatile int stop;
 };
 
 void server_callback(ks_socket_t server_sock, ks_socket_t client_sock, ks_sockaddr_t *addr, void *user_data)
@@ -118,11 +122,15 @@ void server_callback(ks_socket_t server_sock, ks_socket_t client_sock, ks_sockad
 	int keepalive = 0;
 	kws_request_t *request = NULL;
 
+	if (sockutil_listen_stopping(&tcp_data->stop, server_sock, client_sock)) {
+		return;
+	}
+
 	if (tcp_data->ssl) {
 		tcp_data->server_profile.ssl_method = SSLv23_server_method();
-		ks_set_string(tcp_data->server_profile.cert, "./testhttp.pem");
-		ks_set_string(tcp_data->server_profile.key, "./testhttp.pem");
-		ks_set_string(tcp_data->server_profile.chain, "./testhttp.pem");
+		ks_set_string(tcp_data->server_profile.cert, cert_path);
+		ks_set_string(tcp_data->server_profile.key, cert_path);
+		ks_set_string(tcp_data->server_profile.chain, cert_path);
 		init_ssl(&tcp_data->server_profile);
 	}
 
@@ -287,7 +295,7 @@ static int test_get(char *ip, int ssl)
 	int family = AF_INET;
 	ks_socket_t cl_sock = KS_SOCK_INVALID;
 	struct tcp_data tcp_data = { 0 };
-	int r = 1;
+	int r = 1, listening = 0;
 	kws_t *kws = NULL;
 
 	ks_pool_open(&pool);
@@ -297,9 +305,9 @@ static int test_get(char *ip, int ssl)
 	if (ssl) {
 		tcp_data.ssl = 1;
 		tcp_data.client_profile.ssl_method = SSLv23_client_method();
-		ks_set_string(tcp_data.client_profile.cert, "./testhttp.pem");
-		ks_set_string(tcp_data.client_profile.key, "./testhttp.pem");
-		ks_set_string(tcp_data.client_profile.chain, "./testhttp.pem");
+		ks_set_string(tcp_data.client_profile.cert, cert_path);
+		ks_set_string(tcp_data.client_profile.key, cert_path);
+		ks_set_string(tcp_data.client_profile.chain, cert_path);
 		init_ssl(&tcp_data.client_profile);
 	}
 
@@ -332,6 +340,7 @@ static int test_get(char *ip, int ssl)
 		goto end;
 	}
 
+	listening = 1;
 	ks_addr_set(&addr, ip, sockutil_port(tcp_data.sock), family);
 	cl_sock = ks_socket_connect(SOCK_STREAM, IPPROTO_TCP, &addr);
 
@@ -369,13 +378,15 @@ static int test_get(char *ip, int ssl)
 		SSL_CTX_free(tcp_data.client_profile.ssl_ctx);
 	}
 
-	if (tcp_data.sock != KS_SOCK_INVALID) {
-		ks_socket_shutdown(tcp_data.sock, 2);
-		ks_socket_close(&tcp_data.sock);
-	}
-
+	/* Once the server thread runs, ks_listen_sock owns tcp_data.sock and closes it. */
 	if (thread_p) {
+		if (listening) {
+			sockutil_listen_stop(&tcp_data.stop, &addr);
+		}
+
 		ks_thread_join(thread_p);
+	} else if (tcp_data.sock != KS_SOCK_INVALID) {
+		ks_socket_close(&tcp_data.sock);
 	}
 
 	ks_socket_close(&cl_sock);
@@ -393,7 +404,7 @@ static int test_post(char *ip)
 	int family = AF_INET;
 	ks_socket_t cl_sock = KS_SOCK_INVALID;
 	struct tcp_data tcp_data = { 0 };
-	int r = 1;
+	int r = 1, listening = 0;
 	kws_t *kws = NULL;
 
 	ks_pool_open(&pool);
@@ -429,6 +440,7 @@ static int test_post(char *ip)
 		goto end;
 	}
 
+	listening = 1;
 	ks_addr_set(&addr, ip, sockutil_port(tcp_data.sock), family);
 	cl_sock = ks_socket_connect(SOCK_STREAM, IPPROTO_TCP, &addr);
 
@@ -465,13 +477,15 @@ static int test_post(char *ip)
 
 	kws_destroy(&kws);
 
-	if (tcp_data.sock != KS_SOCK_INVALID) {
-		ks_socket_shutdown(tcp_data.sock, 2);
-		ks_socket_close(&tcp_data.sock);
-	}
-
+	/* Once the server thread runs, ks_listen_sock owns tcp_data.sock and closes it. */
 	if (thread_p) {
+		if (listening) {
+			sockutil_listen_stop(&tcp_data.stop, &addr);
+		}
+
 		ks_thread_join(thread_p);
+	} else if (tcp_data.sock != KS_SOCK_INVALID) {
+		ks_socket_close(&tcp_data.sock);
 	}
 
 	ks_socket_close(&cl_sock);
@@ -489,7 +503,7 @@ static int test_post_json_read_buffer(char *ip)
 	int family = AF_INET;
 	ks_socket_t cl_sock = KS_SOCK_INVALID;
 	struct tcp_data tcp_data = { 0 };
-	int r = 1;
+	int r = 1, listening = 0;
 	kws_t *kws = NULL;
 
 	ks_pool_open(&pool);
@@ -525,6 +539,7 @@ static int test_post_json_read_buffer(char *ip)
 		goto end;
 	}
 
+	listening = 1;
 	ks_addr_set(&addr, ip, sockutil_port(tcp_data.sock), family);
 	cl_sock = ks_socket_connect(SOCK_STREAM, IPPROTO_TCP, &addr);
 
@@ -561,13 +576,15 @@ static int test_post_json_read_buffer(char *ip)
 
 	kws_destroy(&kws);
 
-	if (tcp_data.sock != KS_SOCK_INVALID) {
-		ks_socket_shutdown(tcp_data.sock, 2);
-		ks_socket_close(&tcp_data.sock);
-	}
-
+	/* Once the server thread runs, ks_listen_sock owns tcp_data.sock and closes it. */
 	if (thread_p) {
+		if (listening) {
+			sockutil_listen_stop(&tcp_data.stop, &addr);
+		}
+
 		ks_thread_join(thread_p);
+	} else if (tcp_data.sock != KS_SOCK_INVALID) {
+		ks_socket_close(&tcp_data.sock);
 	}
 
 	ks_socket_close(&cl_sock);
@@ -585,7 +602,7 @@ static int test_keepalive(char *ip)
 	int family = AF_INET;
 	ks_socket_t cl_sock = KS_SOCK_INVALID;
 	struct tcp_data tcp_data = { 0 };
-	int r = 1;
+	int r = 1, listening = 0;
 	kws_t *kws = NULL;
 
 	ks_pool_open(&pool);
@@ -621,6 +638,7 @@ static int test_keepalive(char *ip)
 		goto end;
 	}
 
+	listening = 1;
 	ks_addr_set(&addr, ip, sockutil_port(tcp_data.sock), family);
 	cl_sock = ks_socket_connect(SOCK_STREAM, IPPROTO_TCP, &addr);
 
@@ -682,13 +700,15 @@ static int test_keepalive(char *ip)
 
 	kws_destroy(&kws);
 
-	if (tcp_data.sock != KS_SOCK_INVALID) {
-		ks_socket_shutdown(tcp_data.sock, 2);
-		ks_socket_close(&tcp_data.sock);
-	}
-
+	/* Once the server thread runs, ks_listen_sock owns tcp_data.sock and closes it. */
 	if (thread_p) {
+		if (listening) {
+			sockutil_listen_stop(&tcp_data.stop, &addr);
+		}
+
 		ks_thread_join(thread_p);
+	} else if (tcp_data.sock != KS_SOCK_INVALID) {
+		ks_socket_close(&tcp_data.sock);
 	}
 
 	ks_socket_close(&cl_sock);
@@ -743,6 +763,10 @@ static void uri_sanitize_server_callback(ks_socket_t server_sock, ks_socket_t cl
 	kws_request_t *request = NULL;
 	int flags = KWS_BLOCK | KWS_STAY_OPEN | KWS_HTTP;
 	int keepalive = 0;
+
+	if (sockutil_listen_stopping(&tcp_data->stop, server_sock, client_sock)) {
+		return;
+	}
 
 	if (kws_init(&kws, client_sock, NULL, NULL, flags, tcp_data->pool) != KS_STATUS_SUCCESS) {
 		goto end;
@@ -822,7 +846,7 @@ static int test_uri_sanitize(char *ip)
 	int family = AF_INET;
 	ks_socket_t cl_sock = KS_SOCK_INVALID;
 	struct tcp_data tcp_data = { 0 };
-	int r = 1;
+	int r = 1, listening = 0;
 	int i;
 
 	ks_pool_open(&pool);
@@ -854,6 +878,7 @@ static int test_uri_sanitize(char *ip)
 		goto end;
 	}
 
+	listening = 1;
 	ks_addr_set(&addr, ip, sockutil_port(tcp_data.sock), family);
 	cl_sock = ks_socket_connect(SOCK_STREAM, IPPROTO_TCP, &addr);
 
@@ -927,13 +952,15 @@ static int test_uri_sanitize(char *ip)
 	}
 
 end:
-	if (tcp_data.sock != KS_SOCK_INVALID) {
-		ks_socket_shutdown(tcp_data.sock, 2);
-		ks_socket_close(&tcp_data.sock);
-	}
-
+	/* Once the server thread runs, ks_listen_sock owns tcp_data.sock and closes it. */
 	if (thread_p) {
+		if (listening) {
+			sockutil_listen_stop(&tcp_data.stop, &addr);
+		}
+
 		ks_thread_join(thread_p);
+	} else if (tcp_data.sock != KS_SOCK_INVALID) {
+		ks_socket_close(&tcp_data.sock);
 	}
 
 	ks_socket_close(&cl_sock);
@@ -958,8 +985,8 @@ int main(void)
 
 	ok(have_v4 || have_v6);
 
-	if (have_v4 || have_v6) {
-		ks_gen_cert(".", "testhttp.pem");
+	if ((have_v4 || have_v6) && !sockutil_cert_make("testhttp.pem", cert_path, sizeof(cert_path))) {
+		diag("could not make testhttp.pem");
 	}
 
 	if (have_v4) {
@@ -978,7 +1005,7 @@ int main(void)
 		ok(test_keepalive(v6));
 	}
 
-	unlink("./testhttp.pem");
+	sockutil_cert_remove(cert_path);
 	ks_shutdown();
 
 	done_testing();
