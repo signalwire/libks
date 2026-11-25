@@ -101,7 +101,7 @@ KS_DECLARE(int) ks_json_check_number_is_positive_or_neg_one(ks_json_t* item)
 
 KS_DECLARE(int) ks_json_check_number_is_decimal_between_zero_and_one(ks_json_t* item)
 {
-	return ks_json_type_is_number(item) && (item->valuedouble > 0.0f && item->valueint <= 1.0f);
+	return ks_json_type_is_number(item) && (item->valuedouble >= 0.0f && item->valuedouble <= 1.0f);
 }
 
 KS_DECLARE(int) ks_json_check_number_is_8_bit_unsigned(ks_json_t *item)
