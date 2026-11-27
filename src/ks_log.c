@@ -260,15 +260,27 @@ static void default_logger(const char *file, const char *func, int line, int lev
 
 	if (ks_log_jsonified) {
 		char *data = NULL;
+		ks_json_t *response = NULL;
+
 		ks_vasprintf(&data, fmt, ap);
 		len = strlen(data);
-		if (len > 0) {
+		/* Without the root object the message is skipped: nothing would own its fields. */
+		if (len > 0 && (response = ks_json_create_object())) {
 			char tbuf[256];
-			ks_json_t *response = ks_json_create_object();
+			/* Read the name once, so that the check and the use see the same value. */
+			char const *name = ks_log_json_enclose_name;
 			ks_json_t *json = response;
 
-			if(ks_log_json_enclose_name) {
-				json = ks_json_add_object_to_object(response, ks_log_json_enclose_name);
+			if (name) {
+				json = ks_json_add_object_to_object(response, name);
+
+				/* The root was empty, so an attached object is its first child. One that did not get
+				 * attached is not freed with the root; the message is then written without the
+				 * enclosing object, as best effort. */
+				if (!json || ks_json_enum_child(response) != json) {
+					ks_json_delete(&json);
+					json = response;
+				}
 			}
 		
 			ks_json_add_string_to_object(json, "message", data);
@@ -315,7 +327,7 @@ static void default_logger(const char *file, const char *func, int line, int lev
 			ks_mutex_unlock(g_log_mutex);
 			
 			free(tmp); // cleanup
-			ks_json_delete(&json);
+			ks_json_delete(&response);
 		}
 		if (data) free(data);
 	} else {
